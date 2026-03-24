@@ -2,117 +2,80 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { PRODUCTS } from './constants';
-import { Product } from './types';
-import { fetchProductOverrides, fetchCustomProducts } from './supabase-data';
+import { Product, Category } from './types';
+import { fetchProductOverrides, fetchCustomProducts, ProductOverride, CustomProduct } from './supabase-data';
 
 /**
  * Hook that returns products merged with admin overrides.
  * Reads from Supabase first; falls back to localStorage if Supabase is unavailable.
  */
 export function useProducts(): Product[] {
-  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
-  const [disabledIds, setDisabledIds] = useState<string[]>([]);
-  const [customProducts, setCustomProducts] = useState<Array<{ id: string; name: string; cat: string; price: number; desc: string; image_url?: string | null }>>([]);
-  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useState<ProductOverride[]>([]);
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadFromSupabase() {
+    async function load() {
       try {
-        const [overrides, custom] = await Promise.all([
+        const [ov, cp] = await Promise.all([
           fetchProductOverrides(),
           fetchCustomProducts(),
         ]);
-
-        // If we got data from Supabase, use it
-        if (!cancelled && (overrides.length > 0 || custom.length > 0)) {
-          const names: Record<string, string> = {};
-          const disabled: string[] = [];
-          const imgs: Record<string, string> = {};
-
-          for (const o of overrides) {
-            if (o.name_override) names[o.id] = o.name_override;
-            if (o.disabled) disabled.push(o.id);
-            if (o.image_url) imgs[o.id] = o.image_url;
-          }
-
-          // Custom product images
-          for (const cp of custom) {
-            if (cp.image_url) imgs[cp.id] = cp.image_url;
-          }
-
-          setNameOverrides(names);
-          setDisabledIds(disabled);
-          setImageUrls(imgs);
-          setCustomProducts(custom.map(cp => ({
-            id: cp.id,
-            name: cp.name,
-            cat: cp.category,
-            price: cp.price,
-            desc: cp.description || '',
-            image_url: cp.image_url,
-          })));
+        if (!cancelled) {
+          setOverrides(ov);
+          setCustomProducts(cp);
           setLoaded(true);
-          return;
         }
       } catch (e) {
-        console.error('Supabase load failed, falling back to localStorage:', e);
-      }
-
-      // Fallback to localStorage
-      if (!cancelled) {
-        loadFromLocalStorage();
+        console.error('Supabase load failed:', e);
+        if (!cancelled) setLoaded(true);
       }
     }
 
-    function loadFromLocalStorage() {
-      try {
-        const names = localStorage.getItem('playtime_product_names');
-        if (names) setNameOverrides(JSON.parse(names));
-
-        const disabled = localStorage.getItem('playtime_disabled');
-        if (disabled) setDisabledIds(JSON.parse(disabled));
-
-        const custom = localStorage.getItem('playtime_custom_products');
-        if (custom) setCustomProducts(JSON.parse(custom));
-
-        const imgs = localStorage.getItem('playtime_image_urls');
-        if (imgs) setImageUrls(JSON.parse(imgs));
-      } catch {}
-      setLoaded(true);
-    }
-
-    loadFromSupabase();
+    load();
     return () => { cancelled = true; };
   }, []);
 
   const products = useMemo(() => {
     if (!loaded) return PRODUCTS;
 
-    // Filter out disabled built-in products
-    const active = PRODUCTS.filter(p => !disabledIds.includes(p.id));
+    // Build override map
+    const ovMap = new Map<string, ProductOverride>();
+    for (const o of overrides) ovMap.set(o.id, o);
 
-    // Apply name and image overrides
-    const overridden = active.map(p => ({
-      ...p,
-      name: nameOverrides[p.id] || p.name,
-      image: imageUrls[p.id] || p.image,
-    }));
+    // Filter out disabled built-in products, apply all overrides
+    const builtIn: Product[] = PRODUCTS
+      .filter(p => {
+        const ov = ovMap.get(p.id);
+        return !ov?.disabled;
+      })
+      .map(p => {
+        const ov = ovMap.get(p.id);
+        if (!ov) return p;
+        return {
+          ...p,
+          name: ov.name_override || p.name,
+          price: ov.price_override ?? p.price,
+          description: ov.description_override ?? p.description,
+          category: (ov.category_override as Category) || p.category,
+          image: ov.image_url || p.image,
+        };
+      });
 
     // Add custom products
     const custom: Product[] = customProducts.map(cp => ({
       id: cp.id,
       name: cp.name,
-      category: cp.cat as Product['category'],
-      description: cp.desc || '',
+      category: cp.category as Category,
+      description: cp.description || '',
       price: cp.price,
-      image: imageUrls[cp.id] || cp.image_url || undefined,
+      image: cp.image_url || undefined,
     }));
 
-    return [...overridden, ...custom];
-  }, [loaded, nameOverrides, disabledIds, customProducts, imageUrls]);
+    return [...builtIn, ...custom];
+  }, [loaded, overrides, customProducts]);
 
   return products;
 }

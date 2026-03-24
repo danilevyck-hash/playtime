@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { PRODUCTS } from '@/lib/constants';
+import { useProducts } from '@/lib/useProducts';
 import { CATEGORY_ICONS, Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
@@ -11,7 +11,8 @@ import ProductModal from '@/components/catalog/ProductModal';
 
 export default function FeaturedProducts() {
   const { addItem } = useCart();
-  const featured = PRODUCTS.filter((p) => p.featured).slice(0, 6);
+  const products = useProducts();
+  const featured = products.filter((p) => p.featured).slice(0, 6);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (

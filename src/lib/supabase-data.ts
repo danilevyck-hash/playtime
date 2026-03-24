@@ -4,6 +4,9 @@ import { supabase } from './supabase';
 export interface ProductOverride {
   id: string;
   name_override: string | null;
+  price_override: number | null;
+  description_override: string | null;
+  category_override: string | null;
   disabled: boolean;
   image_url: string | null;
 }
