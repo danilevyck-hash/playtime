@@ -3,13 +3,15 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { PRODUCTS, CATEGORIES } from '@/lib/constants';
+import { CATEGORIES } from '@/lib/constants';
+import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
 
 export default function CategoryPage() {
+  const products = useProducts();
   const params = useParams();
   const categoryId = params.category as Category;
   const categoryInfo = CATEGORIES.find((c) => c.id === categoryId);
@@ -17,7 +19,7 @@ export default function CategoryPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filtered = useMemo(() => {
-    return PRODUCTS.filter((p) => {
+    return products.filter((p) => {
       const matchCategory = p.category === categoryId;
       const matchSearch =
         search === '' ||

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { PRODUCTS } from '@/lib/constants';
+import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
 import CategoryFilter from '@/components/catalog/CategoryFilter';
 import SearchBar from '@/components/catalog/SearchBar';
@@ -9,12 +9,13 @@ import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
 
 export default function CatalogoPage() {
+  const products = useProducts();
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filtered = useMemo(() => {
-    return PRODUCTS.filter((p) => {
+    return products.filter((p) => {
       const matchCategory = category === 'all' || p.category === category;
       const matchSearch =
         search === '' ||
