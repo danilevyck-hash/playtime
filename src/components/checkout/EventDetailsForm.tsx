@@ -61,25 +61,25 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4">
+    <div className="bg-white rounded-xl border border-gray-100 p-3">
       {/* Month navigation */}
-      <div className="flex items-center justify-between mb-4">
-        <button type="button" onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+      <div className="flex items-center justify-between mb-2">
+        <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <span className="font-heading font-bold text-purple">{MONTHS[viewMonth]} {viewYear}</span>
-        <button type="button" onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+        <span className="font-heading font-bold text-sm text-purple">{MONTHS[viewMonth]} {viewYear}</span>
+        <button type="button" onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {DAYS.map(d => <div key={d} className="text-center text-xs font-heading font-semibold text-gray-400">{d}</div>)}
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
+        {DAYS.map(d => <div key={d} className="text-center text-[10px] font-heading font-semibold text-gray-400">{d}</div>)}
       </div>
 
       {/* Days grid */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
@@ -92,7 +92,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
               type="button"
               disabled={past}
               onClick={() => selectDay(day)}
-              className={`w-9 h-9 rounded-full text-sm font-body flex items-center justify-center transition-all mx-auto
+              className={`w-8 h-8 rounded-full text-xs font-body flex items-center justify-center transition-all mx-auto
                 ${sel ? 'bg-purple text-white font-bold' : ''}
                 ${td && !sel ? 'border-2 border-teal text-teal font-semibold' : ''}
                 ${past ? 'text-gray-200 cursor-not-allowed' : ''}
@@ -137,19 +137,18 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4">
-      <p className="font-heading font-semibold text-sm text-gray-600 mb-3">Hora del evento</p>
-      <div className="flex gap-3">
+    <div className="bg-white rounded-xl border border-gray-100 p-3">
+      <div className="flex gap-2">
         {/* Hours */}
         <div className="flex-1">
-          <p className="text-xs font-heading text-gray-400 mb-2 text-center">Hora</p>
-          <div className="h-40 overflow-y-auto rounded-xl bg-gray-50 scrollbar-hide">
+          <p className="text-[10px] font-heading text-gray-400 mb-1 text-center">Hora</p>
+          <div className="h-32 overflow-y-auto rounded-lg bg-gray-50 scrollbar-hide">
             {hours.map(h => (
               <button
                 key={h}
                 type="button"
                 onClick={() => handleSelect(h, selectedMin)}
-                className={`w-full py-2 text-center text-sm font-body transition-colors ${
+                className={`w-full py-1.5 text-center text-xs font-body transition-colors ${
                   selectedHour === h ? 'bg-purple text-white font-bold' : 'text-gray-600 hover:bg-purple/10'
                 }`}
               >
@@ -159,15 +158,15 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
           </div>
         </div>
         {/* Minutes */}
-        <div className="w-20">
-          <p className="text-xs font-heading text-gray-400 mb-2 text-center">Min</p>
-          <div className="h-40 overflow-y-auto rounded-xl bg-gray-50 scrollbar-hide">
+        <div className="w-16">
+          <p className="text-[10px] font-heading text-gray-400 mb-1 text-center">Min</p>
+          <div className="rounded-lg bg-gray-50">
             {minutes.map(m => (
               <button
                 key={m}
                 type="button"
                 onClick={() => handleSelect(selectedHour, m)}
-                className={`w-full py-2 text-center text-sm font-body transition-colors ${
+                className={`w-full py-1.5 text-center text-xs font-body transition-colors ${
                   selectedMin === m ? 'bg-purple text-white font-bold' : 'text-gray-600 hover:bg-purple/10'
                 }`}
               >
@@ -177,11 +176,6 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
           </div>
         </div>
       </div>
-      {value && (
-        <p className="text-center mt-3 font-heading font-bold text-purple">
-          {formatHour(selectedHour).replace(' ', ':')}:{selectedMin} {selectedHour < 12 ? 'AM' : 'PM'}
-        </p>
-      )}
     </div>
   );
 }
@@ -215,14 +209,17 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack }: Pro
         </div>
       )}
 
-      {/* Date picker */}
-      <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">Fecha del evento</label>
-        <DatePicker value={data.date} onChange={(v) => onChange({ ...data, date: v })} />
+      {/* Date + Time side by side */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+        <div>
+          <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Fecha</label>
+          <DatePicker value={data.date} onChange={(v) => onChange({ ...data, date: v })} />
+        </div>
+        <div>
+          <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Hora</label>
+          <TimePicker value={data.time} onChange={(v) => onChange({ ...data, time: v })} />
+        </div>
       </div>
-
-      {/* Time picker */}
-      <TimePicker value={data.time} onChange={(v) => onChange({ ...data, time: v })} />
 
       {/* Area */}
       <div>

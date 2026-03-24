@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { OrderCustomer } from '@/lib/types';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -20,7 +21,8 @@ interface Props {
 }
 
 export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
-  // Extract country code and local number
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const getCountryCode = () => {
     for (const cc of COUNTRY_CODES) {
       if (data.phone.startsWith(cc.code)) return cc.code;
@@ -37,27 +39,29 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
   const localNumber = getLocalNumber();
 
   const handlePhoneChange = (code: string, number: string) => {
-    // Remove non-digits from local number
     const clean = number.replace(/\D/g, '');
     onChange({ ...data, phone: `${code}${clean}` });
+    if (clean.length >= 7) setErrors(prev => { const n = { ...prev }; delete n.phone; return n; });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data.name.trim()) return;
-    if (localNumber.length < 7) return;
-    onNext();
+    const errs: Record<string, string> = {};
+    if (!data.name.trim()) errs.name = 'Necesitamos tu nombre para la reserva';
+    if (localNumber.length < 7) errs.phone = 'Ingresa tu número de celular';
+    setErrors(errs);
+    if (Object.keys(errs).length === 0) onNext();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
       <h2 className="font-heading font-bold text-xl text-purple mb-4">Tus Datos</h2>
       <Input
         label="Nombre completo"
         value={data.name}
-        onChange={(e) => onChange({ ...data, name: e.target.value })}
-        required
+        onChange={(e) => { onChange({ ...data, name: e.target.value }); if (e.target.value.trim()) setErrors(prev => { const n = { ...prev }; delete n.name; return n; }); }}
         placeholder="María García"
+        error={errors.name}
       />
 
       {/* Phone with country code */}
@@ -79,11 +83,15 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
             type="tel"
             value={localNumber}
             onChange={(e) => handlePhoneChange(countryCode, e.target.value)}
-            required
             placeholder="6XXX-XXXX"
-            className="flex-1 border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none"
+            className={`flex-1 border-2 rounded-xl py-2.5 px-3 font-body text-sm focus:outline-none transition-colors ${errors.phone ? 'border-pink focus:border-pink' : 'border-gray-200 focus:border-purple'}`}
           />
         </div>
+        {errors.phone && (
+          <span className="text-xs text-pink font-body mt-1 flex items-center gap-1">
+            <span>*</span> {errors.phone}
+          </span>
+        )}
       </div>
 
       <Input
