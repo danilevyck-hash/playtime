@@ -10,7 +10,6 @@ import MobileMenu from './MobileMenu';
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
   { href: '/catalogo', label: 'Catálogo' },
-  { href: '/carrito', label: 'Carrito' },
 ];
 
 export default function Navbar() {

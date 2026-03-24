@@ -15,7 +15,8 @@ export function buildWhatsAppOrderMessage(params: {
   surcharge: number;
   total: number;
   paymentMethod: string;
-  transportCost?: number; // -1 = por confirmar
+  transportCost?: number;
+  pdfUrl?: string;
 }): string {
   const itemLines = params.items
     .map((item) => `  • ${item.name} x${item.quantity} — ${formatCurrency(item.unitPrice * item.quantity)}`)
@@ -33,7 +34,7 @@ export function buildWhatsAppOrderMessage(params: {
         : ''
     : '';
 
-  return [
+  const lines = [
     `🎉 *Nuevo Pedido #${params.orderNumber}*`,
     '',
     `*Cliente:* ${params.customerName}`,
@@ -50,7 +51,13 @@ export function buildWhatsAppOrderMessage(params: {
     params.surcharge > 0 ? `*Recargo tarjeta (5%):* ${formatCurrency(params.surcharge)}` : '',
     `*Total:* ${formatCurrency(params.total)}`,
     `*Método de Pago:* ${paymentLabel}`,
-  ].filter(Boolean).join('\n');
+  ];
+
+  if (params.pdfUrl) {
+    lines.push('', `📄 *Ver PDF del pedido:* ${params.pdfUrl}`);
+  }
+
+  return lines.filter(Boolean).join('\n');
 }
 
 export function getWhatsAppUrl(message: string): string {

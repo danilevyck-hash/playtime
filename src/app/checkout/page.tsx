@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS } from '@/lib/types';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
-import { downloadOrderPDF } from '@/lib/pdf-order';
+import { generateOrderPDF } from '@/lib/pdf-order';
+import { createClient } from '@supabase/supabase-js';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
 import EventDetailsForm from '@/components/checkout/EventDetailsForm';
@@ -86,8 +87,8 @@ export default function CheckoutPage() {
         // Supabase not configured, continue with WhatsApp only
       }
 
-      // Generate and download PDF receipt
-      downloadOrderPDF({
+      // Generate PDF and upload to Supabase Storage
+      const pdfDoc = generateOrderPDF({
         orderNumber,
         customer,
         event,
@@ -99,7 +100,26 @@ export default function CheckoutPage() {
         paymentMethod,
       });
 
-      // Open WhatsApp with order summary
+      let pdfUrl = '';
+      try {
+        const pdfBlob = pdfDoc.output('blob');
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseKey) {
+          const sb = createClient(supabaseUrl, supabaseKey);
+          const fileName = `pedidos/PlayTime-Pedido-${orderNumber}.pdf`;
+          await sb.storage.from('playtime-images').upload(fileName, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+          const { data: urlData } = sb.storage.from('playtime-images').getPublicUrl(fileName);
+          pdfUrl = urlData.publicUrl;
+        }
+      } catch {
+        // If upload fails, continue without PDF link
+      }
+
+      // Open WhatsApp with order summary + PDF link
       const message = buildWhatsAppOrderMessage({
         orderNumber,
         customerName: customer.name,
@@ -113,6 +133,7 @@ export default function CheckoutPage() {
         total,
         paymentMethod,
         transportCost: isTransportPending ? -1 : transportCost,
+        pdfUrl,
       });
 
       window.open(getWhatsAppUrl(message), '_blank');
