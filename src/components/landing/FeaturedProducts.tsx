@@ -1,15 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { PRODUCTS } from '@/lib/constants';
-import { CATEGORY_ICONS } from '@/lib/types';
+import { CATEGORY_ICONS, Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import Button from '@/components/ui/Button';
+import ProductModal from '@/components/catalog/ProductModal';
 
 export default function FeaturedProducts() {
   const { addItem } = useCart();
   const featured = PRODUCTS.filter((p) => p.featured).slice(0, 6);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (
     <section className="bg-white py-16 md:py-24">
@@ -29,14 +32,17 @@ export default function FeaturedProducts() {
               key={product.id}
               className="bg-cream rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-shadow flex flex-col"
             >
-              {/* Image */}
-              <div className="relative aspect-[4/3] bg-gray-100">
+              {/* Image - clickable */}
+              <button
+                onClick={() => setSelectedProduct(product)}
+                className="relative aspect-[4/3] bg-gray-100 cursor-pointer group"
+              >
                 {product.image ? (
                   <Image
                     src={product.image}
                     alt={product.name}
                     fill
-                    className="object-cover"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
                 ) : (
@@ -44,14 +50,22 @@ export default function FeaturedProducts() {
                     <span className="text-5xl">{CATEGORY_ICONS[product.category]}</span>
                   </div>
                 )}
-              </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur rounded-full px-4 py-2 font-heading font-semibold text-sm text-purple shadow-lg">
+                    Ver detalles
+                  </span>
+                </div>
+              </button>
 
               {/* Content */}
               <div className="p-5 flex flex-col flex-1">
                 <div className="text-xs font-heading font-semibold text-teal uppercase tracking-wider mb-2">
                   {product.category === 'planes' ? 'Plan' : product.category}
                 </div>
-                <h3 className="font-heading font-bold text-lg text-gray-800 mb-1 line-clamp-2">
+                <h3
+                  className="font-heading font-bold text-lg text-gray-800 mb-1 line-clamp-2 cursor-pointer hover:text-purple transition-colors"
+                  onClick={() => setSelectedProduct(product)}
+                >
                   {product.name}
                 </h3>
                 <p className="font-body text-sm text-gray-400 mb-4 leading-relaxed line-clamp-2">
@@ -80,6 +94,8 @@ export default function FeaturedProducts() {
           ))}
         </div>
       </div>
+
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
     </section>
   );
 }

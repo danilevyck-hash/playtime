@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Quicksand, Nunito, Pacifico } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import WhatsAppButton from "@/components/ui/WhatsAppButton";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
 const quicksand = Quicksand({
@@ -23,9 +25,21 @@ const pacifico = Pacifico({
   weight: "400",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#580459",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "PlayTime - Creando Momentos",
   description: "Alquiler de fiestas infantiles en Panamá. Trampolines, animación, decoración y más para hacer tu evento inolvidable.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "PlayTime",
+  },
 };
 
 export default function RootLayout({
@@ -35,6 +49,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+      </head>
       <body
         className={`${quicksand.variable} ${nunito.variable} ${pacifico.variable} font-body antialiased`}
       >
@@ -42,7 +59,9 @@ export default function RootLayout({
           <Navbar />
           <main className="min-h-screen">{children}</main>
           <Footer />
+          <WhatsAppButton />
         </CartProvider>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

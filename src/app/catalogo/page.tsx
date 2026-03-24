@@ -2,14 +2,16 @@
 
 import { useState, useMemo } from 'react';
 import { PRODUCTS } from '@/lib/constants';
-import { Category } from '@/lib/types';
+import { Category, Product } from '@/lib/types';
 import CategoryFilter from '@/components/catalog/CategoryFilter';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
+import ProductModal from '@/components/catalog/ProductModal';
 
 export default function CatalogoPage() {
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filtered = useMemo(() => {
     return PRODUCTS.filter((p) => {
@@ -46,10 +48,12 @@ export default function CatalogoPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
           ))}
         </div>
       )}
+
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
     </div>
   );
 }

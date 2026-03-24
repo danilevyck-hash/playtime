@@ -9,22 +9,26 @@ import Button from '@/components/ui/Button';
 
 interface ProductCardProps {
   product: Product;
+  onSelect: (product: Product) => void;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, onSelect }: ProductCardProps) {
   const { addItem, items } = useCart();
   const inCart = items.find((i) => i.productId === product.id);
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
-      {/* Image */}
-      <div className="relative aspect-[4/3] bg-gray-100">
+      {/* Image - clickable to open modal */}
+      <button
+        onClick={() => onSelect(product)}
+        className="relative aspect-[4/3] bg-gray-100 cursor-pointer group"
+      >
         {product.image ? (
           <Image
             src={product.image}
             alt={product.name}
             fill
-            className="object-cover"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
@@ -32,11 +36,20 @@ export default function ProductCard({ product }: ProductCardProps) {
             <span className="text-5xl">{CATEGORY_ICONS[product.category]}</span>
           </div>
         )}
-      </div>
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur rounded-full px-4 py-2 font-heading font-semibold text-sm text-purple shadow-lg">
+            Ver detalles
+          </span>
+        </div>
+      </button>
 
       {/* Content */}
       <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-heading font-bold text-base text-gray-800 mb-1 line-clamp-2">
+        <h3
+          className="font-heading font-bold text-base text-gray-800 mb-1 line-clamp-2 cursor-pointer hover:text-purple transition-colors"
+          onClick={() => onSelect(product)}
+        >
           {product.name}
         </h3>
         <p className="font-body text-sm text-gray-400 leading-relaxed mb-3 line-clamp-2">

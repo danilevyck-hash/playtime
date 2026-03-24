@@ -62,3 +62,56 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    // Simple PIN auth via header
+    const pin = request.headers.get('x-admin-pin');
+    if (pin !== '2588') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!supabase) {
+      return NextResponse.json({ orders: [], message: 'Supabase not configured' });
+    }
+
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('Orders fetch error:', error);
+      return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+    }
+
+    // Fetch items for each order
+    const orderIds = (orders || []).map((o: { id: number }) => o.id);
+    const allItems: Record<number, Array<{ product_name: string; quantity: number; unit_price: number; line_total: number }>> = {};
+
+    if (orderIds.length > 0) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', orderIds);
+
+      if (items) {
+        for (const item of items) {
+          if (!allItems[item.order_id]) allItems[item.order_id] = [];
+          allItems[item.order_id].push(item);
+        }
+      }
+    }
+
+    const enriched = (orders || []).map((o: { id: number }) => ({
+      ...o,
+      items: allItems[o.id] || [],
+    }));
+
+    return NextResponse.json({ orders: enriched });
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -4,15 +4,17 @@ import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
-import { Category } from '@/lib/types';
+import { Category, Product } from '@/lib/types';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
+import ProductModal from '@/components/catalog/ProductModal';
 
 export default function CategoryPage() {
   const params = useParams();
   const categoryId = params.category as Category;
   const categoryInfo = CATEGORIES.find((c) => c.id === categoryId);
   const [search, setSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filtered = useMemo(() => {
     return PRODUCTS.filter((p) => {
@@ -54,9 +56,11 @@ export default function CategoryPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map((product) => (
-          <ProductCard key={product.id} product={product} />
+          <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
         ))}
       </div>
+
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
     </div>
   );
 }
