@@ -27,7 +27,7 @@ export default function CategoryPage() {
         p.description.toLowerCase().includes(search.toLowerCase());
       return matchCategory && matchSearch;
     });
-  }, [categoryId, search]);
+  }, [products, categoryId, search]);
 
   if (!categoryInfo) {
     return (

@@ -23,7 +23,7 @@ export default function CatalogoPage() {
         p.description.toLowerCase().includes(search.toLowerCase());
       return matchCategory && matchSearch;
     });
-  }, [category, search]);
+  }, [products, category, search]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">

@@ -143,7 +143,6 @@ function OrdersTab() {
   const [error, setError] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
-  const [showSummary, setShowSummary] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -211,22 +210,78 @@ function OrdersTab() {
       });
   }, [orders]);
 
+  const totalOrders = orders.length;
+  const confirmedOrders = orders.filter(o => o.confirmed).length;
+  const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+  const confirmedRevenue = orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0);
+
   return (
     <div>
+      {/* Dashboard cards */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4">
+          <p className="font-heading font-bold text-2xl text-purple">{totalOrders}</p>
+          <p className="font-body text-xs text-gray-400 mt-1">Total Pedidos</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-4">
+          <div className="flex items-center gap-2">
+            <p className="font-heading font-bold text-2xl text-teal">{confirmedOrders}</p>
+            <span className="text-[10px] font-heading font-semibold px-1.5 py-0.5 rounded-full bg-teal/10 text-teal">{totalOrders > 0 ? `${((confirmedOrders / totalOrders) * 100).toFixed(0)}%` : '0%'}</span>
+          </div>
+          <p className="font-body text-xs text-gray-400 mt-1">Confirmados</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-4">
+          <p className="font-heading font-bold text-2xl text-purple">{formatCurrency(totalRevenue)}</p>
+          <p className="font-body text-xs text-gray-400 mt-1">Ingresos Totales</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-4">
+          <p className="font-heading font-bold text-2xl text-teal">{formatCurrency(confirmedRevenue)}</p>
+          <p className="font-body text-xs text-gray-400 mt-1">Ingresos Confirmados</p>
+        </div>
+      </div>
+
+      {/* Monthly Summary */}
+      {monthlySummary.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6 shadow-sm">
+          <h3 className="font-heading font-bold text-purple mb-3">Resumen por Mes</h3>
+          <div className="space-y-2">
+            {monthlySummary.map((m) => (
+              <div key={m.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <div>
+                  <span className="font-heading font-bold text-gray-800">{m.label}</span>
+                  <span className="text-gray-400 text-xs ml-2 font-body">{m.count} pedidos</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">
+                    {m.count > 0 ? `${((m.confirmedCount / m.count) * 100).toFixed(0)}%` : '0%'}
+                  </span>
+                  <div className="text-right">
+                    <p className="font-heading font-bold text-purple">{formatCurrency(m.total)}</p>
+                    <p className="text-xs font-body text-teal">
+                      Confirmados: {formatCurrency(m.confirmed)} ({m.confirmedCount})
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {/* Grand total */}
+            <div className="flex items-center justify-between pt-3 border-t-2 border-purple/20">
+              <span className="font-heading font-bold text-purple">Total</span>
+              <div className="text-right">
+                <p className="font-heading font-bold text-lg text-purple">{formatCurrency(totalRevenue)}</p>
+                <p className="text-xs font-body text-teal">Confirmados: {formatCurrency(confirmedRevenue)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <p className="font-body text-gray-500 text-sm">{filteredOrders.length} pedido{filteredOrders.length !== 1 ? 's' : ''}</p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowSummary(!showSummary)}
-            className="bg-teal/10 text-teal font-heading font-semibold px-4 py-2 rounded-xl hover:bg-teal/20 transition-colors text-sm"
-          >
-            {showSummary ? 'Ocultar' : '📊 Resumen'}
-          </button>
-          <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
-            {loading ? 'Cargando...' : 'Actualizar'}
-          </button>
-        </div>
+        <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
+          {loading ? 'Cargando...' : 'Actualizar'}
+        </button>
       </div>
 
       {/* Search */}
@@ -245,41 +300,6 @@ function OrdersTab() {
           </button>
         )}
       </div>
-
-      {/* Monthly Summary */}
-      {showSummary && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6 shadow-sm">
-          <h3 className="font-heading font-bold text-purple mb-3">Resumen de Ventas por Mes</h3>
-          {monthlySummary.length === 0 ? (
-            <p className="font-body text-gray-400 text-sm">No hay datos</p>
-          ) : (
-            <div className="space-y-2">
-              {monthlySummary.map((m) => (
-                <div key={m.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                  <div>
-                    <span className="font-heading font-bold text-gray-800">{m.label}</span>
-                    <span className="text-gray-400 text-xs ml-2 font-body">{m.count} pedidos</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-heading font-bold text-purple">{formatCurrency(m.total)}</p>
-                    <p className="text-xs font-body text-teal">
-                      Confirmados: {formatCurrency(m.confirmed)} ({m.confirmedCount})
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {/* Grand total */}
-              <div className="flex items-center justify-between pt-3 border-t-2 border-purple/20">
-                <span className="font-heading font-bold text-purple">Total</span>
-                <div className="text-right">
-                  <p className="font-heading font-bold text-lg text-purple">{formatCurrency(monthlySummary.reduce((s, m) => s + m.total, 0))}</p>
-                  <p className="text-xs font-body text-teal">Confirmados: {formatCurrency(monthlySummary.reduce((s, m) => s + m.confirmed, 0))}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {error && <div className="bg-yellow/20 border border-yellow rounded-xl p-4 mb-6"><p className="font-body text-sm text-gray-700">{error}</p></div>}
 
@@ -392,6 +412,7 @@ function ProductsTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
+  const [imageKeys, setImageKeys] = useState<Record<string, number>>({});
 
   const flash = (msg: string) => { setMessage(msg); setTimeout(() => setMessage(''), 2000); };
 
@@ -451,6 +472,7 @@ function ProductsTab() {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
         setProducts(prev => prev.map(p => p.id === productId ? { ...p, imgUrl: newUrl } : p));
+        setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
 
         const product = products.find(p => p.id === productId);
         if (product?.custom) {
@@ -584,7 +606,7 @@ function ProductsTab() {
                 {/* Image */}
                 <label className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer relative group">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img key={imgSrc} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <img key={`${product.id}-${imageKeys[product.id] || 0}`} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   </div>
