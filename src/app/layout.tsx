@@ -32,8 +32,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PlayTime - Creando Momentos",
-  description: "Alquiler de fiestas infantiles en Panamá. Trampolines, animación, decoración y más para hacer tu evento inolvidable.",
+  title: {
+    default: "PlayTime - Creando Momentos",
+    template: "%s | PlayTime Panam\u00e1",
+  },
+  description: "Fiestas infantiles en Panam\u00e1. Animaci\u00f3n, alquiler de equipos y manualidades para cumplea\u00f1os y eventos. \u00a1Todo hasta tu puerta!",
+  openGraph: {
+    images: ["/images/logo.png"],
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
