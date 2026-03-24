@@ -190,141 +190,215 @@ function OrdersTab() {
   );
 }
 
-// ─── PRODUCTS TAB (Images + Names) ───
+// ─── PRODUCTS TAB ───
+const ALL_CATEGORIES = ['planes', 'belleza', 'entretenimiento', 'snacks', 'gymboree', 'inflables', 'piscinas', 'alquiler', 'servicios', 'manualidades'];
+
+interface AdminProduct { id: string; name: string; cat: string; price: number; desc: string; active: boolean; custom?: boolean }
+
+function getStoredProducts(): { disabled: string[]; custom: AdminProduct[] } {
+  try {
+    const d = localStorage.getItem('playtime_disabled');
+    const c = localStorage.getItem('playtime_custom_products');
+    return { disabled: d ? JSON.parse(d) : [], custom: c ? JSON.parse(c) : [] };
+  } catch { return { disabled: [], custom: [] }; }
+}
+
 function ProductsTab() {
-  const [uploading, setUploading] = useState('');
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
+  const [disabledIds, setDisabledIds] = useState<string[]>([]);
+  const [customProducts, setCustomProducts] = useState<AdminProduct[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('playtime_product_names');
-      if (saved) setNameOverrides(JSON.parse(saved));
+      const names = localStorage.getItem('playtime_product_names');
+      if (names) setNameOverrides(JSON.parse(names));
     } catch {}
+    const stored = getStoredProducts();
+    setDisabledIds(stored.disabled);
+    setCustomProducts(stored.custom);
   }, []);
-
-  const handleUpload = async (productId: string, file: File) => {
-    setUploading(productId);
-    setMessage('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('productId', productId);
-      formData.append('folder', 'products');
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'x-admin-pin': '2588' },
-        body: formData,
-      });
-      if (res.ok) {
-        setMessage('Imagen actualizada');
-      } else {
-        setMessage('Error al subir imagen');
-      }
-    } catch {
-      setMessage('Error de conexión');
-    } finally {
-      setUploading('');
-    }
-  };
 
   const handleSaveName = (productId: string) => {
     const updated = { ...nameOverrides, [productId]: editName };
     setNameOverrides(updated);
     localStorage.setItem('playtime_product_names', JSON.stringify(updated));
     setEditingId(null);
-    setMessage('Nombre guardado');
-    setTimeout(() => setMessage(''), 2000);
+    flash('Nombre guardado');
   };
 
-  const allProducts = [
-    { id: 'plan-1', name: 'Plan #1 - Completo', cat: 'planes' },
-    { id: 'plan-2', name: 'Plan #2 - Show + Equipos', cat: 'planes' },
-    { id: 'plan-3', name: 'Plan #3 - Show + Arte', cat: 'planes' },
-    { id: 'plan-4', name: 'Plan #4 - Show de Títeres', cat: 'planes' },
-    { id: 'plan-5', name: 'Plan #5 - Animación', cat: 'planes' },
-    { id: 'plan-5-personaje', name: 'Plan #5 Extra - Personaje', cat: 'planes' },
-    { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes' },
-    { id: 'plan-6-makeup', name: 'Plan #6 - Makeup', cat: 'belleza' },
-    { id: 'plan-7-manicure', name: 'Plan #7 - Manicure', cat: 'belleza' },
-    { id: 'plan-9-hair', name: 'Plan #9 - Hair Glamour', cat: 'belleza' },
-    { id: 'plan-10-spa', name: 'Plan #10 - Spa', cat: 'belleza' },
-    { id: 'plan-11-princess', name: 'Plan #11 - Princess', cat: 'belleza' },
-    { id: 'show-titeres', name: 'Show de Títeres', cat: 'entretenimiento' },
-    { id: 'animacion', name: 'Animación', cat: 'entretenimiento' },
-    { id: 'personaje-animacion', name: 'Personaje con Animación', cat: 'entretenimiento' },
-    { id: 'personaje-fotos', name: 'Personaje Fotos', cat: 'entretenimiento' },
-    { id: 'algodon-azucar', name: 'Algodón de Azúcar', cat: 'snacks' },
-    { id: 'raspado', name: 'Raspado', cat: 'snacks' },
-    { id: 'popcorn', name: 'Pop Corn', cat: 'snacks' },
-    { id: 'slushy', name: 'Slushy', cat: 'snacks' },
-    { id: 'algodon-automatico', name: 'Algodón Automático', cat: 'snacks' },
-    { id: 'gymboree-blanco-grande', name: 'Gymboree Blanco Grande', cat: 'gymboree' },
-    { id: 'gymboree-blanco-chico', name: 'Gymboree Blanco Chico', cat: 'gymboree' },
-    { id: 'gymboree-rosado-grande', name: 'Gymboree Rosado Grande', cat: 'gymboree' },
-    { id: 'gymboree-rosado-chico', name: 'Gymboree Rosado Chico', cat: 'gymboree' },
-    { id: 'gymboree-nina-mixto', name: 'Gymboree Niña Mixto', cat: 'gymboree' },
-    { id: 'bubble-house', name: 'Bubble House', cat: 'inflables' },
-    { id: 'bounce-house-blanco', name: 'Bounce House', cat: 'inflables' },
-    { id: 'inflable-grande-1', name: 'Inflable Grande Tobogán', cat: 'inflables' },
-    { id: 'inflable-mediano', name: 'Inflable Mediano', cat: 'inflables' },
-    { id: 'inflable-grande-2', name: 'Inflable Grande', cat: 'inflables' },
-    { id: 'inflable-chico', name: 'Inflable Pequeño', cat: 'inflables' },
-    { id: 'inflable-mini-1', name: 'Inflable Mini', cat: 'inflables' },
-    { id: 'piscina-cuadrada-blanca', name: 'Piscina Cuadrada', cat: 'piscinas' },
-    { id: 'piscina-colores-60', name: 'Piscina Colores', cat: 'piscinas' },
-    { id: 'piscina-redonda-grande', name: 'Piscina Redonda Grande', cat: 'piscinas' },
-    { id: 'piscina-redonda-chica', name: 'Piscina Redonda Pequeña', cat: 'piscinas' },
-    { id: 'piscina-peces', name: 'Piscina de Peces', cat: 'piscinas' },
-    { id: 'bumper-cars', name: 'Bumper Cars', cat: 'alquiler' },
-    { id: 'racing-cars', name: 'Racing Cars', cat: 'alquiler' },
-    { id: 'mini-parque', name: 'Mini Parque', cat: 'alquiler' },
-    { id: 'surraderos-arco', name: 'Surraderos y Arco', cat: 'alquiler' },
+  const toggleDisabled = (productId: string) => {
+    const updated = disabledIds.includes(productId)
+      ? disabledIds.filter(id => id !== productId)
+      : [...disabledIds, productId];
+    setDisabledIds(updated);
+    localStorage.setItem('playtime_disabled', JSON.stringify(updated));
+    flash(disabledIds.includes(productId) ? 'Producto activado' : 'Producto desactivado');
+  };
+
+  const handleAddProduct = () => {
+    if (!newProduct.name.trim()) return;
+    const id = `custom-${Date.now()}`;
+    const product: AdminProduct = {
+      id,
+      name: newProduct.name,
+      cat: newProduct.cat,
+      price: Number(newProduct.price) || 0,
+      desc: newProduct.desc,
+      active: true,
+      custom: true,
+    };
+    const updated = [...customProducts, product];
+    setCustomProducts(updated);
+    localStorage.setItem('playtime_custom_products', JSON.stringify(updated));
+    setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
+    setShowAdd(false);
+    flash('Producto agregado');
+  };
+
+  const removeCustomProduct = (id: string) => {
+    const updated = customProducts.filter(p => p.id !== id);
+    setCustomProducts(updated);
+    localStorage.setItem('playtime_custom_products', JSON.stringify(updated));
+    flash('Producto eliminado');
+  };
+
+  const flash = (msg: string) => { setMessage(msg); setTimeout(() => setMessage(''), 2000); };
+
+  const builtInProducts: AdminProduct[] = [
+    { id: 'plan-1', name: 'Plan #1 - Completo', cat: 'planes', price: 500, desc: '', active: true },
+    { id: 'plan-2', name: 'Plan #2 - Show + Equipos', cat: 'planes', price: 380, desc: '', active: true },
+    { id: 'plan-3', name: 'Plan #3 - Show + Arte', cat: 'planes', price: 260, desc: '', active: true },
+    { id: 'plan-4', name: 'Plan #4 - Show de Títeres', cat: 'planes', price: 225, desc: '', active: true },
+    { id: 'plan-5', name: 'Plan #5 - Animación', cat: 'planes', price: 250, desc: '', active: true },
+    { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes', price: 450, desc: '', active: true },
+    { id: 'plan-6-makeup', name: 'Plan #6 - Makeup', cat: 'belleza', price: 120, desc: '', active: true },
+    { id: 'plan-7-manicure', name: 'Plan #7 - Manicure', cat: 'belleza', price: 100, desc: '', active: true },
+    { id: 'plan-9-hair', name: 'Plan #9 - Hair Glamour', cat: 'belleza', price: 140, desc: '', active: true },
+    { id: 'plan-10-spa', name: 'Plan #10 - Spa', cat: 'belleza', price: 400, desc: '', active: true },
+    { id: 'plan-11-princess', name: 'Plan #11 - Princess', cat: 'belleza', price: 700, desc: '', active: true },
+    { id: 'show-titeres', name: 'Show de Títeres', cat: 'entretenimiento', price: 225, desc: '', active: true },
+    { id: 'animacion', name: 'Animación 1 Hora', cat: 'entretenimiento', price: 250, desc: '', active: true },
+    { id: 'personaje-animacion', name: 'Personaje con Animación', cat: 'entretenimiento', price: 380, desc: '', active: true },
+    { id: 'algodon-azucar', name: 'Algodón de Azúcar', cat: 'snacks', price: 100, desc: '', active: true },
+    { id: 'raspado', name: 'Raspado', cat: 'snacks', price: 130, desc: '', active: true },
+    { id: 'popcorn', name: 'Pop Corn', cat: 'snacks', price: 100, desc: '', active: true },
+    { id: 'slushy', name: 'Slushy', cat: 'snacks', price: 130, desc: '', active: true },
+    { id: 'gymboree-blanco-grande', name: 'Gymboree Blanco Grande', cat: 'gymboree', price: 250, desc: '', active: true },
+    { id: 'gymboree-blanco-chico', name: 'Gymboree Blanco Chico', cat: 'gymboree', price: 160, desc: '', active: true },
+    { id: 'gymboree-rosado-grande', name: 'Gymboree Rosado Grande', cat: 'gymboree', price: 290, desc: '', active: true },
+    { id: 'gymboree-rosado-chico', name: 'Gymboree Rosado Chico', cat: 'gymboree', price: 180, desc: '', active: true },
+    { id: 'bubble-house', name: 'Bubble House', cat: 'inflables', price: 190, desc: '', active: true },
+    { id: 'bounce-house-blanco', name: 'Bounce House', cat: 'inflables', price: 120, desc: '', active: true },
+    { id: 'inflable-grande-1', name: 'Inflable Grande Tobogán', cat: 'inflables', price: 170, desc: '', active: true },
+    { id: 'inflable-mediano', name: 'Inflable Mediano', cat: 'inflables', price: 140, desc: '', active: true },
+    { id: 'inflable-chico', name: 'Inflable Pequeño', cat: 'inflables', price: 110, desc: '', active: true },
+    { id: 'piscina-cuadrada-blanca', name: 'Piscina Cuadrada', cat: 'piscinas', price: 88, desc: '', active: true },
+    { id: 'piscina-redonda-grande', name: 'Piscina Redonda Grande', cat: 'piscinas', price: 100, desc: '', active: true },
+    { id: 'bumper-cars', name: 'Bumper Cars', cat: 'alquiler', price: 250, desc: '', active: true },
+    { id: 'mini-parque', name: 'Mini Parque', cat: 'alquiler', price: 50, desc: '', active: true },
+    { id: 'musica', name: 'Música', cat: 'servicios', price: 90, desc: '', active: true },
+    { id: 'transporte', name: 'Transporte', cat: 'servicios', price: 50, desc: '', active: true },
+    { id: 'teacher-extra', name: 'Teacher Extra', cat: 'servicios', price: 80, desc: '', active: true },
   ];
 
+  const allProducts = [...builtInProducts, ...customProducts];
   const filtered = filter ? allProducts.filter(p => p.cat === filter) : allProducts;
-  const categories = Array.from(new Set(allProducts.map(p => p.cat)));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading font-bold text-xl text-purple mb-1">Productos</h2>
-        <p className="font-body text-gray-500 text-sm">Edita nombres y cambia fotos de cada producto</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-heading font-bold text-xl text-purple mb-1">Productos</h2>
+          <p className="font-body text-gray-500 text-sm">Edita, agrega o desactiva productos</p>
+        </div>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors"
+        >
+          {showAdd ? 'Cancelar' : '+ Agregar'}
+        </button>
       </div>
 
       {message && (
-        <div className={`rounded-xl p-3 text-sm font-body ${message.includes('Error') ? 'bg-red-50 text-red-600' : 'bg-teal/10 text-teal'}`}>
-          {message}
+        <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{message}</div>
+      )}
+
+      {/* Add product form */}
+      {showAdd && (
+        <div className="bg-white rounded-xl border-2 border-purple/20 p-5 space-y-3">
+          <h3 className="font-heading font-bold text-sm text-purple">Nuevo Producto</h3>
+          <input
+            type="text"
+            value={newProduct.name}
+            onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+            placeholder="Nombre del producto"
+            className="w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={newProduct.cat}
+              onChange={(e) => setNewProduct({ ...newProduct, cat: e.target.value })}
+              className="border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none capitalize"
+            >
+              {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              type="number"
+              value={newProduct.price}
+              onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+              placeholder="Precio ($)"
+              className="border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none"
+            />
+          </div>
+          <input
+            type="text"
+            value={newProduct.desc}
+            onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })}
+            placeholder="Descripción breve"
+            className="w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none"
+          />
+          <button
+            onClick={handleAddProduct}
+            disabled={!newProduct.name.trim()}
+            className="w-full bg-purple text-white font-heading font-bold py-2.5 rounded-xl disabled:opacity-50"
+          >
+            Agregar Producto
+          </button>
         </div>
       )}
 
+      {/* Category filter */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
-        {categories.map(c => (
+        {ALL_CATEGORIES.map(c => (
           <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold capitalize ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{c}</button>
         ))}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {filtered.map((product) => {
           const displayName = nameOverrides[product.id] || product.name;
           const isEditing = editingId === product.id;
+          const isDisabled = disabledIds.includes(product.id);
 
           return (
-            <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/images/products/${product.id}.png`}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
+            <div key={product.id} className={`bg-white rounded-xl border p-3 transition-opacity ${isDisabled ? 'opacity-40 border-gray-200' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-3">
+                {/* Toggle active */}
+                <button
+                  onClick={() => toggleDisabled(product.id)}
+                  className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${isDisabled ? 'bg-gray-300' : 'bg-teal'}`}
+                  title={isDisabled ? 'Activar' : 'Desactivar'}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isDisabled ? 'left-1' : 'left-5'}`} />
+                </button>
+
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
                     <div className="flex gap-2">
@@ -337,7 +411,6 @@ function ProductsTab() {
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(product.id); if (e.key === 'Escape') setEditingId(null); }}
                       />
                       <button onClick={() => handleSaveName(product.id)} className="px-3 py-1 bg-purple text-white rounded-lg text-xs font-heading font-semibold">OK</button>
-                      <button onClick={() => setEditingId(null)} className="px-2 py-1 text-gray-400 text-xs">X</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -345,31 +418,28 @@ function ProductsTab() {
                       <button
                         onClick={() => { setEditingId(product.id); setEditName(displayName); }}
                         className="flex-shrink-0 text-gray-400 hover:text-purple transition-colors"
-                        title="Editar nombre"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                       </button>
                     </div>
                   )}
-                  <p className="font-body text-xs text-gray-400">{product.cat}</p>
+                  <p className="font-body text-xs text-gray-400">{product.cat} · ${product.price}</p>
                 </div>
-                <label className={`cursor-pointer px-3 py-1.5 rounded-xl text-xs font-heading font-semibold transition-colors flex-shrink-0 ${
-                  uploading === product.id ? 'bg-gray-200 text-gray-400' : 'bg-purple/10 text-purple hover:bg-purple/20'
-                }`}>
-                  {uploading === product.id ? '...' : 'Foto'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploading === product.id}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUpload(product.id, file);
-                    }}
-                  />
-                </label>
+
+                {/* Delete custom products */}
+                {product.custom && (
+                  <button
+                    onClick={() => removeCustomProduct(product.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Eliminar"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           );
