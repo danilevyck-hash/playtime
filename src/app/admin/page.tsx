@@ -190,12 +190,145 @@ function OrdersTab() {
   );
 }
 
+// ─── IMAGES TAB ───
+function ImagesTab() {
+  const [uploading, setUploading] = useState('');
+  const [message, setMessage] = useState('');
+  const [filter, setFilter] = useState('');
+
+  const handleUpload = async (productId: string, file: File) => {
+    setUploading(productId);
+    setMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', productId);
+      formData.append('folder', 'products');
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'x-admin-pin': '2588' },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessage(`Imagen subida: ${data.path}`);
+      } else {
+        setMessage('Error al subir imagen');
+      }
+    } catch {
+      setMessage('Error de conexión');
+    } finally {
+      setUploading('');
+    }
+  };
+
+  // We'll use a simple approach - list product IDs and let admin upload
+  const allProducts = [
+    { id: 'plan-1', name: 'Plan #1 - Completo', cat: 'planes' },
+    { id: 'plan-2', name: 'Plan #2 - Show + Equipos', cat: 'planes' },
+    { id: 'plan-3', name: 'Plan #3 - Show + Arte', cat: 'planes' },
+    { id: 'plan-4', name: 'Plan #4 - Show de Títeres', cat: 'planes' },
+    { id: 'plan-5', name: 'Plan #5 - Animación', cat: 'planes' },
+    { id: 'plan-6-makeup', name: 'Plan #6 - Makeup', cat: 'belleza' },
+    { id: 'plan-7-manicure', name: 'Plan #7 - Manicure', cat: 'belleza' },
+    { id: 'plan-9-hair', name: 'Plan #9 - Hair Glamour', cat: 'belleza' },
+    { id: 'plan-10-spa', name: 'Plan #10 - Spa', cat: 'belleza' },
+    { id: 'plan-11-princess', name: 'Plan #11 - Princess', cat: 'belleza' },
+    { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes' },
+    { id: 'show-titeres', name: 'Show de Títeres', cat: 'entretenimiento' },
+    { id: 'animacion', name: 'Animación', cat: 'entretenimiento' },
+    { id: 'personaje-animacion', name: 'Personaje con Animación', cat: 'entretenimiento' },
+    { id: 'algodon-azucar', name: 'Algodón de Azúcar', cat: 'snacks' },
+    { id: 'raspado', name: 'Raspado', cat: 'snacks' },
+    { id: 'popcorn', name: 'Pop Corn', cat: 'snacks' },
+    { id: 'slushy', name: 'Slushy', cat: 'snacks' },
+    { id: 'gymboree-blanco-grande', name: 'Gymboree Blanco Grande', cat: 'gymboree' },
+    { id: 'gymboree-blanco-chico', name: 'Gymboree Blanco Chico', cat: 'gymboree' },
+    { id: 'gymboree-rosado-grande', name: 'Gymboree Rosado Grande', cat: 'gymboree' },
+    { id: 'gymboree-rosado-chico', name: 'Gymboree Rosado Chico', cat: 'gymboree' },
+    { id: 'bubble-house', name: 'Bubble House', cat: 'inflables' },
+    { id: 'bounce-house-blanco', name: 'Bounce House', cat: 'inflables' },
+    { id: 'inflable-grande-1', name: 'Inflable Grande Tobogán', cat: 'inflables' },
+    { id: 'inflable-mediano', name: 'Inflable Mediano', cat: 'inflables' },
+    { id: 'inflable-chico', name: 'Inflable Pequeño', cat: 'inflables' },
+    { id: 'piscina-cuadrada-blanca', name: 'Piscina Cuadrada', cat: 'piscinas' },
+    { id: 'piscina-redonda-grande', name: 'Piscina Redonda Grande', cat: 'piscinas' },
+    { id: 'bumper-cars', name: 'Bumper Cars', cat: 'alquiler' },
+    { id: 'racing-cars', name: 'Racing Cars', cat: 'alquiler' },
+    { id: 'mini-parque', name: 'Mini Parque', cat: 'alquiler' },
+  ];
+
+  const filtered = filter ? allProducts.filter(p => p.cat === filter) : allProducts;
+  const categories = Array.from(new Set(allProducts.map(p => p.cat)));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-heading font-bold text-xl text-purple mb-1">Imágenes de Productos</h2>
+        <p className="font-body text-gray-500 text-sm">Sube o cambia la foto de cada producto</p>
+      </div>
+
+      {message && (
+        <div className={`rounded-xl p-3 text-sm font-body ${message.includes('Error') ? 'bg-red-50 text-red-600' : 'bg-teal/10 text-teal'}`}>
+          {message}
+        </div>
+      )}
+
+      {/* Category filter */}
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
+        {categories.map(c => (
+          <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold capitalize ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{c}</button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        {filtered.map((product) => (
+          <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4">
+            {/* Current image preview */}
+            <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/images/products/${product.id}.png`}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-heading font-semibold text-sm text-gray-800 truncate">{product.name}</p>
+              <p className="font-body text-xs text-gray-400">{product.cat}</p>
+            </div>
+            <label className={`cursor-pointer px-3 py-1.5 rounded-xl text-xs font-heading font-semibold transition-colors ${
+              uploading === product.id ? 'bg-gray-200 text-gray-400' : 'bg-purple/10 text-purple hover:bg-purple/20'
+            }`}>
+              {uploading === product.id ? 'Subiendo...' : 'Cambiar'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading === product.id}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUpload(product.id, file);
+                }}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN ADMIN PAGE ───
 export default function AdminPage() {
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'pedidos' | 'reels'>('pedidos');
+  const [tab, setTab] = useState<'pedidos' | 'reels' | 'imagenes'>('pedidos');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,7 +378,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-8">
-        {(['pedidos', 'reels'] as const).map((t) => (
+        {(['pedidos', 'reels', 'imagenes'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -253,13 +386,14 @@ export default function AdminPage() {
               tab === t ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {t === 'pedidos' ? 'Pedidos' : 'Reels'}
+            {t === 'pedidos' ? 'Pedidos' : t === 'reels' ? 'Reels' : 'Imágenes'}
           </button>
         ))}
       </div>
 
       {tab === 'pedidos' && <OrdersTab />}
       {tab === 'reels' && <ReelsTab />}
+      {tab === 'imagenes' && <ImagesTab />}
     </div>
   );
 }
