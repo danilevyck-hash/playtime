@@ -50,7 +50,7 @@ export default function CarritoPage() {
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
         <Link href="/catalogo" className="flex-1">
-          <Button variant="outline" className="w-full">Seguir Comprando</Button>
+          <Button variant="outline" className="w-full">Agregar más diversión</Button>
         </Link>
         <Link href="/checkout" className="flex-1">
           <Button className="w-full" size="lg">Proceder al Checkout</Button>

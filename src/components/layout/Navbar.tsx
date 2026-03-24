@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import Badge from '@/components/ui/Badge';
@@ -20,13 +21,15 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex flex-col leading-none">
-          <span className="font-heading font-bold text-2xl text-teal tracking-tight">
-            play<span className="text-purple">time</span>
-          </span>
-          <span className="font-script text-xs text-purple/70 -mt-0.5">
-            creando momentos.
-          </span>
+        <Link href="/">
+          <Image
+            src="/images/logo.png"
+            alt="PlayTime"
+            width={120}
+            height={130}
+            className="h-12 w-auto"
+            priority
+          />
         </Link>
 
         {/* Desktop links */}

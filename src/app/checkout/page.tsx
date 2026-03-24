@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
-import { OrderCustomer, OrderEvent, PaymentMethod } from '@/lib/types';
+import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS } from '@/lib/types';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
@@ -28,6 +28,7 @@ export default function CheckoutPage() {
   const [event, setEvent] = useState<OrderEvent>({
     date: '',
     time: '',
+    area: '',
     address: '',
     birthdayChildName: '',
     birthdayChildAge: '',
@@ -35,6 +36,10 @@ export default function CheckoutPage() {
   });
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
+
+  // Calculate transport cost based on selected area
+  const transportCost = EVENT_AREAS.find((a) => a.name === event.area)?.price ?? 0;
+  const isTransportPending = event.area === 'Otra área';
 
   if (items.length === 0) {
     return (
@@ -52,10 +57,11 @@ export default function CheckoutPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const surcharge = paymentMethod === 'credit_card' ? subtotal * 0.05 : 0;
-      const total = subtotal + surcharge;
+      const subtotalWithTransport = subtotal + transportCost;
+      const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+      const total = subtotalWithTransport + surcharge;
 
-      // Try to save to Supabase (will silently fail if not configured)
+      // Try to save to Supabase
       let orderNumber = Math.floor(Math.random() * 9000) + 1000;
       try {
         const res = await fetch('/api/orders', {
@@ -66,7 +72,7 @@ export default function CheckoutPage() {
             event,
             paymentMethod,
             items,
-            subtotal,
+            subtotal: subtotalWithTransport,
             surcharge,
             total,
           }),
@@ -86,12 +92,13 @@ export default function CheckoutPage() {
         customerPhone: customer.phone,
         eventDate: event.date,
         eventTime: event.time,
-        eventAddress: event.address,
+        eventAddress: `${event.area} - ${event.address}`,
         items,
         subtotal,
         surcharge,
         total,
         paymentMethod,
+        transportCost: isTransportPending ? -1 : transportCost,
       });
 
       window.open(getWhatsAppUrl(message), '_blank');
@@ -125,6 +132,7 @@ export default function CheckoutPage() {
           paymentMethod={paymentMethod}
           items={items}
           subtotal={subtotal}
+          transportCost={isTransportPending ? -1 : transportCost}
           onBack={() => setStep(2)}
           onSubmit={handleSubmit}
           loading={loading}

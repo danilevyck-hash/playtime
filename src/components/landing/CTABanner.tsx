@@ -17,7 +17,7 @@ export default function CTABanner() {
               Explorar Catálogo
             </Button>
           </Link>
-          <a href="https://wa.me/50766712588" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/50764332724" target="_blank" rel="noopener noreferrer">
             <Button
               size="lg"
               className="bg-white text-teal hover:bg-white/90"

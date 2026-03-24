@@ -2,6 +2,7 @@
 
 import { Category } from '@/lib/types';
 import { CATEGORIES } from '@/lib/constants';
+import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
 interface CategoryFilterProps {
   selected: Category | 'all';
@@ -21,19 +22,22 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
       >
         Todos
       </button>
-      {CATEGORIES.map((cat) => (
-        <button
-          key={cat.id}
-          onClick={() => onSelect(cat.id)}
-          className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all ${
-            selected === cat.id
-              ? 'bg-teal text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          {cat.icon} {cat.label}
-        </button>
-      ))}
+      {CATEGORIES.map((cat) => {
+        const Doodle = CATEGORY_DOODLES[cat.id];
+        return (
+          <button
+            key={cat.id}
+            onClick={() => onSelect(cat.id)}
+            className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all flex items-center gap-1.5 ${
+              selected === cat.id
+                ? 'bg-teal text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {Doodle ? <Doodle className="w-5 h-5" /> : cat.icon} {cat.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

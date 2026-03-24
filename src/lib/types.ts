@@ -7,7 +7,8 @@ export type Category =
   | 'inflables'
   | 'piscinas'
   | 'alquiler'
-  | 'servicios';
+  | 'servicios'
+  | 'manualidades';
 
 export interface Product {
   id: string;
@@ -37,11 +38,29 @@ export interface OrderCustomer {
 export interface OrderEvent {
   date: string;
   time: string;
+  area: string;
   address: string;
   birthdayChildName: string;
   birthdayChildAge: number | '';
   theme: string;
 }
+
+export const EVENT_AREAS: { name: string; price: number }[] = [
+  { name: 'Ancón', price: 65 },
+  { name: 'Bella Vista', price: 50 },
+  { name: 'Chorrera', price: 90 },
+  { name: 'Clayton', price: 60 },
+  { name: 'Coco del Mar', price: 50 },
+  { name: 'Costa del Este', price: 55 },
+  { name: 'Las Cumbres', price: 75 },
+  { name: 'Panamá Pacífico', price: 70 },
+  { name: 'Punta Pacífica y Paitilla', price: 50 },
+  { name: 'San Francisco', price: 50 },
+  { name: 'Santa María', price: 65 },
+  { name: 'Vía Israel', price: 50 },
+  { name: 'Villa Lucre', price: 70 },
+  { name: 'Otra área', price: 0 },
+];
 
 export type PaymentMethod = 'bank_transfer' | 'credit_card';
 
@@ -66,6 +85,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   piscinas: 'Piscinas',
   alquiler: 'Alquiler',
   servicios: 'Servicios',
+  manualidades: 'Manualidades',
 };
 
 export const CATEGORY_ICONS: Record<Category, string> = {
@@ -78,4 +98,5 @@ export const CATEGORY_ICONS: Record<Category, string> = {
   piscinas: '🔵',
   alquiler: '🎈',
   servicios: '🎵',
+  manualidades: '🎨',
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { OrderEvent } from '@/lib/types';
+import { OrderEvent, EVENT_AREAS } from '@/lib/types';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
@@ -36,12 +36,33 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack }: Pro
           required
         />
       </div>
+
+      {/* Area del evento */}
+      <div>
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">
+          Área del evento
+        </label>
+        <select
+          value={data.area}
+          onChange={(e) => onChange({ ...data, area: e.target.value })}
+          required
+          className="w-full border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none bg-white appearance-none"
+        >
+          <option value="">Selecciona un área</option>
+          {EVENT_AREAS.map((area) => (
+            <option key={area.name} value={area.name}>
+              {area.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <Input
-        label="Dirección completa del evento"
+        label="Lugar del evento y piso"
         value={data.address}
         onChange={(e) => onChange({ ...data, address: e.target.value })}
         required
-        placeholder="Residencia, edificio, piso..."
+        placeholder="Nombre del edificio / residencia, piso..."
       />
       <div className="pt-2">
         <p className="font-heading font-semibold text-sm text-gray-600 mb-3">Datos del cumpleañero/a (opcional)</p>

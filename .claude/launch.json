@@ -4,8 +4,8 @@
     {
       "name": "playtime-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/daniellevy/Desktop/playtime"],
+      "port": 3001
     }
   ]
 }

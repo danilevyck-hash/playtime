@@ -20,7 +20,7 @@ export default function ConfirmacionPage() {
           <Link href="/">
             <Button variant="outline">Volver al Inicio</Button>
           </Link>
-          <a href="https://wa.me/50766712588" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/50764332724" target="_blank" rel="noopener noreferrer">
             <Button>
               Contactar por WhatsApp
             </Button>
