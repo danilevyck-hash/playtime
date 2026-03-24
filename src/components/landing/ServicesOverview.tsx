@@ -3,11 +3,14 @@ import { CATEGORIES } from '@/lib/constants';
 
 const CATEGORY_COLORS = [
   'bg-teal/10 border-teal/30 hover:border-teal',
-  'bg-orange/10 border-orange/30 hover:border-orange',
   'bg-pink/10 border-pink/30 hover:border-pink',
+  'bg-orange/10 border-orange/30 hover:border-orange',
   'bg-yellow/10 border-yellow/30 hover:border-yellow',
   'bg-mint/10 border-mint/30 hover:border-mint',
   'bg-purple/10 border-purple/30 hover:border-purple',
+  'bg-teal/10 border-teal/30 hover:border-teal',
+  'bg-pink/10 border-pink/30 hover:border-pink',
+  'bg-orange/10 border-orange/30 hover:border-orange',
 ];
 
 export default function ServicesOverview() {

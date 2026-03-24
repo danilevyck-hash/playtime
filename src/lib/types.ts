@@ -1,9 +1,12 @@
 export type Category =
   | 'planes'
+  | 'belleza'
   | 'entretenimiento'
-  | 'equipos'
-  | 'decoracion'
-  | 'comida'
+  | 'snacks'
+  | 'gymboree'
+  | 'inflables'
+  | 'piscinas'
+  | 'alquiler'
   | 'servicios';
 
 export interface Product {
@@ -55,18 +58,24 @@ export interface Order {
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   planes: 'Planes',
+  belleza: 'Belleza',
   entretenimiento: 'Entretenimiento',
-  equipos: 'Equipos',
-  decoracion: 'Decoración',
-  comida: 'Comida',
+  snacks: 'Snacks',
+  gymboree: 'Gymboree',
+  inflables: 'Inflables',
+  piscinas: 'Piscinas',
+  alquiler: 'Alquiler',
   servicios: 'Servicios',
 };
 
 export const CATEGORY_ICONS: Record<Category, string> = {
   planes: '🎉',
+  belleza: '💅',
   entretenimiento: '🎭',
-  equipos: '🎪',
-  decoracion: '🎈',
-  comida: '🍿',
+  snacks: '🍿',
+  gymboree: '🏰',
+  inflables: '🎪',
+  piscinas: '🔵',
+  alquiler: '🎈',
   servicios: '🎵',
 };
