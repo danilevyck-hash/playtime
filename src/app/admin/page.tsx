@@ -190,11 +190,21 @@ function OrdersTab() {
   );
 }
 
-// ─── IMAGES TAB ───
-function ImagesTab() {
+// ─── PRODUCTS TAB (Images + Names) ───
+function ProductsTab() {
   const [uploading, setUploading] = useState('');
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('playtime_product_names');
+      if (saved) setNameOverrides(JSON.parse(saved));
+    } catch {}
+  }, []);
 
   const handleUpload = async (productId: string, file: File) => {
     setUploading(productId);
@@ -204,16 +214,13 @@ function ImagesTab() {
       formData.append('file', file);
       formData.append('productId', productId);
       formData.append('folder', 'products');
-
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'x-admin-pin': '2588' },
         body: formData,
       });
-
       if (res.ok) {
-        const data = await res.json();
-        setMessage(`Imagen subida: ${data.path}`);
+        setMessage('Imagen actualizada');
       } else {
         setMessage('Error al subir imagen');
       }
@@ -224,40 +231,58 @@ function ImagesTab() {
     }
   };
 
-  // We'll use a simple approach - list product IDs and let admin upload
+  const handleSaveName = (productId: string) => {
+    const updated = { ...nameOverrides, [productId]: editName };
+    setNameOverrides(updated);
+    localStorage.setItem('playtime_product_names', JSON.stringify(updated));
+    setEditingId(null);
+    setMessage('Nombre guardado');
+    setTimeout(() => setMessage(''), 2000);
+  };
+
   const allProducts = [
     { id: 'plan-1', name: 'Plan #1 - Completo', cat: 'planes' },
     { id: 'plan-2', name: 'Plan #2 - Show + Equipos', cat: 'planes' },
     { id: 'plan-3', name: 'Plan #3 - Show + Arte', cat: 'planes' },
     { id: 'plan-4', name: 'Plan #4 - Show de Títeres', cat: 'planes' },
     { id: 'plan-5', name: 'Plan #5 - Animación', cat: 'planes' },
+    { id: 'plan-5-personaje', name: 'Plan #5 Extra - Personaje', cat: 'planes' },
+    { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes' },
     { id: 'plan-6-makeup', name: 'Plan #6 - Makeup', cat: 'belleza' },
     { id: 'plan-7-manicure', name: 'Plan #7 - Manicure', cat: 'belleza' },
     { id: 'plan-9-hair', name: 'Plan #9 - Hair Glamour', cat: 'belleza' },
     { id: 'plan-10-spa', name: 'Plan #10 - Spa', cat: 'belleza' },
     { id: 'plan-11-princess', name: 'Plan #11 - Princess', cat: 'belleza' },
-    { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes' },
     { id: 'show-titeres', name: 'Show de Títeres', cat: 'entretenimiento' },
     { id: 'animacion', name: 'Animación', cat: 'entretenimiento' },
     { id: 'personaje-animacion', name: 'Personaje con Animación', cat: 'entretenimiento' },
+    { id: 'personaje-fotos', name: 'Personaje Fotos', cat: 'entretenimiento' },
     { id: 'algodon-azucar', name: 'Algodón de Azúcar', cat: 'snacks' },
     { id: 'raspado', name: 'Raspado', cat: 'snacks' },
     { id: 'popcorn', name: 'Pop Corn', cat: 'snacks' },
     { id: 'slushy', name: 'Slushy', cat: 'snacks' },
+    { id: 'algodon-automatico', name: 'Algodón Automático', cat: 'snacks' },
     { id: 'gymboree-blanco-grande', name: 'Gymboree Blanco Grande', cat: 'gymboree' },
     { id: 'gymboree-blanco-chico', name: 'Gymboree Blanco Chico', cat: 'gymboree' },
     { id: 'gymboree-rosado-grande', name: 'Gymboree Rosado Grande', cat: 'gymboree' },
     { id: 'gymboree-rosado-chico', name: 'Gymboree Rosado Chico', cat: 'gymboree' },
+    { id: 'gymboree-nina-mixto', name: 'Gymboree Niña Mixto', cat: 'gymboree' },
     { id: 'bubble-house', name: 'Bubble House', cat: 'inflables' },
     { id: 'bounce-house-blanco', name: 'Bounce House', cat: 'inflables' },
     { id: 'inflable-grande-1', name: 'Inflable Grande Tobogán', cat: 'inflables' },
     { id: 'inflable-mediano', name: 'Inflable Mediano', cat: 'inflables' },
+    { id: 'inflable-grande-2', name: 'Inflable Grande', cat: 'inflables' },
     { id: 'inflable-chico', name: 'Inflable Pequeño', cat: 'inflables' },
+    { id: 'inflable-mini-1', name: 'Inflable Mini', cat: 'inflables' },
     { id: 'piscina-cuadrada-blanca', name: 'Piscina Cuadrada', cat: 'piscinas' },
+    { id: 'piscina-colores-60', name: 'Piscina Colores', cat: 'piscinas' },
     { id: 'piscina-redonda-grande', name: 'Piscina Redonda Grande', cat: 'piscinas' },
+    { id: 'piscina-redonda-chica', name: 'Piscina Redonda Pequeña', cat: 'piscinas' },
+    { id: 'piscina-peces', name: 'Piscina de Peces', cat: 'piscinas' },
     { id: 'bumper-cars', name: 'Bumper Cars', cat: 'alquiler' },
     { id: 'racing-cars', name: 'Racing Cars', cat: 'alquiler' },
     { id: 'mini-parque', name: 'Mini Parque', cat: 'alquiler' },
+    { id: 'surraderos-arco', name: 'Surraderos y Arco', cat: 'alquiler' },
   ];
 
   const filtered = filter ? allProducts.filter(p => p.cat === filter) : allProducts;
@@ -266,8 +291,8 @@ function ImagesTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-heading font-bold text-xl text-purple mb-1">Imágenes de Productos</h2>
-        <p className="font-body text-gray-500 text-sm">Sube o cambia la foto de cada producto</p>
+        <h2 className="font-heading font-bold text-xl text-purple mb-1">Productos</h2>
+        <p className="font-body text-gray-500 text-sm">Edita nombres y cambia fotos de cada producto</p>
       </div>
 
       {message && (
@@ -276,7 +301,6 @@ function ImagesTab() {
         </div>
       )}
 
-      {/* Category filter */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
         {categories.map(c => (
@@ -285,39 +309,71 @@ function ImagesTab() {
       </div>
 
       <div className="space-y-3">
-        {filtered.map((product) => (
-          <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4">
-            {/* Current image preview */}
-            <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/images/products/${product.id}.png`}
-                alt={product.name}
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+        {filtered.map((product) => {
+          const displayName = nameOverrides[product.id] || product.name;
+          const isEditing = editingId === product.id;
+
+          return (
+            <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/images/products/${product.id}.png`}
+                    alt={displayName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="flex-1 border-2 border-purple rounded-lg px-2 py-1 text-sm font-body focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(product.id); if (e.key === 'Escape') setEditingId(null); }}
+                      />
+                      <button onClick={() => handleSaveName(product.id)} className="px-3 py-1 bg-purple text-white rounded-lg text-xs font-heading font-semibold">OK</button>
+                      <button onClick={() => setEditingId(null)} className="px-2 py-1 text-gray-400 text-xs">X</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="font-heading font-semibold text-sm text-gray-800 truncate">{displayName}</p>
+                      <button
+                        onClick={() => { setEditingId(product.id); setEditName(displayName); }}
+                        className="flex-shrink-0 text-gray-400 hover:text-purple transition-colors"
+                        title="Editar nombre"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  <p className="font-body text-xs text-gray-400">{product.cat}</p>
+                </div>
+                <label className={`cursor-pointer px-3 py-1.5 rounded-xl text-xs font-heading font-semibold transition-colors flex-shrink-0 ${
+                  uploading === product.id ? 'bg-gray-200 text-gray-400' : 'bg-purple/10 text-purple hover:bg-purple/20'
+                }`}>
+                  {uploading === product.id ? '...' : 'Foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading === product.id}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpload(product.id, file);
+                    }}
+                  />
+                </label>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-heading font-semibold text-sm text-gray-800 truncate">{product.name}</p>
-              <p className="font-body text-xs text-gray-400">{product.cat}</p>
-            </div>
-            <label className={`cursor-pointer px-3 py-1.5 rounded-xl text-xs font-heading font-semibold transition-colors ${
-              uploading === product.id ? 'bg-gray-200 text-gray-400' : 'bg-purple/10 text-purple hover:bg-purple/20'
-            }`}>
-              {uploading === product.id ? 'Subiendo...' : 'Cambiar'}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploading === product.id}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUpload(product.id, file);
-                }}
-              />
-            </label>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -386,14 +442,14 @@ export default function AdminPage() {
               tab === t ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {t === 'pedidos' ? 'Pedidos' : t === 'reels' ? 'Reels' : 'Imágenes'}
+            {t === 'pedidos' ? 'Pedidos' : t === 'reels' ? 'Reels' : 'Productos'}
           </button>
         ))}
       </div>
 
       {tab === 'pedidos' && <OrdersTab />}
       {tab === 'reels' && <ReelsTab />}
-      {tab === 'imagenes' && <ImagesTab />}
+      {tab === 'imagenes' && <ProductsTab />}
     </div>
   );
 }

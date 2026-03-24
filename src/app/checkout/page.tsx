@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS } from '@/lib/types';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
+import { downloadOrderPDF } from '@/lib/pdf-order';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
 import EventDetailsForm from '@/components/checkout/EventDetailsForm';
@@ -85,7 +86,20 @@ export default function CheckoutPage() {
         // Supabase not configured, continue with WhatsApp only
       }
 
-      // Open WhatsApp with order message
+      // Generate and download PDF receipt
+      downloadOrderPDF({
+        orderNumber,
+        customer,
+        event,
+        items,
+        subtotal,
+        transportCost: isTransportPending ? -1 : transportCost,
+        surcharge,
+        total,
+        paymentMethod,
+      });
+
+      // Open WhatsApp with order summary
       const message = buildWhatsAppOrderMessage({
         orderNumber,
         customerName: customer.name,
