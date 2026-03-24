@@ -36,6 +36,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), actividad de arte (3 atriles con 30 dibujos), alquiler de equipos (caballitos, piscina de bolas, túnel, mini parque y pads de piso). 2 teachers. Duración: 3 horas.',
     price: 500,
+    image: '/images/products/plan-1.jpg',
     featured: true,
   },
   {
@@ -44,6 +45,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), alquiler de equipos (caballitos, piscina de bolas, túnel, mini parque y pads de piso). 2 teachers. Duración: 3 horas.',
     price: 380,
+    image: '/images/products/plan-2.jpg',
     featured: true,
   },
   {
@@ -52,6 +54,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), actividad de arte (3 atriles con 30 dibujos). 2 teachers. Duración: 3 horas.',
     price: 260,
+    image: '/images/products/plan-3.jpg',
   },
   {
     id: 'plan-4',
@@ -59,6 +62,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala. 2 teachers. Duración del show: 45 min.',
     price: 225,
+    image: '/images/products/plan-4.jpg',
   },
   {
     id: 'plan-5',
@@ -66,6 +70,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Animación por 1 hora con juegos y competencia.',
     price: 250,
+    image: '/images/products/plan-5.jpg',
   },
   {
     id: 'plan-5-personaje',
@@ -80,6 +85,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Celebra junto a tus amigas y sus hijos. Actividades de motricidad fina y gruesa, sensoriales, musicales, mini show de títeres y transporte. 15 niños. 3 teachers. Duración: 3 horas.',
     price: 450,
+    image: '/images/products/plan-12.jpg',
   },
 
   // ═══ BELLEZA ═══
@@ -89,6 +95,7 @@ export const PRODUCTS: Product[] = [
     category: 'belleza',
     description: 'Kit completo de maleta de maquillaje con espejo y luz. 1 teacher. Duración: 2 horas. Extras: Maquillaje Deluxe con brillantes ($10), Facial ($10), Teacher extra ($80).',
     price: 120,
+    image: '/images/products/plan-6.jpg',
     featured: true,
   },
   {
@@ -97,6 +104,7 @@ export const PRODUCTS: Product[] = [
     category: 'belleza',
     description: 'Mesa de madera, alfombra, 4 sillas Tiffany, decoración de mesa. Pintura de uñas y sticker. 1 teacher. Duración: 2 horas. Extra teacher ($80).',
     price: 100,
+    image: '/images/products/plan-7.jpg',
   },
   {
     id: 'plan-9-hair',
@@ -104,6 +112,7 @@ export const PRODUCTS: Product[] = [
     category: 'belleza',
     description: 'Peinado con trenzas de colores y todo su kit, coronitas para princesas, kit completo de maleta de peinado con espejo y luz, silla alta. 1 teacher. Duración: 2 horas. Extras: Teacher extra ($80), extensiones ($50).',
     price: 140,
+    image: '/images/products/plan-9.jpg',
   },
   {
     id: 'plan-10-spa',
@@ -111,6 +120,7 @@ export const PRODUCTS: Product[] = [
     category: 'belleza',
     description: '1.5 horas de belleza y diversión. Peinado y maquillaje especial para cumpleañera, manicure express, 3 pedicure spa, peinado con coronita. 2 mesas, 6 sillas Tiffany, alfombras, decoración. 15 niñas máximo. 3 teachers.',
     price: 400,
+    image: '/images/products/plan-10.jpg',
     featured: true,
   },
   {
@@ -119,6 +129,7 @@ export const PRODUCTS: Product[] = [
     category: 'belleza',
     description: 'Niñas ilimitadas. Animación con modelaje y baile, música, pink carpet, peinado con extensiones y coronitas, manicure deluxe, pedicure spa, masaje facial, tarima para modelaje, carpa de decoración, maquillaje especial para cumpleañera. 5 teachers. Duración: 3 horas.',
     price: 700,
+    image: '/images/products/plan-11.jpg',
     featured: true,
   },
 
@@ -143,6 +154,7 @@ export const PRODUCTS: Product[] = [
     category: 'entretenimiento',
     description: 'Animación con personajes temáticos. Preguntar por personaje de su interés.',
     price: 380,
+    image: '/images/products/personajes.jpg',
   },
   {
     id: 'personaje-fotos',
@@ -150,6 +162,7 @@ export const PRODUCTS: Product[] = [
     category: 'entretenimiento',
     description: 'Personaje temático por 1 hora para saludos y fotos. Preguntar por personaje de su interés.',
     price: 150,
+    image: '/images/products/personajes.jpg',
   },
   {
     id: 'manualidades',
@@ -166,6 +179,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de algodón de azúcar. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 100,
+    image: '/images/products/snacks-1.jpg',
   },
   {
     id: 'algodon-automatico',
@@ -173,6 +187,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina automática de algodón de azúcar. Personal y materiales incluidos. Duración: 3 horas.',
     price: 140,
+    image: '/images/products/snacks-auto.jpg',
   },
   {
     id: 'raspado',
@@ -180,6 +195,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de raspado. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 130,
+    image: '/images/products/snacks-1.jpg',
   },
   {
     id: 'popcorn',
@@ -187,6 +203,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de palomitas. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 100,
+    image: '/images/products/snacks-2.jpg',
   },
   {
     id: 'slushy',
@@ -194,6 +211,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de slushy. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 130,
+    image: '/images/products/snacks-2.jpg',
   },
 
   // ═══ GYMBOREE ═══
@@ -203,6 +221,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Cerca blanca, pads de piso, carritos foam blanco, mini parque, túnel gym redondo, lego foam, roller coaster blanco, piscina blanca.',
     price: 250,
+    image: '/images/products/gymboree-blanco-grande.jpg',
     featured: true,
   },
   {
@@ -211,6 +230,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Cerca blanca, pads de piso, piscina blanca, túnel de gym, carritos foam blanco, lego foam, mini parque.',
     price: 160,
+    image: '/images/products/gymboree-blanco-chico.jpg',
   },
   {
     id: 'gymboree-rosado-grande',
@@ -218,6 +238,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Cerca rosada, pads rosado, caballito rosado, mini parque, puente rosado, piscina de flor con bolas rosadas, lego foam rosado, túnel gym rosado, caballitos saltarín rosado, roller coaster rosado.',
     price: 290,
+    image: '/images/products/gymboree-rosado-grande.jpg',
   },
   {
     id: 'gymboree-nina-mixto',
@@ -225,6 +246,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Cerca rosada, pads blanco, caballito rosado, piscina de flor con bolas blancas, roller coaster rosado, túnel gym blanco, puente rosado, mini parque rosado, lego foam mixto.',
     price: 285,
+    image: '/images/products/gymboree-nina-mixto.jpg',
   },
   {
     id: 'gymboree-rosado-chico',
@@ -232,6 +254,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Cerca rosada, pads rosado, caballito rosado, mini parque, puente rosado, piscina redonda rosada, lego foam rosado.',
     price: 180,
+    image: '/images/products/gymboree-rosado-chico.jpg',
   },
   {
     id: 'set-colchoneta-escalera',
@@ -239,6 +262,7 @@ export const PRODUCTS: Product[] = [
     category: 'gymboree',
     description: 'Set de colchoneta con escalera para actividades motrices.',
     price: 220,
+    image: '/images/products/gymboree-blanco-grande.jpg',
   },
 
   // ═══ INFLABLES ═══
@@ -248,6 +272,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: '3 metros la bola x 1.80 metros túnel.',
     price: 190,
+    image: '/images/products/bubble-house.jpg',
   },
   {
     id: 'bounce-house-blanco',
@@ -255,6 +280,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Sin decoración. Dimensiones: 3.50W x 3.50L x 3.96H metros.',
     price: 120,
+    image: '/images/products/bounce-house.jpg',
   },
   {
     id: 'inflable-grande-1',
@@ -262,6 +288,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 5.4 x 5 x 4 metros.',
     price: 170,
+    image: '/images/products/inflable-grande-1.jpg',
   },
   {
     id: 'inflable-mediano',
@@ -269,6 +296,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 4.4 x 4 x 3.8 metros.',
     price: 140,
+    image: '/images/products/inflable-mediano.jpg',
   },
   {
     id: 'inflable-grande-2',
@@ -276,6 +304,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 5.5 x 4.5 metros.',
     price: 170,
+    image: '/images/products/inflable-grande-2.jpg',
   },
   {
     id: 'inflable-chico',
@@ -283,6 +312,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 3L x 3W x 2.75H metros.',
     price: 110,
+    image: '/images/products/inflable-chico.jpg',
   },
   {
     id: 'inflable-mini-1',
@@ -290,6 +320,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 2.7 x 2.2 x 2.0 metros.',
     price: 90,
+    image: '/images/products/inflable-mini.jpg',
   },
   {
     id: 'inflable-mini-2',
@@ -297,6 +328,7 @@ export const PRODUCTS: Product[] = [
     category: 'inflables',
     description: 'Dimensiones: 2.5 x 2.5 metros.',
     price: 90,
+    image: '/images/products/inflable-mini.jpg',
   },
 
   // ═══ PISCINAS Y TÚNELES ═══
@@ -306,6 +338,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: 'Colores a escoger: blanco, rosado, azul, negro. Dimensiones: 72 x 72 pulgadas.',
     price: 88,
+    image: '/images/products/piscina-cuadrada.jpg',
   },
   {
     id: 'piscina-colores-60',
@@ -313,6 +346,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: 'Dimensiones: 60 x 60 pulgadas. Varios colores disponibles.',
     price: 60,
+    image: '/images/products/piscina-colores.jpg',
   },
   {
     id: 'piscina-redonda-grande',
@@ -320,6 +354,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: '3 metros de diámetro.',
     price: 100,
+    image: '/images/products/piscina-redonda.jpg',
   },
   {
     id: 'piscina-redonda-chica',
@@ -327,6 +362,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: '1.5 metros de diámetro.',
     price: 40,
+    image: '/images/products/piscina-redonda.jpg',
   },
   {
     id: 'piscina-peces',
@@ -334,6 +370,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: '1.3 metro de diámetro.',
     price: 85,
+    image: '/images/products/piscina-peces.jpg',
   },
   {
     id: 'tunel-grande',
@@ -341,6 +378,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: 'Dimensiones: 215 x 75 x 100 cm.',
     price: 50,
+    image: '/images/products/tuneles.jpg',
   },
   {
     id: 'tunel-chico',
@@ -348,6 +386,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: 'Dimensiones: 1.50 x 0.70 x 0.50 metros.',
     price: 45,
+    image: '/images/products/tuneles.jpg',
   },
   {
     id: 'tunel-largo',
@@ -355,6 +394,7 @@ export const PRODUCTS: Product[] = [
     category: 'piscinas',
     description: 'Disponible en blanco y rosado. Dimensiones: 4.26 metros de largo.',
     price: 40,
+    image: '/images/products/tuneles.jpg',
   },
 
   // ═══ ALQUILER INDIVIDUAL ═══
@@ -364,6 +404,7 @@ export const PRODUCTS: Product[] = [
     category: 'alquiler',
     description: '2 surraderos y arco. No incluye piscina.',
     price: 100,
+    image: '/images/products/surraderos.jpg',
   },
   {
     id: 'surradero-sencillo',
@@ -371,6 +412,7 @@ export const PRODUCTS: Product[] = [
     category: 'alquiler',
     description: 'Surradero sencillo para piscina.',
     price: 50,
+    image: '/images/products/surraderos.jpg',
   },
   {
     id: 'mini-parque',
@@ -378,6 +420,7 @@ export const PRODUCTS: Product[] = [
     category: 'alquiler',
     description: 'Mini parque blanco (70.7 x 57") o rosado (59 x 46 x 47").',
     price: 50,
+    image: '/images/products/mini-parque.jpg',
   },
   {
     id: 'pads-piso',
@@ -392,6 +435,7 @@ export const PRODUCTS: Product[] = [
     category: 'alquiler',
     description: 'Incluye pads, pista y 4 carritos por 3 horas con personal.',
     price: 250,
+    image: '/images/products/bumper-cars.jpg',
     featured: true,
   },
   {
@@ -400,6 +444,7 @@ export const PRODUCTS: Product[] = [
     category: 'alquiler',
     description: 'Carritos de carrera para niños.',
     price: 75,
+    image: '/images/products/racing-cars.jpg',
   },
   {
     id: 'caballito-saltarin',
