@@ -12,14 +12,14 @@ interface Props {
   onBack: () => void;
 }
 
-const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const FULL_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// ─── DATE PICKER ───
+// ─── COMPACT DATE PICKER ───
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -33,53 +33,37 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
     else setViewMonth(viewMonth - 1);
   };
-
   const nextMonth = () => {
     if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
     else setViewMonth(viewMonth + 1);
   };
-
   const selectDay = (day: number) => {
     const m = String(viewMonth + 1).padStart(2, '0');
     const d = String(day).padStart(2, '0');
     onChange(`${viewYear}-${m}-${d}`);
   };
-
-  const isToday = (day: number) => {
-    return viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
-  };
-
-  const isSelected = (day: number) => {
-    if (!selectedDate) return false;
-    return viewYear === selectedDate.getFullYear() && viewMonth === selectedDate.getMonth() && day === selectedDate.getDate();
-  };
-
-  const isPast = (day: number) => {
-    const date = new Date(viewYear, viewMonth, day);
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    return date < todayStart;
-  };
+  const isPast = (day: number) => new Date(viewYear, viewMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const isSelected = (day: number) => selectedDate ? viewYear === selectedDate.getFullYear() && viewMonth === selectedDate.getMonth() && day === selectedDate.getDate() : false;
+  const isToday = (day: number) => viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-3">
-      {/* Month navigation */}
-      <div className="flex items-center justify-between mb-2">
-        <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+    <div>
+      {/* Month nav */}
+      <div className="flex items-center justify-between mb-3">
+        <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100">
+          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <span className="font-heading font-bold text-sm text-purple">{MONTHS[viewMonth]} {viewYear}</span>
-        <button type="button" onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+        <span className="font-heading font-bold text-sm text-purple">{FULL_MONTHS[viewMonth]} {viewYear}</span>
+        <button type="button" onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100">
+          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
-
       {/* Day headers */}
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {DAYS.map(d => <div key={d} className="text-center text-[10px] font-heading font-semibold text-gray-400">{d}</div>)}
+      <div className="grid grid-cols-7 mb-1">
+        {DAYS.map((d, i) => <div key={i} className="text-center text-[11px] font-heading font-bold text-gray-300 py-1">{d}</div>)}
       </div>
-
-      {/* Days grid */}
-      <div className="grid grid-cols-7 gap-0.5">
+      {/* Days */}
+      <div className="grid grid-cols-7">
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
@@ -87,95 +71,56 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
           const sel = isSelected(day);
           const td = isToday(day);
           return (
-            <button
-              key={day}
-              type="button"
-              disabled={past}
-              onClick={() => selectDay(day)}
-              className={`w-8 h-8 rounded-full text-xs font-body flex items-center justify-center transition-all mx-auto
+            <button key={day} type="button" disabled={past} onClick={() => selectDay(day)}
+              className={`w-full aspect-square flex items-center justify-center text-[13px] font-body rounded-lg transition-all
                 ${sel ? 'bg-purple text-white font-bold' : ''}
-                ${td && !sel ? 'border-2 border-teal text-teal font-semibold' : ''}
-                ${past ? 'text-gray-200 cursor-not-allowed' : ''}
-                ${!sel && !past && !td ? 'text-gray-700 hover:bg-purple/10' : ''}
+                ${td && !sel ? 'text-teal font-bold ring-1 ring-teal' : ''}
+                ${past ? 'text-gray-200' : ''}
+                ${!sel && !past && !td ? 'text-gray-600 hover:bg-purple/5' : ''}
               `}
-            >
-              {day}
-            </button>
+            >{day}</button>
           );
         })}
       </div>
+      {value && (
+        <p className="text-center text-xs font-body text-purple/70 mt-2">
+          {new Date(value + 'T00:00:00').toLocaleDateString('es-PA', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+      )}
     </div>
   );
 }
 
-// ─── TIME PICKER (15 min intervals, scroll style) ───
+// ─── COMPACT TIME PICKER (pill grid) ───
 function TimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const hours = Array.from({ length: 13 }, (_, i) => i + 7); // 7am - 7pm
-  const minutes = ['00', '15', '30', '45'];
+  const timeSlots = [
+    '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
+    '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
+    '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+    '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00',
+  ];
 
-  const [selectedHour, setSelectedHour] = useState(() => {
-    if (value) return parseInt(value.split(':')[0]);
-    return 10;
-  });
-  const [selectedMin, setSelectedMin] = useState(() => {
-    if (value) return value.split(':')[1] || '00';
-    return '00';
-  });
-
-  const handleSelect = (h: number, m: string) => {
-    setSelectedHour(h);
-    setSelectedMin(m);
-    const hh = String(h).padStart(2, '0');
-    onChange(`${hh}:${m}`);
-  };
-
-  const formatHour = (h: number) => {
-    if (h === 0) return '12 AM';
-    if (h < 12) return `${h} AM`;
-    if (h === 12) return '12 PM';
-    return `${h - 12} PM`;
+  const formatTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-3">
-      <div className="flex gap-2">
-        {/* Hours */}
-        <div className="flex-1">
-          <p className="text-[10px] font-heading text-gray-400 mb-1 text-center">Hora</p>
-          <div className="h-32 overflow-y-auto rounded-lg bg-gray-50 scrollbar-hide">
-            {hours.map(h => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => handleSelect(h, selectedMin)}
-                className={`w-full py-1.5 text-center text-xs font-body transition-colors ${
-                  selectedHour === h ? 'bg-purple text-white font-bold' : 'text-gray-600 hover:bg-purple/10'
-                }`}
-              >
-                {formatHour(h)}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Minutes */}
-        <div className="w-16">
-          <p className="text-[10px] font-heading text-gray-400 mb-1 text-center">Min</p>
-          <div className="rounded-lg bg-gray-50">
-            {minutes.map(m => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => handleSelect(selectedHour, m)}
-                className={`w-full py-1.5 text-center text-xs font-body transition-colors ${
-                  selectedMin === m ? 'bg-purple text-white font-bold' : 'text-gray-600 hover:bg-purple/10'
-                }`}
-              >
-                :{m}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      {timeSlots.map(t => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onChange(t)}
+          className={`px-2.5 py-1 rounded-full text-[11px] font-heading font-semibold transition-all
+            ${value === t ? 'bg-purple text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-purple/10 hover:text-purple'}
+          `}
+        >
+          {formatTime(t)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -196,85 +141,70 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack }: Pro
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 max-w-md mx-auto">
-      <h2 className="font-heading font-bold text-xl text-purple mb-4">Detalles del Evento</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
+      <h2 className="font-heading font-bold text-xl text-purple">Detalles del Evento</h2>
 
       {errors.length > 0 && (
-        <div className="bg-pink/10 border border-pink/30 rounded-xl p-4">
+        <div className="bg-pink/10 border border-pink/30 rounded-xl p-3">
           {errors.map((err, i) => (
-            <p key={i} className="font-body text-sm text-pink flex items-center gap-2">
-              <span className="text-lg">*</span> {err}
+            <p key={i} className="font-body text-xs text-pink flex items-center gap-1.5">
+              <span>*</span> {err}
             </p>
           ))}
         </div>
       )}
 
-      {/* Date + Time side by side */}
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-        <div>
-          <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Fecha</label>
-          <DatePicker value={data.date} onChange={(v) => onChange({ ...data, date: v })} />
-        </div>
-        <div>
-          <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Hora</label>
-          <TimePicker value={data.time} onChange={(v) => onChange({ ...data, time: v })} />
-        </div>
+      {/* Date */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4">
+        <label className="block font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Fecha</label>
+        <DatePicker value={data.date} onChange={(v) => onChange({ ...data, date: v })} />
       </div>
 
-      {/* Area */}
-      <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Área del evento</label>
-        <select
-          value={data.area}
-          onChange={(e) => onChange({ ...data, area: e.target.value })}
-          className="w-full border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none bg-white"
-        >
-          <option value="">Selecciona un área</option>
-          {EVENT_AREAS.map((area) => (
-            <option key={area.name} value={area.name}>{area.name}</option>
-          ))}
-        </select>
+      {/* Time */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4">
+        <label className="block font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Hora</label>
+        <TimePicker value={data.time} onChange={(v) => onChange({ ...data, time: v })} />
       </div>
 
-      {/* Address */}
-      <Input
-        label="Lugar del evento y piso"
-        value={data.address}
-        onChange={(e) => onChange({ ...data, address: e.target.value })}
-        placeholder="Nombre del edificio / residencia, piso..."
-      />
+      {/* Area + Address */}
+      <div className="space-y-3">
+        <div>
+          <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Área del evento</label>
+          <select
+            value={data.area}
+            onChange={(e) => onChange({ ...data, area: e.target.value })}
+            className="w-full border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none bg-white"
+          >
+            <option value="">Selecciona un área</option>
+            {EVENT_AREAS.map((area) => (
+              <option key={area.name} value={area.name}>{area.name}</option>
+            ))}
+          </select>
+        </div>
+        <Input
+          label="Lugar del evento y piso"
+          value={data.address}
+          onChange={(e) => onChange({ ...data, address: e.target.value })}
+          placeholder="Edificio, residencia, piso..."
+        />
+      </div>
 
-      {/* Birthday child info */}
-      <div className="pt-2">
-        <p className="font-heading font-semibold text-sm text-gray-600 mb-3">Datos del cumpleañero/a (opcional)</p>
-        <div className="space-y-3">
-          <Input
-            label="Nombre del cumpleañero/a"
-            value={data.birthdayChildName}
-            onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })}
-            placeholder="Nombre"
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Edad"
-              type="number"
-              value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)}
-              onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })}
-              placeholder="5"
-              min="1"
-              max="18"
-            />
-            <Input
-              label="Temática"
-              value={data.theme}
-              onChange={(e) => onChange({ ...data, theme: e.target.value })}
-              placeholder="Patrulla Canina"
-            />
+      {/* Birthday child - collapsible */}
+      <details className="group">
+        <summary className="font-heading font-semibold text-sm text-gray-500 cursor-pointer hover:text-purple transition-colors list-none flex items-center gap-2">
+          <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          Datos del cumpleañero/a (opcional)
+        </summary>
+        <div className="space-y-3 mt-3">
+          <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
+            <Input label="Temática" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
           </div>
         </div>
-      </div>
+      </details>
 
-      <div className="pt-4 flex gap-3">
+      <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>
         <Button type="submit" className="flex-1" size="lg">Siguiente</Button>
       </div>
