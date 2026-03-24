@@ -64,6 +64,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const pin = request.headers.get('x-admin-pin');
+    if (pin !== '2588') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+    const { orderId, confirmed } = await request.json();
+    const { error } = await supabase
+      .from('pt_orders')
+      .update({ confirmed })
+      .eq('id', orderId);
+    if (error) {
+      console.error('Update error:', error);
+      return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Simple PIN auth via header
