@@ -53,7 +53,7 @@ export default function CarritoPage() {
           <Button variant="outline" className="w-full">Agregar más diversión</Button>
         </Link>
         <Link href="/checkout" className="flex-1">
-          <Button className="w-full" size="lg">Proceder al Checkout</Button>
+          <Button className="w-full" size="lg">Confirma tu experiencia</Button>
         </Link>
       </div>
     </div>
