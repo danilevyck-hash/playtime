@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchSetting } from '@/lib/supabase-data';
 
 interface ReelData {
   url: string;
@@ -11,12 +12,30 @@ export default function InstagramFeed() {
   const [reels, setReels] = useState<ReelData[]>([]);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('playtime_reels');
-      if (saved) {
-        setReels(JSON.parse(saved));
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const data = await fetchSetting<ReelData[]>('reels');
+        if (!cancelled && data && data.length > 0) {
+          setReels(data);
+          return;
+        }
+      } catch {}
+
+      // Fallback to localStorage
+      if (!cancelled) {
+        try {
+          const saved = localStorage.getItem('playtime_reels');
+          if (saved) {
+            setReels(JSON.parse(saved));
+          }
+        } catch {}
       }
-    } catch {}
+    }
+
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -24,7 +43,7 @@ export default function InstagramFeed() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-10">
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
-            Síguenos en Instagram
+            Sigue a PlayTime
           </h2>
           <p className="font-body text-gray-500 max-w-md mx-auto">
             Mira nuestros eventos, fotos y novedades

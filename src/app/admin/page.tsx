@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '@/lib/format';
+import {
+  fetchProductOverrides,
+  fetchAllCustomProducts,
+  upsertProductOverride,
+  upsertCustomProduct,
+  deleteCustomProduct,
+  fetchSetting,
+  upsertSetting,
+} from '@/lib/supabase-data';
 
 interface OrderItem {
   product_name: string;
@@ -45,17 +54,33 @@ function ReelsTab() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    try {
-      const data = localStorage.getItem('playtime_reels');
-      if (data) {
-        const reels = JSON.parse(data);
-        const urls = reels.map((r: { url: string }) => r.url);
-        setReelUrls([urls[0] || '', urls[1] || '', urls[2] || '']);
+    let cancelled = false;
+    async function load() {
+      try {
+        const reels = await fetchSetting<Array<{ url: string; id: string }>>('reels');
+        if (!cancelled && reels && reels.length > 0) {
+          const urls = reels.map((r) => r.url);
+          setReelUrls([urls[0] || '', urls[1] || '', urls[2] || '']);
+          return;
+        }
+      } catch {}
+      // Fallback to localStorage
+      if (!cancelled) {
+        try {
+          const data = localStorage.getItem('playtime_reels');
+          if (data) {
+            const reels = JSON.parse(data);
+            const urls = reels.map((r: { url: string }) => r.url);
+            setReelUrls([urls[0] || '', urls[1] || '', urls[2] || '']);
+          }
+        } catch {}
       }
-    } catch {}
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const reels = reelUrls
       .filter(Boolean)
       .map((url) => {
@@ -63,7 +88,14 @@ function ReelsTab() {
         return id ? { url, id } : null;
       })
       .filter(Boolean);
-    localStorage.setItem('playtime_reels', JSON.stringify(reels));
+
+    // Save to Supabase
+    const ok = await upsertSetting('reels', reels);
+
+    // Also save to localStorage as fallback
+    try { localStorage.setItem('playtime_reels', JSON.stringify(reels)); } catch {}
+
+    if (!ok) console.error('Failed to save reels to Supabase');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -342,14 +374,6 @@ const ALL_CATEGORIES = ['planes', 'belleza', 'entretenimiento', 'snacks', 'gymbo
 
 interface AdminProduct { id: string; name: string; cat: string; price: number; desc: string; active: boolean; custom?: boolean }
 
-function getStoredProducts(): { disabled: string[]; custom: AdminProduct[] } {
-  try {
-    const d = localStorage.getItem('playtime_disabled');
-    const c = localStorage.getItem('playtime_custom_products');
-    return { disabled: d ? JSON.parse(d) : [], custom: c ? JSON.parse(c) : [] };
-  } catch { return { disabled: [], custom: [] }; }
-}
-
 function ProductsTab() {
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('');
@@ -377,9 +401,29 @@ function ProductsTab() {
       });
       if (res.ok) {
         const data = await res.json();
-        setImageUrls(prev => ({ ...prev, [productId]: data.path }));
-        const saved = { ...imageUrls, [productId]: data.path };
-        localStorage.setItem('playtime_image_urls', JSON.stringify(saved));
+        const newUrl = data.path;
+        setImageUrls(prev => ({ ...prev, [productId]: newUrl }));
+
+        // Save image URL to Supabase (on the override or custom product)
+        const isCustom = customProducts.some(p => p.id === productId);
+        if (isCustom) {
+          const cp = customProducts.find(p => p.id === productId);
+          if (cp) {
+            upsertCustomProduct({
+              id: cp.id, name: cp.name, category: cp.cat, price: cp.price,
+              description: cp.desc, image_url: newUrl, active: cp.active,
+            }).catch(() => {});
+          }
+        } else {
+          upsertProductOverride({ id: productId, image_url: newUrl }).catch(() => {});
+        }
+
+        // Also save to localStorage as fallback
+        try {
+          const saved = { ...imageUrls, [productId]: newUrl };
+          localStorage.setItem('playtime_image_urls', JSON.stringify(saved));
+        } catch {}
+
         flash('Foto actualizada');
       } else {
         const err = await res.json();
@@ -393,35 +437,92 @@ function ProductsTab() {
   };
 
   useEffect(() => {
-    try {
-      const names = localStorage.getItem('playtime_product_names');
-      if (names) setNameOverrides(JSON.parse(names));
-      const imgs = localStorage.getItem('playtime_image_urls');
-      if (imgs) setImageUrls(JSON.parse(imgs));
-    } catch {}
-    const stored = getStoredProducts();
-    setDisabledIds(stored.disabled);
-    setCustomProducts(stored.custom);
+    let cancelled = false;
+    async function loadFromSupabase() {
+      try {
+        const [overrides, custom] = await Promise.all([
+          fetchProductOverrides(),
+          fetchAllCustomProducts(),
+        ]);
+
+        if (!cancelled && (overrides.length > 0 || custom.length > 0)) {
+          const names: Record<string, string> = {};
+          const disabled: string[] = [];
+          const imgs: Record<string, string> = {};
+
+          for (const o of overrides) {
+            if (o.name_override) names[o.id] = o.name_override;
+            if (o.disabled) disabled.push(o.id);
+            if (o.image_url) imgs[o.id] = o.image_url;
+          }
+
+          for (const cp of custom) {
+            if (cp.image_url) imgs[cp.id] = cp.image_url;
+          }
+
+          setNameOverrides(names);
+          setDisabledIds(disabled);
+          setImageUrls(imgs);
+          setCustomProducts(custom.map(cp => ({
+            id: cp.id,
+            name: cp.name,
+            cat: cp.category,
+            price: cp.price,
+            desc: cp.description || '',
+            active: cp.active,
+            custom: true,
+          })));
+          return;
+        }
+      } catch (e) {
+        console.error('Supabase load failed in ProductsTab:', e);
+      }
+
+      // Fallback: localStorage
+      if (!cancelled) {
+        try {
+          const names = localStorage.getItem('playtime_product_names');
+          if (names) setNameOverrides(JSON.parse(names));
+          const imgs = localStorage.getItem('playtime_image_urls');
+          if (imgs) setImageUrls(JSON.parse(imgs));
+          const d = localStorage.getItem('playtime_disabled');
+          if (d) setDisabledIds(JSON.parse(d));
+          const c = localStorage.getItem('playtime_custom_products');
+          if (c) setCustomProducts(JSON.parse(c));
+        } catch {}
+      }
+    }
+    loadFromSupabase();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleSaveName = (productId: string) => {
+  const handleSaveName = async (productId: string) => {
     const updated = { ...nameOverrides, [productId]: editName };
     setNameOverrides(updated);
-    localStorage.setItem('playtime_product_names', JSON.stringify(updated));
     setEditingId(null);
+
+    // Save to Supabase
+    upsertProductOverride({ id: productId, name_override: editName }).catch(() => {});
+    // Also save to localStorage
+    try { localStorage.setItem('playtime_product_names', JSON.stringify(updated)); } catch {}
     flash('Nombre guardado');
   };
 
-  const toggleDisabled = (productId: string) => {
-    const updated = disabledIds.includes(productId)
-      ? disabledIds.filter(id => id !== productId)
-      : [...disabledIds, productId];
+  const toggleDisabled = async (productId: string) => {
+    const nowDisabled = !disabledIds.includes(productId);
+    const updated = nowDisabled
+      ? [...disabledIds, productId]
+      : disabledIds.filter(id => id !== productId);
     setDisabledIds(updated);
-    localStorage.setItem('playtime_disabled', JSON.stringify(updated));
-    flash(disabledIds.includes(productId) ? 'Producto activado' : 'Producto desactivado');
+
+    // Save to Supabase
+    upsertProductOverride({ id: productId, disabled: nowDisabled }).catch(() => {});
+    // Also save to localStorage
+    try { localStorage.setItem('playtime_disabled', JSON.stringify(updated)); } catch {}
+    flash(nowDisabled ? 'Producto desactivado' : 'Producto activado');
   };
 
-  const handleAddProduct = () => {
+  const handleAddProduct = async () => {
     if (!newProduct.name.trim()) return;
     const id = `custom-${Date.now()}`;
     const product: AdminProduct = {
@@ -435,16 +536,33 @@ function ProductsTab() {
     };
     const updated = [...customProducts, product];
     setCustomProducts(updated);
-    localStorage.setItem('playtime_custom_products', JSON.stringify(updated));
+
+    // Save to Supabase
+    upsertCustomProduct({
+      id,
+      name: product.name,
+      category: product.cat,
+      price: product.price,
+      description: product.desc,
+      image_url: null,
+      active: true,
+    }).catch(() => {});
+
+    // Also save to localStorage
+    try { localStorage.setItem('playtime_custom_products', JSON.stringify(updated)); } catch {}
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
     flash('Producto agregado');
   };
 
-  const removeCustomProduct = (id: string) => {
+  const removeCustomProduct = async (id: string) => {
     const updated = customProducts.filter(p => p.id !== id);
     setCustomProducts(updated);
-    localStorage.setItem('playtime_custom_products', JSON.stringify(updated));
+
+    // Delete from Supabase
+    deleteCustomProduct(id).catch(() => {});
+    // Also update localStorage
+    try { localStorage.setItem('playtime_custom_products', JSON.stringify(updated)); } catch {}
     flash('Producto eliminado');
   };
 
