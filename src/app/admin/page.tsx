@@ -213,11 +213,45 @@ function ProductsTab() {
   const [customProducts, setCustomProducts] = useState<AdminProduct[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
+  const [uploading, setUploading] = useState('');
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+
+  const handleUpload = async (productId: string, file: File) => {
+    setUploading(productId);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', productId);
+      formData.append('folder', 'products');
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'x-admin-pin': '2588' },
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setImageUrls(prev => ({ ...prev, [productId]: data.path }));
+        // Save to localStorage for persistence
+        const saved = { ...imageUrls, [productId]: data.path };
+        localStorage.setItem('playtime_image_urls', JSON.stringify(saved));
+        flash('Foto actualizada');
+      } else {
+        const err = await res.json();
+        flash(`Error: ${err.error || 'No se pudo subir'}`);
+      }
+    } catch {
+      flash('Error de conexión');
+    } finally {
+      setUploading('');
+    }
+  };
 
   useEffect(() => {
     try {
       const names = localStorage.getItem('playtime_product_names');
       if (names) setNameOverrides(JSON.parse(names));
+      const imgs = localStorage.getItem('playtime_image_urls');
+      if (imgs) setImageUrls(JSON.parse(imgs));
     } catch {}
     const stored = getStoredProducts();
     setDisabledIds(stored.disabled);
@@ -387,6 +421,8 @@ function ProductsTab() {
           const isEditing = editingId === product.id;
           const isDisabled = disabledIds.includes(product.id);
 
+          const imgSrc = imageUrls[product.id] || `/images/products/${product.id}.png`;
+
           return (
             <div key={product.id} className={`bg-white rounded-xl border p-3 transition-opacity ${isDisabled ? 'opacity-40 border-gray-200' : 'border-gray-100'}`}>
               <div className="flex items-center gap-3">
@@ -398,6 +434,26 @@ function ProductsTab() {
                 >
                   <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isDisabled ? 'left-1' : 'left-5'}`} />
                 </button>
+
+                {/* Image + upload */}
+                <label className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading === product.id}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f); }}
+                  />
+                  {uploading === product.id && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-5 h-5 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                </label>
 
                 <div className="flex-1 min-w-0">
                   {isEditing ? (

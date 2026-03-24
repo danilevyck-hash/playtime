@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { supabase } from '@/lib/supabase';
+
+const BUCKET = 'playtime-images';
 
 export async function POST(request: NextRequest) {
   const pin = request.headers.get('x-admin-pin');
   if (pin !== '2588') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!supabase) {
+    return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 
   const formData = await request.formData();
@@ -19,16 +24,29 @@ export async function POST(request: NextRequest) {
 
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-
   const ext = file.name.split('.').pop() || 'png';
-  const filename = `${productId}.${ext}`;
-  const dir = path.join(process.cwd(), 'public', 'images', folder);
+  const filePath = `${folder}/${productId}.${ext}`;
 
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), buffer);
+  // Upload to Supabase Storage (upsert = overwrite if exists)
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true,
+    });
+
+  if (error) {
+    console.error('Upload error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from(BUCKET)
+    .getPublicUrl(filePath);
 
   return NextResponse.json({
-    path: `/images/${folder}/${filename}`,
-    filename,
+    path: urlData.publicUrl,
+    filename: `${productId}.${ext}`,
   });
 }
