@@ -13,13 +13,14 @@ export async function POST(request: NextRequest) {
 
     // Insert order
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from('pt_orders')
       .insert({
         customer_name: customer.name,
         customer_phone: customer.phone,
         customer_email: customer.email || null,
         event_date: event.date,
         event_time: event.time,
+        event_area: event.area || null,
         event_address: event.address,
         birthday_child_name: event.birthdayChildName || null,
         birthday_child_age: event.birthdayChildAge || null,
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     }));
 
     const { error: itemsError } = await supabase
-      .from('order_items')
+      .from('pt_order_items')
       .insert(orderItems);
 
     if (itemsError) {
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: orders, error } = await supabase
-      .from('orders')
+      .from('pt_orders')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     if (orderIds.length > 0) {
       const { data: items } = await supabase
-        .from('order_items')
+        .from('pt_order_items')
         .select('*')
         .in('order_id', orderIds);
 
