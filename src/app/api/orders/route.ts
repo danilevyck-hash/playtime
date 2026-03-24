@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const pin = request.headers.get('x-admin-pin');
-    if (pin !== '2588') {
+    if (pin !== process.env.ADMIN_PIN) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     if (!supabase) {
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   try {
     // Simple PIN auth via header
     const pin = request.headers.get('x-admin-pin');
-    if (pin !== '2588') {
+    if (pin !== process.env.ADMIN_PIN) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

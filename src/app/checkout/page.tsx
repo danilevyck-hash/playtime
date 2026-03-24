@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS } from '@/lib/types';
@@ -15,30 +15,48 @@ import OrderReview from '@/components/checkout/OrderReview';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 
+const CHECKOUT_STORAGE_KEY = 'playtime-checkout';
+
+function loadCheckoutState() {
+  try {
+    const saved = sessionStorage.getItem(CHECKOUT_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+}
+
+function clearCheckoutState() {
+  try { sessionStorage.removeItem(CHECKOUT_STORAGE_KEY); } catch {}
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
-  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
 
-  const [customer, setCustomer] = useState<OrderCustomer>({
-    name: '',
-    phone: '',
-    email: '',
-  });
+  const saved = typeof window !== 'undefined' ? loadCheckoutState() : null;
 
-  const [event, setEvent] = useState<OrderEvent>({
-    date: '',
-    time: '',
-    area: '',
-    address: '',
-    birthdayChildName: '',
-    birthdayChildAge: '',
-    theme: '',
-  });
+  const [step, setStep] = useState(saved?.step ?? 0);
+  const [customer, setCustomer] = useState<OrderCustomer>(saved?.customer ?? { name: '', phone: '', email: '' });
+  const [event, setEvent] = useState<OrderEvent>(saved?.event ?? { date: '', time: '', area: '', address: '', birthdayChildName: '', birthdayChildAge: '', theme: '' });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'bank_transfer');
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
+  const persistCheckout = useCallback((overrides?: { step?: number; customer?: OrderCustomer; event?: OrderEvent; paymentMethod?: PaymentMethod }) => {
+    try {
+      sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify({
+        step: overrides?.step ?? step,
+        customer: overrides?.customer ?? customer,
+        event: overrides?.event ?? event,
+        paymentMethod: overrides?.paymentMethod ?? paymentMethod,
+      }));
+    } catch {}
+  }, [step, customer, event, paymentMethod]);
+
+  // Persist on every state change
+  useEffect(() => {
+    if (step < 4) persistCheckout();
+  }, [step, customer, event, paymentMethod, persistCheckout]);
 
   // Calculate transport cost based on selected area
   const transportCost = EVENT_AREAS.find((a) => a.name === event.area)?.price ?? 0;
@@ -138,6 +156,7 @@ export default function CheckoutPage() {
       });
 
       setWhatsappUrl(getWhatsAppUrl(message));
+      clearCheckoutState();
       setStep(4);
     } catch {
       alert('Hubo un error. Por favor intenta de nuevo o contáctanos por WhatsApp.');
@@ -147,6 +166,7 @@ export default function CheckoutPage() {
   };
 
   const handleWhatsAppClick = () => {
+    clearCheckoutState();
     clearCart();
     // Navigate to confirmation after a brief delay so the link opens first
     setTimeout(() => router.push('/checkout/confirmacion'), 500);

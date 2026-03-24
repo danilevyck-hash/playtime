@@ -32,6 +32,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://playtime-kids.vercel.app'),
   title: {
     default: "PlayTime - Creando Momentos",
     template: "%s | PlayTime Panam\u00e1",

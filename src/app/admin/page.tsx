@@ -42,7 +42,7 @@ interface Order {
   items: OrderItem[];
 }
 
-const ADMIN_PIN = '2588';
+const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '';
 
 function extractReelId(url: string): string | null {
   const match = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/);
@@ -467,7 +467,7 @@ function ProductsTab() {
       formData.append('file', file);
       formData.append('productId', productId);
       formData.append('folder', 'products');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': '2588' }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': ADMIN_PIN }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
