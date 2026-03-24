@@ -11,6 +11,7 @@ import {
   fetchSetting,
   upsertSetting,
 } from '@/lib/supabase-data';
+import { PRODUCTS } from '@/lib/constants';
 
 interface OrderItem {
   product_name: string;
@@ -394,45 +395,14 @@ function ProductsTab() {
 
   const flash = (msg: string) => { setMessage(msg); setTimeout(() => setMessage(''), 2000); };
 
-  // ─── LOAD from Supabase + merge with built-in ───
+  // ─── LOAD from constants.ts + Supabase overrides ───
   useEffect(() => {
     async function load() {
-      const builtIn: AdminProduct[] = [
-        { id: 'plan-1', name: 'Plan #1 - Completo', cat: 'planes', price: 500, desc: 'Show de Títeres con Lala (45 min), actividad de arte, alquiler de equipos. 2 teachers. 3 horas.', imgUrl: '/images/products/plan-1.png', active: true },
-        { id: 'plan-2', name: 'Plan #2 - Show + Equipos', cat: 'planes', price: 380, desc: 'Show de Títeres con Lala (45 min), alquiler de equipos. 2 teachers. 3 horas.', imgUrl: '/images/products/plan-2.png', active: true },
-        { id: 'plan-3', name: 'Plan #3 - Show + Arte', cat: 'planes', price: 260, desc: 'Show de Títeres con Lala (45 min), actividad de arte. 2 teachers. 3 horas.', imgUrl: '/images/products/plan-3.png', active: true },
-        { id: 'plan-4', name: 'Plan #4 - Show de Títeres', cat: 'planes', price: 225, desc: 'Show de Títeres con Lala (45 min). 1 teacher. 1 hora.', imgUrl: '/images/products/plan-4.png', active: true },
-        { id: 'plan-5', name: 'Plan #5 - Animación', cat: 'planes', price: 250, desc: 'Animación infantil con juegos y música. 1 hora.', imgUrl: '/images/products/plan-5.png', active: true },
-        { id: 'plan-12', name: 'Plan #12 - Mommy & Me', cat: 'planes', price: 450, desc: 'Experiencia para mamá e hijo/a con actividades especiales.', imgUrl: '/images/products/plan-12.png', active: true },
-        { id: 'plan-6-makeup', name: 'Plan #6 - Makeup', cat: 'belleza', price: 120, desc: 'Maquillaje artístico para niñas.', imgUrl: '/images/products/plan-6-makeup.png', active: true },
-        { id: 'plan-7-manicure', name: 'Plan #7 - Manicure', cat: 'belleza', price: 100, desc: 'Manicure para niñas con esmaltes de colores.', imgUrl: '/images/products/plan-7-manicure.png', active: true },
-        { id: 'plan-9-hair', name: 'Plan #9 - Hair Glamour', cat: 'belleza', price: 140, desc: 'Peinados temáticos y glamorosos.', imgUrl: '/images/products/plan-9-hair.png', active: true },
-        { id: 'plan-10-spa', name: 'Plan #10 - Spa', cat: 'belleza', price: 400, desc: 'Experiencia spa completa: mascarillas, uñas, peinado.', imgUrl: '/images/products/plan-10-spa.png', active: true },
-        { id: 'plan-11-princess', name: 'Plan #11 - Princess', cat: 'belleza', price: 700, desc: 'Paquete princesa completo: maquillaje, peinado, uñas, vestuario.', imgUrl: '/images/products/plan-11-princess.png', active: true },
-        { id: 'show-titeres', name: 'Show de Títeres', cat: 'entretenimiento', price: 225, desc: 'Show con títeres de Lala (45 min).', imgUrl: '/images/products/show-titeres.png', active: true },
-        { id: 'animacion', name: 'Animación 1 Hora', cat: 'entretenimiento', price: 250, desc: 'Animación con juegos, música y diversión.', imgUrl: '/images/products/animacion.png', active: true },
-        { id: 'personaje-animacion', name: 'Personaje con Animación', cat: 'entretenimiento', price: 380, desc: 'Personaje temático con animación incluida.', imgUrl: '/images/products/personaje-animacion.png', active: true },
-        { id: 'algodon-azucar', name: 'Algodón de Azúcar', cat: 'snacks', price: 100, desc: 'Máquina de algodón de azúcar con operador.', imgUrl: '/images/products/algodon-azucar.png', active: true },
-        { id: 'raspado', name: 'Raspado', cat: 'snacks', price: 130, desc: 'Máquina de raspados con sabores variados.', imgUrl: '/images/products/raspado.png', active: true },
-        { id: 'popcorn', name: 'Pop Corn', cat: 'snacks', price: 100, desc: 'Máquina de palomitas de maíz.', imgUrl: '/images/products/popcorn.png', active: true },
-        { id: 'slushy', name: 'Slushy', cat: 'snacks', price: 130, desc: 'Máquina de slushies con sabores.', imgUrl: '/images/products/slushy.png', active: true },
-        { id: 'gymboree-blanco-grande', name: 'Gymboree Blanco Grande', cat: 'gymboree', price: 250, desc: 'Gymboree blanco tamaño grande.', imgUrl: '/images/products/gymboree-blanco-grande.png', active: true },
-        { id: 'gymboree-blanco-chico', name: 'Gymboree Blanco Chico', cat: 'gymboree', price: 160, desc: 'Gymboree blanco tamaño pequeño.', imgUrl: '/images/products/gymboree-blanco-chico.png', active: true },
-        { id: 'gymboree-rosado-grande', name: 'Gymboree Rosado Grande', cat: 'gymboree', price: 290, desc: 'Gymboree rosado tamaño grande.', imgUrl: '/images/products/gymboree-rosado-grande.png', active: true },
-        { id: 'gymboree-rosado-chico', name: 'Gymboree Rosado Chico', cat: 'gymboree', price: 180, desc: 'Gymboree rosado tamaño pequeño.', imgUrl: '/images/products/gymboree-rosado-chico.png', active: true },
-        { id: 'bubble-house', name: 'Bubble House', cat: 'inflables', price: 190, desc: 'Casa de burbujas inflable transparente.', imgUrl: '/images/products/bubble-house.png', active: true },
-        { id: 'bounce-house-blanco', name: 'Bounce House', cat: 'inflables', price: 120, desc: 'Bounce house blanco para saltar.', imgUrl: '/images/products/bounce-house-blanco.png', active: true },
-        { id: 'inflable-grande-1', name: 'Inflable Grande Tobogán', cat: 'inflables', price: 170, desc: 'Inflable grande con tobogán.', imgUrl: '/images/products/inflable-grande-1.png', active: true },
-        { id: 'inflable-mediano', name: 'Inflable Mediano', cat: 'inflables', price: 140, desc: 'Inflable tamaño mediano.', imgUrl: '/images/products/inflable-mediano.png', active: true },
-        { id: 'inflable-chico', name: 'Inflable Pequeño', cat: 'inflables', price: 110, desc: 'Inflable tamaño pequeño.', imgUrl: '/images/products/inflable-chico.png', active: true },
-        { id: 'piscina-cuadrada-blanca', name: 'Piscina Cuadrada', cat: 'piscinas', price: 88, desc: 'Piscina cuadrada de pelotas.', imgUrl: '/images/products/piscina-cuadrada-blanca.png', active: true },
-        { id: 'piscina-redonda-grande', name: 'Piscina Redonda Grande', cat: 'piscinas', price: 100, desc: 'Piscina redonda grande de pelotas.', imgUrl: '/images/products/piscina-redonda-grande.png', active: true },
-        { id: 'bumper-cars', name: 'Bumper Cars', cat: 'alquiler', price: 250, desc: 'Carros chocones para niños.', imgUrl: '/images/products/bumper-cars.png', active: true },
-        { id: 'mini-parque', name: 'Mini Parque', cat: 'alquiler', price: 50, desc: 'Mini parque con juegos variados.', imgUrl: '/images/products/mini-parque.png', active: true },
-        { id: 'musica', name: 'Música', cat: 'servicios', price: 90, desc: 'Servicio de música y bocina.', imgUrl: '/images/products/musica.png', active: true },
-        { id: 'transporte', name: 'Transporte', cat: 'servicios', price: 50, desc: 'Transporte de equipos al evento.', imgUrl: '/images/products/transporte.png', active: true },
-        { id: 'teacher-extra', name: 'Teacher Extra', cat: 'servicios', price: 80, desc: 'Teacher adicional para el evento.', imgUrl: '/images/products/teacher-extra.png', active: true },
-      ];
+      // Use PRODUCTS from constants.ts as the single source of truth
+      const builtIn: AdminProduct[] = PRODUCTS.map(p => ({
+        id: p.id, name: p.name, cat: p.category, price: p.price,
+        desc: p.description, imgUrl: p.image || `/images/products/${p.id}.png`, active: true,
+      }));
 
       try {
         const [overrides, custom] = await Promise.all([
@@ -440,7 +410,6 @@ function ProductsTab() {
           fetchAllCustomProducts(),
         ]);
 
-        // Apply overrides to built-in products
         const ovMap = new Map(overrides.map(o => [o.id, o]));
         const merged = builtIn.map(p => {
           const ov = ovMap.get(p.id);
@@ -456,7 +425,6 @@ function ProductsTab() {
           };
         });
 
-        // Add custom products
         const customMapped: AdminProduct[] = custom.map(cp => ({
           id: cp.id, name: cp.name, cat: cp.category, price: cp.price,
           desc: cp.description || '', imgUrl: cp.image_url || '', active: cp.active, custom: true,
