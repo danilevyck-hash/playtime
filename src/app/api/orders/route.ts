@@ -73,7 +73,25 @@ export async function PATCH(request: NextRequest) {
     if (!supabase) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
-    const { orderId, confirmed } = await request.json();
+    const body = await request.json();
+    const { orderId, confirmed, internalNote } = body;
+
+    if (internalNote !== undefined) {
+      // Try internal_note column first, fall back to appending to notes
+      const { error: noteError } = await supabase
+        .from('pt_orders')
+        .update({ internal_note: internalNote })
+        .eq('id', orderId);
+      if (noteError) {
+        // Column may not exist — fallback: append to notes
+        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const currentNotes = existing?.notes || '';
+        const separator = currentNotes ? '\n' : '';
+        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCDD Nota interna: ${internalNote}` }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const { error } = await supabase
       .from('pt_orders')
       .update({ confirmed })
@@ -136,6 +154,32 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ orders: enriched });
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const pin = request.headers.get('x-admin-pin');
+    if (pin !== process.env.ADMIN_PIN) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+    const { orderId } = await request.json();
+
+    // Delete items first in case there's no CASCADE
+    await supabase.from('pt_order_items').delete().eq('order_id', orderId);
+
+    const { error } = await supabase.from('pt_orders').delete().eq('id', orderId);
+    if (error) {
+      console.error('Delete error:', error);
+      return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

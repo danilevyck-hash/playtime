@@ -37,6 +37,7 @@ interface Order {
   surcharge: number;
   total: number;
   notes: string | null;
+  internal_note: string | null;
   created_at: string;
   confirmed: boolean;
   items: OrderItem[];
@@ -143,6 +144,9 @@ function OrdersTab() {
   const [error, setError] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed'>('all');
+  const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
+  const [noteInputs, setNoteInputs] = useState<Record<number, string>>({});
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -175,17 +179,73 @@ function OrdersTab() {
     } catch {}
   };
 
-  // Filter orders by search
+  const deleteOrder = async (orderId: number, orderNumber: number) => {
+    if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
+        body: JSON.stringify({ orderId }),
+      });
+      if (res.ok) {
+        setOrders(prev => prev.filter(o => o.id !== orderId));
+        setExpandedOrder(null);
+      }
+    } catch {}
+  };
+
+  const saveNote = async (orderId: number) => {
+    const text = (noteInputs[orderId] || '').trim();
+    if (!text) return;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
+        body: JSON.stringify({ orderId, internalNote: text }),
+      });
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text, notes: (o.notes || '') + '\n\uD83D\uDCDD Nota interna: ' + text } : o));
+        setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
+      }
+    } catch {}
+  };
+
+  // Filter orders by search + status
   const filteredOrders = useMemo(() => {
-    if (!search.trim()) return orders;
-    const q = search.toLowerCase().trim();
-    return orders.filter(o =>
-      o.customer_name.toLowerCase().includes(q) ||
-      o.event_date.includes(q) ||
-      String(o.order_number).includes(q) ||
-      (o.customer_phone && o.customer_phone.includes(q))
-    );
-  }, [orders, search]);
+    let result = orders;
+    if (statusFilter === 'confirmed') result = result.filter(o => o.confirmed);
+    else if (statusFilter === 'pending') result = result.filter(o => !o.confirmed);
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      result = result.filter(o =>
+        o.customer_name.toLowerCase().includes(q) ||
+        o.event_date.includes(q) ||
+        String(o.order_number).includes(q) ||
+        (o.customer_phone && o.customer_phone.includes(q))
+      );
+    }
+    return result;
+  }, [orders, search, statusFilter]);
+
+  // Group by event date for "by event" view
+  const groupedByEvent = useMemo(() => {
+    if (sortMode !== 'event') return null;
+    const sorted = [...filteredOrders].sort((a, b) => a.event_date.localeCompare(b.event_date));
+    const groups: { date: string; label: string; orders: Order[] }[] = [];
+    for (const o of sorted) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === o.event_date) {
+        last.orders.push(o);
+      } else {
+        const d = new Date(o.event_date + 'T00:00:00');
+        const DIAS = ['Domingo', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'];
+        const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const label = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`;
+        groups.push({ date: o.event_date, label, orders: [o] });
+      }
+    }
+    return groups;
+  }, [filteredOrders, sortMode]);
 
   // Monthly summary
   const monthlySummary = useMemo(() => {
@@ -214,6 +274,100 @@ function OrdersTab() {
   const confirmedOrders = orders.filter(o => o.confirmed).length;
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
   const confirmedRevenue = orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0);
+
+  const renderOrderCard = (order: Order) => (
+    <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${order.confirmed ? 'border-teal/30' : 'border-gray-100'}`}>
+      <button onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${order.confirmed ? 'bg-teal' : 'bg-gray-300'}`} />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+                <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${order.payment_method === 'bank_transfer' ? 'bg-teal/10 text-teal' : 'bg-orange/10 text-orange'}`}>
+                  {order.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta'}
+                </span>
+                {order.confirmed && (
+                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-teal/10 text-teal">Confirmada</span>
+                )}
+              </div>
+              <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} · {order.event_date}</p>
+            </div>
+          </div>
+          <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
+        </div>
+      </button>
+      {expandedOrder === order.id && (
+        <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
+            <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
+            {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">Área</span><br/>{order.event_area}</div>}
+            <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
+            {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumpleañero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} años)` : ''}</div>}
+            {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
+          </div>
+          {order.items.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between px-3 py-2 text-sm">
+                  <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                  <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => toggleConfirm(order.id, order.confirmed)}
+              className={`inline-flex items-center gap-2 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors ${
+                order.confirmed ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-teal text-white hover:bg-teal/80'
+              }`}
+            >
+              {order.confirmed ? (
+                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>Desconfirmar</>
+              ) : (
+                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Confirmar Venta</>
+              )}
+            </button>
+            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#25D366] text-white font-heading font-semibold px-4 py-2 rounded-xl text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Contactar
+            </a>
+            <button
+              onClick={() => deleteOrder(order.id, order.order_number)}
+              className="inline-flex items-center gap-2 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              Eliminar
+            </button>
+          </div>
+          {/* Internal note */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-2">
+            {order.internal_note && (
+              <p className="font-body text-sm text-gray-700">{order.internal_note}</p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={noteInputs[order.id] || ''}
+                onChange={(e) => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))}
+                placeholder="Agregar nota interna..."
+                className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white"
+              />
+              <button
+                onClick={() => saveNote(order.id)}
+                disabled={!(noteInputs[order.id] || '').trim()}
+                className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div>
@@ -257,14 +411,11 @@ function OrdersTab() {
                   </span>
                   <div className="text-right">
                     <p className="font-heading font-bold text-purple">{formatCurrency(m.total)}</p>
-                    <p className="text-xs font-body text-teal">
-                      Confirmados: {formatCurrency(m.confirmed)} ({m.confirmedCount})
-                    </p>
+                    <p className="text-xs font-body text-teal">Confirmados: {formatCurrency(m.confirmed)} ({m.confirmedCount})</p>
                   </div>
                 </div>
               </div>
             ))}
-            {/* Grand total */}
             <div className="flex items-center justify-between pt-3 border-t-2 border-purple/20">
               <span className="font-heading font-bold text-purple">Total</span>
               <div className="text-right">
@@ -279,21 +430,32 @@ function OrdersTab() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <p className="font-body text-gray-500 text-sm">{filteredOrders.length} pedido{filteredOrders.length !== 1 ? 's' : ''}</p>
-        <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
-          {loading ? 'Cargando...' : 'Actualizar'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')}
+            className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm"
+          >
+            {sortMode === 'created' ? '\uD83D\uDD50 Por creaci\u00f3n' : '\uD83D\uDCC5 Por evento'}
+          </button>
+          <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
+            {loading ? 'Cargando...' : 'Actualizar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Status filter */}
+      <div className="flex gap-2 mb-4">
+        {([['all', 'Todos'], ['pending', 'Pendientes'], ['confirmed', 'Confirmados']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setStatusFilter(key)} className={`px-4 py-1.5 rounded-full font-heading font-semibold text-sm transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
       <div className="relative mb-4">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, fecha o # pedido..."
-          className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none"
-        />
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, fecha o # pedido..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -309,83 +471,19 @@ function OrdersTab() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {filteredOrders.map((order) => (
-          <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${order.confirmed ? 'border-teal/30' : 'border-gray-100'}`}>
-            <button onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {/* Confirmed badge */}
-                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${order.confirmed ? 'bg-teal' : 'bg-gray-300'}`} />
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-heading font-bold text-purple">#{order.order_number}</span>
-                      <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${order.payment_method === 'bank_transfer' ? 'bg-teal/10 text-teal' : 'bg-orange/10 text-orange'}`}>
-                        {order.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta'}
-                      </span>
-                      {order.confirmed && (
-                        <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-teal/10 text-teal">Confirmada</span>
-                      )}
-                    </div>
-                    <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} · {order.event_date}</p>
-                  </div>
-                </div>
-                <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
-              </div>
-            </button>
-            {expandedOrder === order.id && (
-              <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
-                  <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
-                  {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">Área</span><br/>{order.event_area}</div>}
-                  <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
-                  {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumpleañero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} años)` : ''}</div>}
-                  {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
-                </div>
-                {order.items.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
-                    {order.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between px-3 py-2 text-sm">
-                        <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                        <span className="font-semibold">{formatCurrency(item.line_total)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  {/* Confirm/Unconfirm button */}
-                  <button
-                    onClick={() => toggleConfirm(order.id, order.confirmed)}
-                    className={`inline-flex items-center gap-2 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors ${
-                      order.confirmed
-                        ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        : 'bg-teal text-white hover:bg-teal/80'
-                    }`}
-                  >
-                    {order.confirmed ? (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        Desconfirmar
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        Confirmar Venta
-                      </>
-                    )}
-                  </button>
-                  {/* WhatsApp */}
-                  <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#25D366] text-white font-heading font-semibold px-4 py-2 rounded-xl text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    Contactar
-                  </a>
-                </div>
-              </div>
-            )}
+      {groupedByEvent ? (
+        groupedByEvent.map(group => (
+          <div key={group.date} className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-heading font-bold text-sm text-purple">{group.label}</h3>
+              <span className="text-xs font-body text-gray-400">{group.orders.length} pedido{group.orders.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="space-y-3">{group.orders.map(renderOrderCard)}</div>
           </div>
-        ))}
-      </div>
+        ))
+      ) : (
+        <div className="space-y-3">{filteredOrders.map(renderOrderCard)}</div>
+      )}
     </div>
   );
 }
