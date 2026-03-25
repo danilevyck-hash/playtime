@@ -74,16 +74,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote } = body;
+    const { orderId, confirmed, internalNote, status, editFields, depositAmount, transportCostConfirmed } = body;
 
     if (internalNote !== undefined) {
-      // Try internal_note column first, fall back to appending to notes
       const { error: noteError } = await supabase
         .from('pt_orders')
         .update({ internal_note: internalNote })
         .eq('id', orderId);
       if (noteError) {
-        // Column may not exist — fallback: append to notes
         const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
@@ -92,15 +90,73 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const { error } = await supabase
-      .from('pt_orders')
-      .update({ confirmed })
-      .eq('id', orderId);
-    if (error) {
-      console.error('Update error:', error);
-      return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+    if (status !== undefined) {
+      const isConfirmed = status !== 'nuevo';
+      const updateData: Record<string, unknown> = { confirmed: isConfirmed };
+      // Try status column, gracefully ignore if it doesn't exist
+      const { error: statusError } = await supabase.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
+      if (statusError) {
+        // status column may not exist — just update confirmed
+        await supabase.from('pt_orders').update(updateData).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
     }
-    return NextResponse.json({ ok: true });
+
+    if (editFields !== undefined) {
+      const mapped: Record<string, unknown> = {};
+      if (editFields.customer_name !== undefined) mapped.customer_name = editFields.customer_name;
+      if (editFields.customer_phone !== undefined) mapped.customer_phone = editFields.customer_phone;
+      if (editFields.customer_email !== undefined) mapped.customer_email = editFields.customer_email || null;
+      if (editFields.event_date !== undefined) mapped.event_date = editFields.event_date;
+      if (editFields.event_time !== undefined) mapped.event_time = editFields.event_time;
+      if (editFields.event_area !== undefined) mapped.event_area = editFields.event_area || null;
+      if (editFields.event_address !== undefined) mapped.event_address = editFields.event_address;
+      if (editFields.birthday_child_name !== undefined) mapped.birthday_child_name = editFields.birthday_child_name || null;
+      if (editFields.birthday_child_age !== undefined) mapped.birthday_child_age = editFields.birthday_child_age || null;
+      if (editFields.notes !== undefined) mapped.notes = editFields.notes || null;
+      if (Object.keys(mapped).length > 0) {
+        const { error } = await supabase.from('pt_orders').update(mapped).eq('id', orderId);
+        if (error) {
+          console.error('Edit error:', error);
+          return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (depositAmount !== undefined) {
+      const { error: depError } = await supabase.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+      if (depError) {
+        // Column may not exist — store in notes as fallback
+        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const currentNotes = existing?.notes || '';
+        const separator = currentNotes ? '\n' : '';
+        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCB0 Dep\u00f3sito: $${depositAmount}` }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (transportCostConfirmed !== undefined) {
+      const { error: tcError } = await supabase.from('pt_orders').update({ transport_cost_confirmed: transportCostConfirmed }).eq('id', orderId);
+      if (tcError) {
+        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const currentNotes = existing?.notes || '';
+        const separator = currentNotes ? '\n' : '';
+        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${transportCostConfirmed}` }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (confirmed !== undefined) {
+      const { error } = await supabase.from('pt_orders').update({ confirmed }).eq('id', orderId);
+      if (error) {
+        console.error('Update error:', error);
+        return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: 'No action specified' }, { status: 400 });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

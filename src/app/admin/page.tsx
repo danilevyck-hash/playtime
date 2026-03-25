@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '@/lib/format';
+import { EVENT_AREAS } from '@/lib/types';
 import {
   fetchProductOverrides,
   fetchAllCustomProducts,
@@ -12,6 +13,14 @@ import {
   upsertSetting,
 } from '@/lib/supabase-data';
 import { PRODUCTS } from '@/lib/constants';
+
+type OrderStatus = 'nuevo' | 'confirmado' | 'deposito' | 'realizado';
+const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
+  { key: 'nuevo', label: 'Nuevo', color: 'text-gray-600', bg: 'bg-gray-200' },
+  { key: 'confirmado', label: 'Confirmado', color: 'text-teal', bg: 'bg-teal' },
+  { key: 'deposito', label: 'Dep\u00f3sito', color: 'text-orange', bg: 'bg-orange' },
+  { key: 'realizado', label: 'Realizado', color: 'text-purple', bg: 'bg-purple' },
+];
 
 interface OrderItem {
   product_name: string;
@@ -38,9 +47,17 @@ interface Order {
   total: number;
   notes: string | null;
   internal_note: string | null;
+  status: OrderStatus;
+  deposit_amount: number | null;
+  transport_cost_confirmed: number | null;
   created_at: string;
   confirmed: boolean;
   items: OrderItem[];
+}
+
+function getOrderStatus(order: Order): OrderStatus {
+  if (order.status) return order.status;
+  return order.confirmed ? 'confirmado' : 'nuevo';
 }
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '';
@@ -138,6 +155,8 @@ function ReelsTab() {
 }
 
 // ─── ORDERS TAB ───
+const OI_CLS = 'w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none';
+
 function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -147,6 +166,19 @@ function OrdersTab() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed'>('all');
   const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
   const [noteInputs, setNoteInputs] = useState<Record<number, string>>({});
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editOrderForm, setEditOrderForm] = useState<Record<string, string>>({});
+  const [depositInputs, setDepositInputs] = useState<Record<number, string>>({});
+  const [transportInputs, setTransportInputs] = useState<Record<number, string>>({});
+
+  const patchOrder = useCallback(async (body: Record<string, unknown>) => {
+    const res = await fetch('/api/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -166,48 +198,90 @@ function OrdersTab() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const toggleConfirm = async (orderId: number, current: boolean) => {
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
-        body: JSON.stringify({ orderId, confirmed: !current }),
-      });
-      if (res.ok) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, confirmed: !current } : o));
-      }
-    } catch {}
+  const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
+    const confirmed = newStatus !== 'nuevo';
+    if (await patchOrder({ orderId, status: newStatus })) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o));
+    }
   };
 
   const deleteOrder = async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
-      const res = await fetch('/api/orders', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
-        body: JSON.stringify({ orderId }),
-      });
-      if (res.ok) {
-        setOrders(prev => prev.filter(o => o.id !== orderId));
-        setExpandedOrder(null);
-      }
+      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN }, body: JSON.stringify({ orderId }) });
+      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); }
     } catch {}
   };
 
   const saveNote = async (orderId: number) => {
     const text = (noteInputs[orderId] || '').trim();
     if (!text) return;
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
-        body: JSON.stringify({ orderId, internalNote: text }),
-      });
-      if (res.ok) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text, notes: (o.notes || '') + '\n\uD83D\uDCDD Nota interna: ' + text } : o));
-        setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
-      }
-    } catch {}
+    if (await patchOrder({ orderId, internalNote: text })) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text } : o));
+      setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
+    }
+  };
+
+  const startEditOrder = (o: Order) => {
+    setEditingOrderId(o.id);
+    setEditOrderForm({
+      customer_name: o.customer_name, customer_phone: o.customer_phone, customer_email: o.customer_email || '',
+      event_date: o.event_date, event_time: o.event_time, event_area: o.event_area || '', event_address: o.event_address,
+      birthday_child_name: o.birthday_child_name || '', birthday_child_age: o.birthday_child_age ? String(o.birthday_child_age) : '',
+      notes: o.notes || '',
+    });
+  };
+
+  const saveEditOrder = async (orderId: number) => {
+    const f = editOrderForm;
+    const editFields = {
+      customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email,
+      event_date: f.event_date, event_time: f.event_time, event_area: f.event_area, event_address: f.event_address,
+      birthday_child_name: f.birthday_child_name, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
+      notes: f.notes,
+    };
+    if (await patchOrder({ orderId, editFields })) {
+      setOrders(prev => prev.map(o => o.id === orderId ? {
+        ...o, customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
+        event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
+        birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
+        notes: f.notes || null,
+      } : o));
+      setEditingOrderId(null);
+    }
+  };
+
+  const saveDeposit = async (orderId: number) => {
+    const val = Number(depositInputs[orderId]);
+    if (isNaN(val) || val < 0) return;
+    if (await patchOrder({ orderId, depositAmount: val })) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposit_amount: val } : o));
+      setDepositInputs(prev => ({ ...prev, [orderId]: '' }));
+    }
+  };
+
+  const saveTransport = async (orderId: number) => {
+    const val = Number(transportInputs[orderId]);
+    if (isNaN(val) || val < 0) return;
+    if (await patchOrder({ orderId, transportCostConfirmed: val })) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, transport_cost_confirmed: val } : o));
+      setTransportInputs(prev => ({ ...prev, [orderId]: '' }));
+    }
+  };
+
+  const exportCSV = () => {
+    const headers = ['#Pedido','Cliente','Tel\u00e9fono','Email','Fecha Evento','Hora','\u00c1rea','Direcci\u00f3n','Cumplea\u00f1ero','Edad','Tema','M\u00e9todo Pago','Subtotal','Transporte','Recargo','Total','Dep\u00f3sito','Saldo Pendiente','Estado','Nota Interna','Fecha Creaci\u00f3n'];
+    const esc = (v: string | number | null | undefined) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
+    const rows = filteredOrders.map(o => {
+      const dep = o.deposit_amount ?? 0;
+      const theme = o.notes?.replace(/^Tema:\s*/, '') || '';
+      return [o.order_number, o.customer_name, o.customer_phone, o.customer_email, o.event_date, o.event_time, o.event_area, o.event_address, o.birthday_child_name, o.birthday_child_age, theme, o.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta', o.subtotal, o.transport_cost_confirmed ?? '', o.surcharge, o.total, dep, dep > 0 ? o.total - dep : '', getOrderStatus(o), o.internal_note, o.created_at].map(esc).join(',');
+    });
+    const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'playtime-pedidos.csv'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Filter orders by search + status
@@ -218,10 +292,8 @@ function OrdersTab() {
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter(o =>
-        o.customer_name.toLowerCase().includes(q) ||
-        o.event_date.includes(q) ||
-        String(o.order_number).includes(q) ||
-        (o.customer_phone && o.customer_phone.includes(q))
+        o.customer_name.toLowerCase().includes(q) || o.event_date.includes(q) ||
+        String(o.order_number).includes(q) || (o.customer_phone && o.customer_phone.includes(q))
       );
     }
     return result;
@@ -234,14 +306,11 @@ function OrdersTab() {
     const groups: { date: string; label: string; orders: Order[] }[] = [];
     for (const o of sorted) {
       const last = groups[groups.length - 1];
-      if (last && last.date === o.event_date) {
-        last.orders.push(o);
-      } else {
+      if (last && last.date === o.event_date) { last.orders.push(o); } else {
         const d = new Date(o.event_date + 'T00:00:00');
         const DIAS = ['Domingo', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'];
         const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-        const label = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`;
-        groups.push({ date: o.event_date, label, orders: [o] });
+        groups.push({ date: o.event_date, label: `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`, orders: [o] });
       }
     }
     return groups;
@@ -275,99 +344,146 @@ function OrdersTab() {
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
   const confirmedRevenue = orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0);
 
-  const renderOrderCard = (order: Order) => (
-    <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${order.confirmed ? 'border-teal/30' : 'border-gray-100'}`}>
-      <button onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${order.confirmed ? 'bg-teal' : 'bg-gray-300'}`} />
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-heading font-bold text-purple">#{order.order_number}</span>
-                <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${order.payment_method === 'bank_transfer' ? 'bg-teal/10 text-teal' : 'bg-orange/10 text-orange'}`}>
-                  {order.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta'}
-                </span>
-                {order.confirmed && (
-                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-teal/10 text-teal">Confirmada</span>
-                )}
-              </div>
-              <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} · {order.event_date}</p>
-            </div>
-          </div>
-          <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
-        </div>
-      </button>
-      {expandedOrder === order.id && (
-        <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
-            <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
-            {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">Área</span><br/>{order.event_area}</div>}
-            <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
-            {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumpleañero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} años)` : ''}</div>}
-            {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
-          </div>
-          {order.items.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
-              {order.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between px-3 py-2 text-sm">
-                  <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                  <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+  const renderOrderCard = (order: Order) => {
+    const st = getOrderStatus(order);
+    const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
+    const isEditing = editingOrderId === order.id;
+    const ef = editOrderForm;
+    const needsTransport = order.event_area === 'Otra \u00e1rea' || order.transport_cost_confirmed === null;
+    const dep = order.deposit_amount ?? 0;
+
+    return (
+      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'nuevo' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'deposito' ? 'border-orange/30' : 'border-purple/30'}`}>
+        <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full text-white ${stInfo.bg}`}>{stInfo.label}</span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+                  <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${order.payment_method === 'bank_transfer' ? 'bg-teal/10 text-teal' : 'bg-orange/10 text-orange'}`}>
+                    {order.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta'}
+                  </span>
                 </div>
+                <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} \u00b7 {order.event_date}</p>
+              </div>
+            </div>
+            <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
+          </div>
+        </button>
+        {expandedOrder === order.id && (
+          <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
+            {/* Pipeline */}
+            <div className="flex gap-1">
+              {ORDER_STATUSES.map(s => (
+                <button key={s.key} onClick={() => setOrderStatus(order.id, s.key)}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >{s.label}</button>
               ))}
             </div>
-          )}
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => toggleConfirm(order.id, order.confirmed)}
-              className={`inline-flex items-center gap-2 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors ${
-                order.confirmed ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-teal text-white hover:bg-teal/80'
-              }`}
-            >
-              {order.confirmed ? (
-                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>Desconfirmar</>
-              ) : (
-                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Confirmar Venta</>
-              )}
-            </button>
-            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#25D366] text-white font-heading font-semibold px-4 py-2 rounded-xl text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              Contactar
-            </a>
-            <button
-              onClick={() => deleteOrder(order.id, order.order_number)}
-              className="inline-flex items-center gap-2 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              Eliminar
-            </button>
-          </div>
-          {/* Internal note */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-2">
-            {order.internal_note && (
-              <p className="font-body text-sm text-gray-700">{order.internal_note}</p>
+
+            {/* Details or edit form */}
+            {isEditing ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
+                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={OI_CLS} />
+                </div>
+                <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email" className={OI_CLS} />
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={ef.event_date || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
+                  <input type="time" value={ef.event_time || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_time: e.target.value }))} className={OI_CLS} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
+                    <option value="">\u00c1rea</option>
+                    {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                  </select>
+                  <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
+                  <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
+                  <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingOrderId(null)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
+                  <button onClick={() => saveEditOrder(order.id)} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm">Guardar cambios</button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
+                <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
+                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">\u00c1rea</span><br/>{order.event_area}</div>}
+                <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
+                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumplea\u00f1ero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</div>}
+                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
+              </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={noteInputs[order.id] || ''}
-                onChange={(e) => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))}
-                placeholder="Agregar nota interna..."
-                className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white"
-              />
-              <button
-                onClick={() => saveNote(order.id)}
-                disabled={!(noteInputs[order.id] || '').trim()}
-                className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors"
-              >
-                Guardar
-              </button>
+
+            {/* Items */}
+            {order.items.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between px-3 py-2 text-sm">
+                    <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                    <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 flex-wrap">
+              <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#25D366] text-white font-heading font-semibold px-4 py-2 rounded-xl text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Contactar
+              </a>
+              {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>}
+              <button onClick={() => deleteOrder(order.id, order.order_number)} className="inline-flex items-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Eliminar</button>
             </div>
+
+            {/* Internal note */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-2">
+              {order.internal_note && <p className="font-body text-sm text-gray-700">{order.internal_note}</p>}
+              <div className="flex gap-2">
+                <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white" />
+                <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim()} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">Guardar</button>
+              </div>
+            </div>
+
+            {/* Deposit */}
+            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-semibold text-sm text-gray-700">Dep\u00f3sito recibido</span>
+                {dep > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(dep)}</span>}
+              </div>
+              {dep > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - dep)}</span></p>}
+              <div className="flex gap-2">
+                <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
+                <button onClick={() => saveDeposit(order.id)} disabled={!depositInputs[order.id]} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">Guardar</button>
+              </div>
+            </div>
+
+            {/* Transport confirmation */}
+            {needsTransport && (
+              <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-heading font-semibold text-sm text-gray-700">{'\uD83D\uDE9A'} Transporte</span>
+                  {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
+                  <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id]} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">Confirmar</button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -431,10 +547,8 @@ function OrdersTab() {
       <div className="flex items-center justify-between mb-4">
         <p className="font-body text-gray-500 text-sm">{filteredOrders.length} pedido{filteredOrders.length !== 1 ? 's' : ''}</p>
         <div className="flex gap-2">
-          <button
-            onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')}
-            className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm"
-          >
+          <button onClick={exportCSV} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm">{'\u2B07\uFE0F'} CSV</button>
+          <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm">
             {sortMode === 'created' ? '\uD83D\uDD50 Por creaci\u00f3n' : '\uD83D\uDCC5 Por evento'}
           </button>
           <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
