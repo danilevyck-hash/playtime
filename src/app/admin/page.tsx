@@ -673,6 +673,10 @@ function ProductsTab() {
 
   // ─── UPLOAD IMAGE ───
   const handleUpload = async (productId: string, file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      flash('\u274C Foto muy grande. M\u00e1ximo 2MB. Comprime la imagen antes de subir.');
+      return;
+    }
     setUploading(productId);
     try {
       const formData = new FormData();
