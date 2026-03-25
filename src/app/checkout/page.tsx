@@ -107,7 +107,7 @@ export default function CheckoutPage() {
       }
 
       // Generate PDF and upload to Supabase Storage
-      const pdfDoc = generateOrderPDF({
+      const pdfDoc = await generateOrderPDF({
         orderNumber,
         customer,
         event,

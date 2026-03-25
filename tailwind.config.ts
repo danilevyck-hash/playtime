@@ -10,16 +10,17 @@ const config: Config = {
     extend: {
       colors: {
         purple: { DEFAULT: '#580459', light: '#7A2680' },
-        mint: { DEFAULT: '#84D9D0', light: '#A8E6DF' },
+        teal: { DEFAULT: '#84D9D0', light: '#A8E6DF' },
         orange: { DEFAULT: '#F27405', light: '#F59542' },
         pink: { DEFAULT: '#F27289', light: '#F5A0B0' },
-        teal: { DEFAULT: '#49B3BF', light: '#7CCAD3' },
+        teal2: { DEFAULT: '#49B3BF', light: '#7CCAD3' },
         yellow: { DEFAULT: '#F2C84B', light: '#F5D97A' },
-        cream: '#FDF8F0',
-        beige: '#F5EDE3',
+        cream: '#FAF3E8',
+        beige: '#FAF3E8',
+        mint: { DEFAULT: '#84D9D0', light: '#A8E6DF' },
       },
       fontFamily: {
-        heading: ['var(--font-quicksand)', 'sans-serif'],
+        heading: ['var(--font-nunito)', 'sans-serif'],
         script: ['var(--font-pacifico)', 'cursive'],
         body: ['var(--font-nunito)', 'sans-serif'],
       },

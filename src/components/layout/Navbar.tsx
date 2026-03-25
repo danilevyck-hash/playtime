@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import Badge from '@/components/ui/Badge';
@@ -9,7 +8,7 @@ import MobileMenu from './MobileMenu';
 
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
-  { href: '/catalogo', label: 'Catálogo' },
+  { href: '/catalogo', label: 'Cat\u00e1logo' },
 ];
 
 export default function Navbar() {
@@ -19,16 +18,10 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/">
-          <Image
-            src="/images/logo.png"
-            alt="PlayTime"
-            width={120}
-            height={130}
-            className="h-12 w-auto"
-            priority
-          />
+        {/* Typographic logo */}
+        <Link href="/" className="flex flex-col leading-none">
+          <span className="font-heading font-black text-2xl text-teal tracking-tight">play time</span>
+          <span className="font-script text-xs text-purple -mt-0.5">creando momentos.</span>
         </Link>
 
         {/* Desktop links */}
@@ -37,7 +30,7 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              className="font-heading font-semibold text-gray-600 hover:text-teal transition-colors"
+              className="font-heading font-bold text-gray-600 hover:text-teal transition-colors"
             >
               {link.label}
             </Link>
@@ -61,7 +54,7 @@ export default function Navbar() {
           <button
             onClick={() => setMenuOpen(true)}
             className="p-1"
-            aria-label="Abrir menú"
+            aria-label="Abrir men\u00fa"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />

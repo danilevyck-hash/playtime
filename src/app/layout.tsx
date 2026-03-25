@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Quicksand, Nunito, Pacifico } from "next/font/google";
+import { Nunito, Pacifico } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -7,16 +7,10 @@ import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  variable: "--font-quicksand",
-  weight: ["500", "600", "700"],
-});
-
 const nunito = Nunito({
   subsets: ["latin"],
   variable: "--font-nunito",
-  weight: ["400", "600"],
+  weight: ["400", "700", "900"],
 });
 
 const pacifico = Pacifico({
@@ -60,7 +54,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
       <body
-        className={`${quicksand.variable} ${nunito.variable} ${pacifico.variable} font-body antialiased`}
+        className={`${nunito.variable} ${pacifico.variable} font-body antialiased`}
       >
         <CartProvider>
           <Navbar />
