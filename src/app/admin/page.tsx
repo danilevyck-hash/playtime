@@ -920,7 +920,7 @@ function CatalogTab() {
 const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 function WebsiteTab() {
-  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels'>('homepage');
+  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo'>('homepage');
   const [flash, setFlash] = useState('');
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(''), 2000); };
 
@@ -992,6 +992,41 @@ function WebsiteTab() {
     }).catch(() => {});
   }, []);
 
+  // ─── E) LOGO ───
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<string>('site_logo_url').then(u => { if (u) setLogoUrl(u); }).catch(() => {});
+  }, []);
+
+  const handleLogoUpload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) { showFlash('\u274c Foto muy grande. M\u00e1ximo 2MB.'); return; }
+    if (!file.type.startsWith('image/')) { showFlash('\u274c Solo se permiten im\u00e1genes.'); return; }
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', 'site-logo');
+      formData.append('folder', 'logos');
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': ADMIN_PIN }, body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data.path + '?t=' + Date.now();
+        await upsertSetting('site_logo_url', url);
+        setLogoUrl(url);
+        showFlash('Logo actualizado');
+      } else { showFlash('Error al subir logo'); }
+    } catch { showFlash('Error de conexi\u00f3n'); }
+    finally { setLogoUploading(false); }
+  };
+
+  const resetLogo = async () => {
+    await upsertSetting('site_logo_url', null);
+    setLogoUrl(null);
+    showFlash('Logo tipogr\u00e1fico restaurado');
+  };
+
   const extractReelIdLocal = (url: string) => { const m = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; };
 
   const saveReels = async () => {
@@ -1003,6 +1038,7 @@ function WebsiteTab() {
 
   const SUB_TABS: { key: typeof section; label: string }[] = [
     { key: 'homepage', label: 'Homepage' },
+    { key: 'logo', label: 'Logo' },
     { key: 'featured', label: 'Destacados' },
     { key: 'areas', label: '\u00c1reas' },
     { key: 'reels', label: 'Reels' },
@@ -1043,6 +1079,35 @@ function WebsiteTab() {
             </div>
           ))}
           <button onClick={saveHomepage} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Homepage</button>
+        </div>
+      )}
+
+      {/* E) Logo */}
+      {section === 'logo' && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">Logo del sitio. Se muestra en el navbar y hero.</p>
+          <div className="bg-white rounded-xl border border-gray-100 p-6 flex flex-col items-center gap-4">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="Logo actual" className="h-20 w-auto object-contain" />
+            ) : (
+              <div className="flex flex-col items-center leading-none py-2">
+                <span className="font-heading font-black text-3xl text-teal tracking-tight leading-none">play</span>
+                <span className="font-heading font-black text-3xl text-teal tracking-tight leading-none -mt-1">time</span>
+                <span className="font-script text-sm text-purple">creando momentos.</span>
+                <p className="font-body text-xs text-gray-400 mt-2">Logo tipogr\u00e1fico (por defecto)</p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <label className={`flex-1 bg-purple text-white font-heading font-bold py-2.5 rounded-xl text-sm text-center cursor-pointer hover:bg-purple-light transition-colors ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {logoUploading ? 'Subiendo...' : 'Subir Logo'}
+              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
+            </label>
+            {logoUrl && (
+              <button onClick={resetLogo} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Usar logo tipogr\u00e1fico</button>
+            )}
+          </div>
         </div>
       )}
 

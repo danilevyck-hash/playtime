@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
@@ -10,9 +11,10 @@ interface HeroProps {
     hero_cta_secondary?: string;
     social_proof_text?: string;
   };
+  logoUrl?: string | null;
 }
 
-export default function Hero({ content }: HeroProps) {
+export default function Hero({ content, logoUrl }: HeroProps) {
   const title = content?.hero_title || 'Fiestas que los ni\u00f1os nunca olvidan';
   const subtitle = content?.hero_subtitle || 'Animaci\u00f3n, alquiler y manualidades. Todo incluido, hasta tu puerta.';
   const ctaPrimary = content?.hero_cta_primary || 'Ver Cat\u00e1logo';
@@ -22,11 +24,17 @@ export default function Hero({ content }: HeroProps) {
     <ConfettiBackground className="bg-beige">
       <div className="max-w-6xl mx-auto px-4 py-16 md:py-28 text-center">
         <div className="mb-6">
-          <div className="flex flex-col items-center leading-none">
-            <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none">play</span>
-            <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none -mt-2">time</span>
-          </div>
-          <span className="font-script text-xl md:text-2xl text-purple">creando momentos.</span>
+          {logoUrl ? (
+            <Image src={logoUrl} alt="PlayTime" width={200} height={80} className="h-20 w-auto object-contain mx-auto" priority />
+          ) : (
+            <>
+              <div className="flex flex-col items-center leading-none">
+                <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none">play</span>
+                <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none -mt-2">time</span>
+              </div>
+              <span className="font-script text-xl md:text-2xl text-purple">creando momentos.</span>
+            </>
+          )}
         </div>
 
         <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">

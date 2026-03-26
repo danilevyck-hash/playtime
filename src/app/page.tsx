@@ -28,16 +28,18 @@ interface HomepageContent {
 export default async function Home() {
   let content: HomepageContent | null = null;
   let featuredIds: string[] | null = null;
+  let logoUrl: string | null = null;
   try {
-    [content, featuredIds] = await Promise.all([
+    [content, featuredIds, logoUrl] = await Promise.all([
       fetchSetting<HomepageContent>('homepage_content'),
       fetchSetting<string[]>('featured_products'),
+      fetchSetting<string>('site_logo_url'),
     ]);
   } catch {}
 
   return (
     <>
-      <Hero content={content || undefined} />
+      <Hero content={content || undefined} logoUrl={logoUrl} />
       <ServicesOverview content={content || undefined} />
       <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
       <InstagramFeed />
