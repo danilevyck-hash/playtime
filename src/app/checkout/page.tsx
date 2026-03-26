@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
-import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS } from '@/lib/types';
+import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS as DEFAULT_AREAS } from '@/lib/types';
+import { fetchEventAreas } from '@/lib/supabase-data';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
 import { generateOrderPDF } from '@/lib/pdf-order';
 import { createClient } from '@supabase/supabase-js';
@@ -34,6 +35,11 @@ export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
+
+  useEffect(() => {
+    fetchEventAreas().then(setEventAreas).catch(() => {});
+  }, []);
 
   const saved = typeof window !== 'undefined' ? loadCheckoutState() : null;
 
@@ -59,7 +65,7 @@ export default function CheckoutPage() {
   }, [step, customer, event, paymentMethod, persistCheckout]);
 
   // Calculate transport cost based on selected area
-  const transportCost = EVENT_AREAS.find((a) => a.name === event.area)?.price ?? 0;
+  const transportCost = eventAreas.find((a) => a.name === event.area)?.price ?? 0;
   const isTransportPending = event.area === 'Otra área';
 
   if (items.length === 0 && !whatsappUrl) {

@@ -9,10 +9,17 @@ import { useCart } from '@/context/CartContext';
 import Button from '@/components/ui/Button';
 import ProductModal from '@/components/catalog/ProductModal';
 
-export default function FeaturedProducts() {
+interface FeaturedProps {
+  content?: { featured_title?: string; featured_subtitle?: string };
+  featuredIds?: string[];
+}
+
+export default function FeaturedProducts({ content, featuredIds }: FeaturedProps) {
   const { addItem } = useCart();
   const products = useProducts();
-  const featured = products.filter((p) => p.featured).slice(0, 6);
+  const featured = featuredIds && featuredIds.length > 0
+    ? featuredIds.map(id => products.find(p => p.id === id)).filter((p): p is Product => !!p).slice(0, 6)
+    : products.filter((p) => p.featured).slice(0, 6);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (
@@ -20,10 +27,10 @@ export default function FeaturedProducts() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
-            Los Más Populares
+            {content?.featured_title || 'Los M\u00e1s Populares'}
           </h2>
           <p className="font-body text-gray-500 max-w-md mx-auto">
-            Los favoritos de nuestros clientes
+            {content?.featured_subtitle || 'Los favoritos de nuestros clientes'}
           </p>
         </div>
 

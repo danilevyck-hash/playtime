@@ -2,11 +2,25 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
 
-export default function Hero() {
+interface HeroProps {
+  content?: {
+    hero_title?: string;
+    hero_subtitle?: string;
+    hero_cta_primary?: string;
+    hero_cta_secondary?: string;
+    social_proof_text?: string;
+  };
+}
+
+export default function Hero({ content }: HeroProps) {
+  const title = content?.hero_title || 'Fiestas que los ni\u00f1os nunca olvidan';
+  const subtitle = content?.hero_subtitle || 'Animaci\u00f3n, alquiler y manualidades. Todo incluido, hasta tu puerta.';
+  const ctaPrimary = content?.hero_cta_primary || 'Ver Cat\u00e1logo';
+  const socialProof = content?.social_proof_text || '+200 fiestas realizadas \u00b7 Panam\u00e1';
+
   return (
     <ConfettiBackground className="bg-beige">
       <div className="max-w-6xl mx-auto px-4 py-16 md:py-28 text-center">
-        {/* Typographic logo — large */}
         <div className="mb-6">
           <div className="flex flex-col items-center leading-none">
             <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none">play</span>
@@ -16,16 +30,16 @@ export default function Hero() {
         </div>
 
         <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">
-          Fiestas que los ni&ntilde;os<br />nunca olvidan
+          {title}
         </h1>
         <p className="font-body text-lg md:text-xl text-gray-600 max-w-lg mx-auto mb-10 leading-relaxed">
-          Animaci&oacute;n, alquiler y manualidades. Todo incluido, hasta tu puerta.
+          {subtitle}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/catalogo">
             <Button size="lg" className="bg-orange text-white hover:bg-orange/90 shadow-lg rounded-full">
-              Ver Cat&aacute;logo
+              {ctaPrimary}
             </Button>
           </Link>
           <a href="https://wa.me/50764332724" target="_blank" rel="noopener noreferrer">
@@ -38,14 +52,13 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Social proof with brand color dots */}
         <div className="flex items-center justify-center gap-2 mt-8">
           <span className="w-2 h-2 rounded-full bg-orange" />
           <span className="w-2 h-2 rounded-full bg-pink" />
           <span className="w-2 h-2 rounded-full bg-teal" />
           <span className="w-2 h-2 rounded-full bg-yellow" />
           <span className="w-2 h-2 rounded-full bg-teal2" />
-          <span className="font-body text-sm text-gray-500 ml-1">+200 fiestas realizadas &middot; Panam&aacute;</span>
+          <span className="font-body text-sm text-gray-500 ml-1">{socialProof}</span>
         </div>
       </div>
     </ConfettiBackground>

@@ -139,6 +139,16 @@ export async function fetchSetting<T>(key: string): Promise<T | null> {
   }
 }
 
+export async function fetchEventAreas(): Promise<{ name: string; price: number }[]> {
+  try {
+    const areas = await fetchSetting<{ name: string; price: number }[]>('event_areas');
+    if (areas && areas.length > 0) return areas;
+  } catch {}
+  // Dynamic import to avoid circular dependency
+  const { EVENT_AREAS } = await import('./types');
+  return EVENT_AREAS;
+}
+
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
   if (!supabase) return false;
   try {

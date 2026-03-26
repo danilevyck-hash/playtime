@@ -62,98 +62,6 @@ function getOrderStatus(order: Order): OrderStatus {
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '';
 
-function extractReelId(url: string): string | null {
-  const match = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/);
-  return match ? match[1] : null;
-}
-
-// ─── REELS TAB ───
-function ReelsTab() {
-  const [reelUrls, setReelUrls] = useState(['', '', '']);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const reels = await fetchSetting<Array<{ url: string; id: string }>>('reels');
-        if (!cancelled && reels && reels.length > 0) {
-          const urls = reels.map((r) => r.url);
-          setReelUrls([urls[0] || '', urls[1] || '', urls[2] || '']);
-          return;
-        }
-      } catch {}
-      // Fallback to localStorage
-      if (!cancelled) {
-        try {
-          const data = localStorage.getItem('playtime_reels');
-          if (data) {
-            const reels = JSON.parse(data);
-            const urls = reels.map((r: { url: string }) => r.url);
-            setReelUrls([urls[0] || '', urls[1] || '', urls[2] || '']);
-          }
-        } catch {}
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleSave = async () => {
-    const reels = reelUrls
-      .filter(Boolean)
-      .map((url) => {
-        const id = extractReelId(url);
-        return id ? { url, id } : null;
-      })
-      .filter(Boolean);
-
-    // Save to Supabase
-    const ok = await upsertSetting('reels', reels);
-
-    // Also save to localStorage as fallback
-    try { localStorage.setItem('playtime_reels', JSON.stringify(reels)); } catch {}
-
-    if (!ok) console.error('Failed to save reels to Supabase');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-heading font-bold text-xl text-purple mb-1">Instagram Reels</h2>
-        <p className="font-body text-gray-500 text-sm">Pega los links de los 3 reels que quieres mostrar en la página principal</p>
-      </div>
-      {reelUrls.map((url, i) => (
-        <div key={i}>
-          <label className="block font-heading font-semibold text-sm text-gray-600 mb-1">Reel {i + 1}</label>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => {
-              const updated = [...reelUrls];
-              updated[i] = e.target.value;
-              setReelUrls(updated);
-            }}
-            placeholder="https://www.instagram.com/reel/ABC123..."
-            className="w-full border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none"
-          />
-          {url && extractReelId(url) && (
-            <p className="text-xs text-teal mt-1 font-body">ID detectado: {extractReelId(url)}</p>
-          )}
-        </div>
-      ))}
-      <button
-        onClick={handleSave}
-        className={`px-6 py-2.5 rounded-xl font-heading font-bold text-white transition-colors ${saved ? 'bg-teal' : 'bg-purple hover:bg-purple-light'}`}
-      >
-        {saved ? 'Guardado' : 'Guardar Reels'}
-      </button>
-    </div>
-  );
-}
-
 // ─── ORDERS TAB ───
 const OI_CLS = 'w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none';
 
@@ -1008,12 +916,211 @@ function CatalogTab() {
   );
 }
 
+// ─── WEBSITE TAB (CMS) ───
+const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
+
+function WebsiteTab() {
+  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels'>('homepage');
+  const [flash, setFlash] = useState('');
+  const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(''), 2000); };
+
+  // ─── A) HOMEPAGE ───
+  const [hp, setHp] = useState({
+    hero_title: '', hero_subtitle: '', hero_cta_primary: '', hero_cta_secondary: '', social_proof_text: '',
+    services_title: '', services_subtitle: '', featured_title: '', featured_subtitle: '',
+    cta_section_title: '', cta_section_subtitle: '',
+  });
+  const [hpLoaded, setHpLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<typeof hp>('homepage_content').then(d => {
+      if (d) setHp(prev => ({ ...prev, ...d }));
+      setHpLoaded(true);
+    }).catch(() => setHpLoaded(true));
+  }, []);
+
+  const saveHomepage = async () => {
+    await upsertSetting('homepage_content', hp);
+    showFlash('Homepage guardado');
+  };
+
+  // ─── B) FEATURED ───
+  const [featuredIds, setFeaturedIds] = useState<string[]>([]);
+  const [featLoaded, setFeatLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<string[]>('featured_products').then(d => {
+      if (d) setFeaturedIds(d);
+      setFeatLoaded(true);
+    }).catch(() => setFeatLoaded(true));
+  }, []);
+
+  const toggleFeatured = (id: string) => {
+    setFeaturedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 6 ? [...prev, id] : prev);
+  };
+
+  const saveFeatured = async () => {
+    await upsertSetting('featured_products', featuredIds);
+    showFlash('Productos destacados guardados');
+  };
+
+  // ─── C) AREAS ───
+  const [areas, setAreas] = useState<{ name: string; price: number }[]>([]);
+  const [areasLoaded, setAreasLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<{ name: string; price: number }[]>('event_areas').then(d => {
+      setAreas(d && d.length > 0 ? d : [...EVENT_AREAS]);
+      setAreasLoaded(true);
+    }).catch(() => { setAreas([...EVENT_AREAS]); setAreasLoaded(true); });
+  }, []);
+
+  const saveAreas = async () => {
+    const clean = areas.filter(a => a.name.trim());
+    await upsertSetting('event_areas', clean);
+    setAreas(clean);
+    showFlash('\u00c1reas guardadas');
+  };
+
+  // ─── D) REELS (inline) ───
+  const [reelUrls, setReelUrls] = useState(['', '', '']);
+  const [reelsSaved, setReelsSaved] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<Array<{ url: string; id: string }>>('reels').then(d => {
+      if (d && d.length > 0) setReelUrls([d[0]?.url || '', d[1]?.url || '', d[2]?.url || '']);
+    }).catch(() => {});
+  }, []);
+
+  const extractReelIdLocal = (url: string) => { const m = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; };
+
+  const saveReels = async () => {
+    const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
+    await upsertSetting('reels', reels);
+    setReelsSaved(true);
+    setTimeout(() => setReelsSaved(false), 2000);
+  };
+
+  const SUB_TABS: { key: typeof section; label: string }[] = [
+    { key: 'homepage', label: 'Homepage' },
+    { key: 'featured', label: 'Destacados' },
+    { key: 'areas', label: '\u00c1reas' },
+    { key: 'reels', label: 'Reels' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h2 className="font-heading font-bold text-xl text-purple">Sitio Web</h2>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-2 overflow-x-auto">
+        {SUB_TABS.map(t => (
+          <button key={t.key} onClick={() => setSection(t.key)} className={`px-4 py-1.5 rounded-full font-heading font-semibold text-xs transition-all shrink-0 ${section === t.key ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t.label}</button>
+        ))}
+      </div>
+
+      {flash && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{flash}</div>}
+
+      {/* A) Homepage */}
+      {section === 'homepage' && hpLoaded && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">Edita los textos del homepage. Deja vac\u00edo para usar el valor por defecto.</p>
+          {([
+            ['hero_title', 'T\u00edtulo Hero (H1)', 'Fiestas que los ni\u00f1os nunca olvidan'],
+            ['hero_subtitle', 'Subt\u00edtulo Hero', 'Animaci\u00f3n, alquiler y manualidades...'],
+            ['hero_cta_primary', 'Bot\u00f3n Principal', 'Ver Cat\u00e1logo'],
+            ['social_proof_text', 'Social Proof', '+200 fiestas realizadas \u00b7 Panam\u00e1'],
+            ['services_title', 'T\u00edtulo Servicios', 'Nuestros Servicios'],
+            ['services_subtitle', 'Subt\u00edtulo Servicios', 'Todo lo que necesitas...'],
+            ['featured_title', 'T\u00edtulo Destacados', 'Los M\u00e1s Populares'],
+            ['featured_subtitle', 'Subt\u00edtulo Destacados', 'Los favoritos de nuestros clientes'],
+            ['cta_section_title', 'T\u00edtulo CTA', 'Haz tu reserva hoy'],
+            ['cta_section_subtitle', 'Subt\u00edtulo CTA', 'Arma tu paquete ideal...'],
+          ] as const).map(([key, label, placeholder]) => (
+            <div key={key}>
+              <label className="block font-heading font-semibold text-xs text-gray-500 mb-1">{label}</label>
+              <input value={hp[key]} onChange={e => setHp(prev => ({ ...prev, [key]: e.target.value }))} placeholder={placeholder} className={WI_CLS} />
+            </div>
+          ))}
+          <button onClick={saveHomepage} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Homepage</button>
+        </div>
+      )}
+
+      {/* B) Featured Products */}
+      {section === 'featured' && featLoaded && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="font-body text-gray-500 text-sm">Selecciona hasta 6 productos para &ldquo;Los M\u00e1s Populares&rdquo;</p>
+            <span className={`font-heading font-bold text-sm ${featuredIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{featuredIds.length}/6</span>
+          </div>
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {PRODUCTS.map(p => {
+              const checked = featuredIds.includes(p.id);
+              const disabled = !checked && featuredIds.length >= 6;
+              return (
+                <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-teal/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                  <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleFeatured(p.id)} className="w-4 h-4 accent-teal" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
+                    <span className="font-body text-xs text-gray-400">{p.category} \u00b7 {formatCurrency(p.price)}</span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <button onClick={saveFeatured} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Destacados</button>
+        </div>
+      )}
+
+      {/* C) Areas */}
+      {section === 'areas' && areasLoaded && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">\u00c1reas de cobertura con precio de transporte</p>
+          <div className="space-y-2">
+            {areas.map((area, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input value={area.name} onChange={e => setAreas(prev => prev.map((a, j) => j === i ? { ...a, name: e.target.value } : a))} placeholder="Nombre del \u00e1rea" className={`flex-1 ${WI_CLS}`} />
+                <div className="flex items-center gap-1">
+                  <span className="font-body text-sm text-gray-400">$</span>
+                  <input type="number" value={area.price} onChange={e => setAreas(prev => prev.map((a, j) => j === i ? { ...a, price: Number(e.target.value) || 0 } : a))} className={`w-20 ${WI_CLS}`} min="0" />
+                </div>
+                <button onClick={() => setAreas(prev => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setAreas(prev => [...prev, { name: '', price: 0 }])} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">+ Agregar \u00e1rea</button>
+            <button onClick={saveAreas} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar \u00c1reas</button>
+          </div>
+        </div>
+      )}
+
+      {/* D) Reels */}
+      {section === 'reels' && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">Pega los links de los 3 reels para la p\u00e1gina principal</p>
+          {reelUrls.map((url, i) => (
+            <div key={i}>
+              <label className="block font-heading font-semibold text-sm text-gray-600 mb-1">Reel {i + 1}</label>
+              <input type="url" value={url} onChange={e => { const u = [...reelUrls]; u[i] = e.target.value; setReelUrls(u); }} placeholder="https://www.instagram.com/reel/ABC123..." className={WI_CLS} />
+              {url && extractReelIdLocal(url) && <p className="text-xs text-teal mt-1 font-body">ID: {extractReelIdLocal(url)}</p>}
+            </div>
+          ))}
+          <button onClick={saveReels} className={`px-6 py-2.5 rounded-xl font-heading font-bold text-white transition-colors ${reelsSaved ? 'bg-teal' : 'bg-purple hover:bg-purple-light'}`}>{reelsSaved ? 'Guardado' : 'Guardar Reels'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN ADMIN PAGE ───
 export default function AdminPage() {
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'pedidos' | 'reels' | 'imagenes' | 'catalogo'>('pedidos');
+  const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo' | 'imagenes'>('pedidos');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1062,7 +1169,7 @@ export default function AdminPage() {
       <h1 className="font-heading font-bold text-3xl text-purple mb-6">Admin</h1>
 
       <div className="flex gap-2 mb-8 overflow-x-auto">
-        {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['imagenes', 'Productos'], ['reels', 'Reels']] as const).map(([t, label]) => (
+        {([['pedidos', 'Pedidos'], ['website', 'Sitio Web'], ['catalogo', 'Categor\u00edas'], ['imagenes', 'Productos']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -1076,9 +1183,9 @@ export default function AdminPage() {
       </div>
 
       {tab === 'pedidos' && <OrdersTab />}
+      {tab === 'website' && <WebsiteTab />}
       {tab === 'catalogo' && <CatalogTab />}
       {tab === 'imagenes' && <ProductsTab />}
-      {tab === 'reels' && <ReelsTab />}
     </div>
   );
 }

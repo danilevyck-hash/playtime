@@ -15,15 +15,19 @@ const CATEGORY_COLORS = [
   'bg-yellow/10 border-yellow/30 hover:border-yellow',
 ];
 
-export default function ServicesOverview() {
+interface ServicesProps {
+  content?: { services_title?: string; services_subtitle?: string };
+}
+
+export default function ServicesOverview({ content }: ServicesProps) {
   return (
     <section className="max-w-6xl mx-auto px-4 py-16 md:py-24">
       <div className="text-center mb-12">
         <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
-          Nuestros Servicios
+          {content?.services_title || 'Nuestros Servicios'}
         </h2>
         <p className="font-body text-gray-500 max-w-md mx-auto">
-          Todo lo que necesitas para una fiesta inolvidable
+          {content?.services_subtitle || 'Todo lo que necesitas para una fiesta inolvidable'}
         </p>
       </div>
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { fetchSetting } from '@/lib/supabase-data';
 import Hero from '@/components/landing/Hero';
 import ServicesOverview from '@/components/landing/ServicesOverview';
 import FeaturedProducts from '@/components/landing/FeaturedProducts';
@@ -10,14 +11,37 @@ export const metadata: Metadata = {
   description: 'Organizamos fiestas infantiles completas en Panam\u00e1: animaci\u00f3n, inflables, gymboree, snacks y manualidades. Dise\u00f1amos tu evento y lo llevamos hasta tu puerta.',
 };
 
-export default function Home() {
+interface HomepageContent {
+  hero_title?: string;
+  hero_subtitle?: string;
+  hero_cta_primary?: string;
+  hero_cta_secondary?: string;
+  social_proof_text?: string;
+  services_title?: string;
+  services_subtitle?: string;
+  featured_title?: string;
+  featured_subtitle?: string;
+  cta_section_title?: string;
+  cta_section_subtitle?: string;
+}
+
+export default async function Home() {
+  let content: HomepageContent | null = null;
+  let featuredIds: string[] | null = null;
+  try {
+    [content, featuredIds] = await Promise.all([
+      fetchSetting<HomepageContent>('homepage_content'),
+      fetchSetting<string[]>('featured_products'),
+    ]);
+  } catch {}
+
   return (
     <>
-      <Hero />
-      <ServicesOverview />
-      <FeaturedProducts />
+      <Hero content={content || undefined} />
+      <ServicesOverview content={content || undefined} />
+      <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
       <InstagramFeed />
-      <CTABanner />
+      <CTABanner content={content || undefined} />
     </>
   );
 }
