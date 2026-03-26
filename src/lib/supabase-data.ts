@@ -149,6 +149,10 @@ export async function fetchEventAreas(): Promise<{ name: string; price: number }
   return EVENT_AREAS;
 }
 
+export async function fetchLogoUrl(): Promise<string | null> {
+  return fetchSetting<string>('site_logo_url');
+}
+
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
   if (!supabase) return false;
   try {

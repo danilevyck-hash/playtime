@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { fetchSetting } from '@/lib/supabase-data';
+import { fetchSetting, fetchLogoUrl } from '@/lib/supabase-data';
 import Hero from '@/components/landing/Hero';
 import ServicesOverview from '@/components/landing/ServicesOverview';
 import FeaturedProducts from '@/components/landing/FeaturedProducts';
@@ -33,7 +33,7 @@ export default async function Home() {
     [content, featuredIds, logoUrl] = await Promise.all([
       fetchSetting<HomepageContent>('homepage_content'),
       fetchSetting<string[]>('featured_products'),
-      fetchSetting<string>('site_logo_url'),
+      fetchLogoUrl(),
     ]);
   } catch {}
 

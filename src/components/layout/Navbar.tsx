@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
-import { fetchSetting } from '@/lib/supabase-data';
+import { fetchLogoUrl } from '@/lib/supabase-data';
 import Badge from '@/components/ui/Badge';
 import MobileMenu from './MobileMenu';
 
@@ -29,7 +29,7 @@ export default function Navbar() {
   const { itemCount } = useCart();
 
   useEffect(() => {
-    fetchSetting<string>('site_logo_url').then(u => { if (u) setLogoUrl(u); }).catch(() => {});
+    fetchLogoUrl().then(u => { if (u) setLogoUrl(u); }).catch(() => {});
   }, []);
 
   return (

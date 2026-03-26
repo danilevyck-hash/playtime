@@ -13,6 +13,20 @@ interface OrderPDFParams {
   surcharge: number;
   total: number;
   paymentMethod: PaymentMethod;
+  logoUrl?: string | null;
+}
+
+async function loadImageBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
 }
 
 function fmt(amount: number): string {
@@ -66,25 +80,33 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     doc.rect(sx, sy + 1.5, 3, sh - 3, 'F');
   };
 
-  // ─── 1. HEADER: purple banner with logo text ───
+  // ─── 1. HEADER: purple banner with logo ───
   const headerH = 28;
   doc.setFillColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.rect(0, 0, pw, headerH, 'F');
 
-  // "play time" in teal, bold
-  doc.setFontSize(20);
-  doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
-  doc.text('play time', m, 13);
+  // Logo: image if available, text fallback
+  const logoData = params.logoUrl ? await loadImageBase64(params.logoUrl) : null;
+  if (logoData) {
+    doc.addImage(logoData, 'PNG', m, 3, 22, 22);
+    // "Pedido confirmado" shifted right
+    doc.setFontSize(14);
+    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+    doc.text('Pedido confirmado', m + 26, 16);
+  } else {
+    doc.setFontSize(20);
+    doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
+    doc.text('play time', m, 13);
+    doc.setFontSize(9);
+    doc.setTextColor(200, 180, 200);
+    doc.text('creando momentos.', m, 19);
+  }
 
-  // "creando momentos." in script style (italic approximation)
-  doc.setFontSize(9);
-  doc.setTextColor(200, 180, 200);
-  doc.text('creando momentos.', m, 19);
-
-  // "Pedido confirmado" right side
-  doc.setFontSize(14);
-  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text('Pedido confirmado', pw - m, 14, { align: 'right' });
+  if (!logoData) {
+    doc.setFontSize(14);
+    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+    doc.text('Pedido confirmado', pw - m, 14, { align: 'right' });
+  }
 
   y = headerH + 6;
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS as DEFAULT_AREAS } from '@/lib/types';
-import { fetchEventAreas } from '@/lib/supabase-data';
+import { fetchEventAreas, fetchLogoUrl } from '@/lib/supabase-data';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
 import { generateOrderPDF } from '@/lib/pdf-order';
 import { createClient } from '@supabase/supabase-js';
@@ -113,6 +113,7 @@ export default function CheckoutPage() {
       }
 
       // Generate PDF and upload to Supabase Storage
+      const pdfLogoUrl = await fetchLogoUrl().catch(() => null);
       const pdfDoc = await generateOrderPDF({
         orderNumber,
         customer,
@@ -123,6 +124,7 @@ export default function CheckoutPage() {
         surcharge,
         total,
         paymentMethod,
+        logoUrl: pdfLogoUrl,
       });
 
       let pdfUrl = '';
