@@ -20,8 +20,9 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Typographic logo */}
         <Link href="/" className="flex flex-col leading-none">
-          <span className="font-heading font-black text-2xl text-teal tracking-tight">play time</span>
-          <span className="font-script text-xs text-purple -mt-0.5">creando momentos.</span>
+          <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none">play</span>
+          <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none -mt-1">time</span>
+          <span className="font-script text-xs text-purple">creando momentos.</span>
         </Link>
 
         {/* Desktop links */}

@@ -16,17 +16,17 @@ export const CONTACT = {
   instagram: '@playtimekids',
 };
 
-export const CATEGORIES: { id: Category; label: string; icon: string; description: string }[] = [
-  { id: 'planes', label: 'Planes', icon: '🎉', description: 'Paquetes completos para tu fiesta' },
-  { id: 'belleza', label: 'Belleza', icon: '💅', description: 'Maquillaje, manicure, peinados y spa' },
-  { id: 'entretenimiento', label: 'Entretenimiento', icon: '🎭', description: 'Títeres, animación y personajes' },
-  { id: 'snacks', label: 'Snacks', icon: '🍿', description: 'Máquinas de algodón, raspado, popcorn' },
-  { id: 'gymboree', label: 'Gymboree', icon: '🏰', description: 'Sets de gymboree completos' },
-  { id: 'inflables', label: 'Inflables', icon: '🎪', description: 'Bounce houses y toboganes' },
-  { id: 'piscinas', label: 'Piscinas', icon: '🔵', description: 'Piscinas de pelotas y túneles' },
-  { id: 'alquiler', label: 'Alquiler', icon: '🎈', description: 'Equipos individuales y accesorios' },
-  { id: 'servicios', label: 'Servicios', icon: '🎵', description: 'Música, transporte y extras' },
-  { id: 'manualidades', label: 'Manualidades', icon: '🎨', description: 'Actividades creativas para tu fiesta' },
+export const CATEGORIES: { id: Category; label: string; icon: string; description: string; subtitle?: string }[] = [
+  { id: 'planes', label: 'Planes', icon: '\uD83C\uDF89', description: 'Paquetes completos para tu fiesta' },
+  { id: 'belleza', label: 'Spa', icon: '\uD83D\uDC85', description: 'Maquillaje, manicure, peinados y spa', subtitle: 'Maquillaje/pinta carita, glitter bar, peinado, manicure' },
+  { id: 'entretenimiento', label: 'Entretenimiento', icon: '\uD83C\uDFAD', description: 'T\u00edteres, animaci\u00f3n y personajes' },
+  { id: 'snacks', label: 'Snacks', icon: '\uD83C\uDF7F', description: 'M\u00e1quinas de algod\u00f3n, raspado, popcorn', subtitle: 'M\u00e1quinas algod\u00f3n, raspado, slushy y popcorn' },
+  { id: 'gymboree', label: 'Gymboree', icon: '\uD83C\uDFF0', description: 'Sets de gymboree completos' },
+  { id: 'inflables', label: 'Inflables', icon: '\uD83C\uDFAA', description: 'Bounce houses y toboganes', subtitle: 'Tama\u00f1os y colores llenos de diversi\u00f3n' },
+  { id: 'piscinas', label: 'Piscinas', icon: '\uD83D\uDD35', description: 'Piscinas de pelotas y t\u00faneles' },
+  { id: 'alquiler', label: 'Alquiler', icon: '\uD83C\uDF88', description: 'Equipos individuales y accesorios' },
+  { id: 'servicios', label: 'Servicios', icon: '\uD83C\uDFB5', description: 'M\u00fasica, transporte y extras' },
+  { id: 'manualidades', label: 'Manualidades', icon: '\uD83C\uDFA8', description: 'Actividades creativas para tu fiesta' },
 ];
 
 export const PRODUCTS: Product[] = [
@@ -56,29 +56,6 @@ export const PRODUCTS: Product[] = [
     description: 'Show de Títeres con Lala (45 min), actividad de arte (3 atriles con 30 dibujos). 2 teachers. Duración: 3 horas.',
     price: 260,
     image: '/images/products/plan-3.png',
-  },
-  {
-    id: 'plan-4',
-    name: 'Plan #4 - Show de Títeres',
-    category: 'planes',
-    description: 'Show de Títeres con Lala. 2 teachers. Duración del show: 45 min.',
-    price: 225,
-    image: '/images/products/plan-4.jpg',
-  },
-  {
-    id: 'plan-5',
-    name: 'Plan #5 - Animación y Sorpresas',
-    category: 'planes',
-    description: 'Animación por 1 hora con juegos y competencia.',
-    price: 250,
-    image: '/images/products/plan-5.jpg',
-  },
-  {
-    id: 'plan-5-personaje',
-    name: 'Plan #5 Extra - Personaje con Animación',
-    category: 'planes',
-    description: 'Personaje con animación completa.',
-    price: 380,
   },
   {
     id: 'plan-12',
@@ -165,14 +142,6 @@ export const PRODUCTS: Product[] = [
     price: 150,
     image: '/images/products/personaje-animacion.png',
   },
-  {
-    id: 'manualidades',
-    name: 'Manualidades según Tema y Edad',
-    category: 'entretenimiento',
-    description: '3 atriles con crayola y 15 dibujos. Pueden pintar 6 niños a la vez. Consulta nuestro catálogo de manualidades.',
-    price: 0,
-  },
-
   // ═══ SNACKS ═══
   {
     id: 'algodon-azucar',

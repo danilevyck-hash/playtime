@@ -8,9 +8,11 @@ export default function Hero() {
       <div className="max-w-6xl mx-auto px-4 py-16 md:py-28 text-center">
         {/* Typographic logo — large */}
         <div className="mb-6">
-          <span className="font-heading font-black text-4xl md:text-5xl text-teal tracking-tight">play time</span>
-          <br />
-          <span className="font-script text-lg md:text-xl text-purple">creando momentos.</span>
+          <div className="flex flex-col items-center leading-none">
+            <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none">play</span>
+            <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none -mt-2">time</span>
+          </div>
+          <span className="font-script text-xl md:text-2xl text-purple">creando momentos.</span>
         </div>
 
         <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">

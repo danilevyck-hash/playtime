@@ -12,7 +12,7 @@ import {
   fetchSetting,
   upsertSetting,
 } from '@/lib/supabase-data';
-import { PRODUCTS } from '@/lib/constants';
+import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 
 type OrderStatus = 'nuevo' | 'confirmado' | 'deposito' | 'realizado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
@@ -874,12 +874,146 @@ function ProductsTab() {
   );
 }
 
+// ─── CATALOG TAB ───
+function CatalogTab() {
+  const [categories, setCategories] = useState<{ id: string; label: string; icon: string; description: string; subtitle?: string }[]>([]);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [flashMsg, setFlashMsg] = useState('');
+
+  const flash = (msg: string) => { setFlashMsg(msg); setTimeout(() => setFlashMsg(''), 2000); };
+
+  // Count products per category
+  const productCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of PRODUCTS) { counts[p.category] = (counts[p.category] || 0) + 1; }
+    return counts;
+  }, []);
+
+  useEffect(() => {
+    async function load() {
+      const base = CATEGORIES.map(c => ({ ...c }));
+      try {
+        const overrides = await fetchSetting<Record<string, { name?: string; subtitle?: string; emoji?: string }>>('category_overrides');
+        if (overrides) {
+          for (const cat of base) {
+            const ov = overrides[cat.id];
+            if (ov) {
+              if (ov.name) cat.label = ov.name;
+              if (ov.subtitle) cat.subtitle = ov.subtitle;
+              if (ov.emoji) cat.icon = ov.emoji;
+            }
+          }
+        }
+      } catch {}
+      setCategories(base);
+    }
+    load();
+  }, []);
+
+  const startEdit = (cat: typeof categories[0]) => {
+    setEditingCatId(cat.id);
+    setEditForm({ name: cat.label, emoji: cat.icon, subtitle: cat.subtitle || '' });
+  };
+
+  const saveEdit = async () => {
+    if (!editingCatId) return;
+    setSaving(true);
+    // Build full overrides map
+    const overrides: Record<string, { name?: string; subtitle?: string; emoji?: string }> = {};
+    for (const cat of categories) {
+      const orig = CATEGORIES.find(c => c.id === cat.id);
+      if (!orig) continue;
+      const ov: { name?: string; subtitle?: string; emoji?: string } = {};
+      const isEditing = cat.id === editingCatId;
+      const name = isEditing ? editForm.name : cat.label;
+      const emoji = isEditing ? editForm.emoji : cat.icon;
+      const subtitle = isEditing ? editForm.subtitle : (cat.subtitle || '');
+      if (name !== orig.label) ov.name = name;
+      if (emoji !== orig.icon) ov.emoji = emoji;
+      if (subtitle !== (orig.subtitle || '')) ov.subtitle = subtitle;
+      if (Object.keys(ov).length > 0) overrides[cat.id] = ov;
+    }
+    await upsertSetting('category_overrides', overrides);
+    setCategories(prev => prev.map(c => c.id === editingCatId ? { ...c, label: editForm.name, icon: editForm.emoji, subtitle: editForm.subtitle || undefined } : c));
+    setEditingCatId(null);
+    setSaving(false);
+    flash('Categor\u00eda guardada');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-heading font-bold text-xl text-purple mb-1">Cat\u00e1logo</h2>
+          <p className="font-body text-gray-500 text-sm">Edita nombre, emoji y subt\u00edtulo de cada categor\u00eda</p>
+        </div>
+        <button onClick={() => alert('Pr\u00f3ximamente')} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">+ Nueva categor\u00eda</button>
+      </div>
+
+      {flashMsg && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{flashMsg}</div>}
+
+      <div className="space-y-2">
+        {categories.map(cat => {
+          const isExpanded = expandedCatId === cat.id;
+          const isEditing = editingCatId === cat.id;
+          const count = productCounts[cat.id] || 0;
+
+          return (
+            <div key={cat.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{cat.icon}</span>
+                    <div>
+                      <span className="font-heading font-bold text-gray-800">{cat.label}</span>
+                      {cat.subtitle && <p className="font-body text-xs text-gray-400 mt-0.5">{cat.subtitle}</p>}
+                    </div>
+                  </div>
+                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{count} productos</span>
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="border-t border-gray-100 p-4 bg-gray-50/50">
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-[60px_1fr] gap-2">
+                        <input value={editForm.emoji || ''} onChange={e => setEditForm(p => ({ ...p, emoji: e.target.value }))} placeholder="Emoji" className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-center text-lg focus:border-purple focus:outline-none" />
+                        <input value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="Nombre" className="border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+                      </div>
+                      <input value={editForm.subtitle || ''} onChange={e => setEditForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="Subt\u00edtulo (opcional)" className="w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditingCatId(null)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
+                        <button onClick={saveEdit} disabled={saving} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="font-body text-sm text-gray-500">
+                        <p>ID: <span className="text-gray-800">{cat.id}</span></p>
+                        <p>Descripci\u00f3n: <span className="text-gray-800">{cat.description}</span></p>
+                      </div>
+                      <button onClick={() => startEdit(cat)} className="bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN ADMIN PAGE ───
 export default function AdminPage() {
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'pedidos' | 'reels' | 'imagenes'>('pedidos');
+  const [tab, setTab] = useState<'pedidos' | 'reels' | 'imagenes' | 'catalogo'>('pedidos');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -927,23 +1061,24 @@ export default function AdminPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="font-heading font-bold text-3xl text-purple mb-6">Admin</h1>
 
-      <div className="flex gap-2 mb-8">
-        {(['pedidos', 'reels', 'imagenes'] as const).map((t) => (
+      <div className="flex gap-2 mb-8 overflow-x-auto">
+        {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['imagenes', 'Productos'], ['reels', 'Reels']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-full font-heading font-semibold text-sm transition-all ${
+            className={`px-5 py-2 rounded-full font-heading font-semibold text-sm transition-all shrink-0 ${
               tab === t ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {t === 'pedidos' ? 'Pedidos' : t === 'reels' ? 'Reels' : 'Productos'}
+            {label}
           </button>
         ))}
       </div>
 
       {tab === 'pedidos' && <OrdersTab />}
-      {tab === 'reels' && <ReelsTab />}
+      {tab === 'catalogo' && <CatalogTab />}
       {tab === 'imagenes' && <ProductsTab />}
+      {tab === 'reels' && <ReelsTab />}
     </div>
   );
 }
