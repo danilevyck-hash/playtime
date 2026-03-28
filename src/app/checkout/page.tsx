@@ -36,9 +36,10 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
+  const [areasLoaded, setAreasLoaded] = useState(false);
 
   useEffect(() => {
-    fetchEventAreas().then(setEventAreas).catch(() => {});
+    fetchEventAreas().then(setEventAreas).catch(() => {}).finally(() => setAreasLoaded(true));
   }, []);
 
   const saved = typeof window !== 'undefined' ? loadCheckoutState() : null;
@@ -189,7 +190,7 @@ export default function CheckoutPage() {
         <CustomerInfoForm data={customer} onChange={setCustomer} onNext={() => setStep(1)} />
       )}
       {step === 1 && (
-        <EventDetailsForm data={event} onChange={setEvent} onNext={() => setStep(2)} onBack={() => setStep(0)} />
+        <EventDetailsForm data={event} onChange={setEvent} onNext={() => setStep(2)} onBack={() => setStep(0)} areasLoaded={areasLoaded} eventAreas={eventAreas} />
       )}
       {step === 2 && (
         <PaymentMethodForm selected={paymentMethod} onChange={setPaymentMethod} onNext={() => setStep(3)} onBack={() => setStep(1)} />

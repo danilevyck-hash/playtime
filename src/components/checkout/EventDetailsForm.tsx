@@ -10,6 +10,8 @@ interface Props {
   onChange: (data: OrderEvent) => void;
   onNext: () => void;
   onBack: () => void;
+  areasLoaded?: boolean;
+  eventAreas?: { name: string; price: number }[];
 }
 
 const FULL_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -42,7 +44,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
     const d = String(day).padStart(2, '0');
     onChange(`${viewYear}-${m}-${d}`);
   };
-  const isPast = (day: number) => new Date(viewYear, viewMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const isPast = (day: number) => new Date(viewYear, viewMonth, day) <= new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const isSelected = (day: number) => selectedDate ? viewYear === selectedDate.getFullYear() && viewMonth === selectedDate.getMonth() && day === selectedDate.getDate() : false;
   const isToday = (day: number) => viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
 
@@ -126,7 +128,8 @@ function TimePicker({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 // ─── MAIN FORM ───
-export default function EventDetailsForm({ data, onChange, onNext, onBack }: Props) {
+export default function EventDetailsForm({ data, onChange, onNext, onBack, areasLoaded = true, eventAreas }: Props) {
+  const areas = eventAreas || EVENT_AREAS;
   const [errors, setErrors] = useState<string[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -176,7 +179,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack }: Pro
             className="w-full border-2 border-gray-200 rounded-xl py-2.5 px-3 font-body text-sm focus:border-purple focus:outline-none bg-white"
           >
             <option value="">Selecciona un área</option>
-            {EVENT_AREAS.map((area) => (
+            {areas.map((area) => (
               <option key={area.name} value={area.name}>{area.name}</option>
             ))}
           </select>
@@ -206,7 +209,9 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack }: Pro
 
       <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>
-        <Button type="submit" className="flex-1" size="lg">Siguiente</Button>
+        <Button type="submit" className="flex-1" size="lg" disabled={!areasLoaded}>
+          {areasLoaded ? 'Siguiente' : 'Cargando áreas...'}
+        </Button>
       </div>
     </form>
   );

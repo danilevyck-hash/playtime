@@ -52,7 +52,7 @@ export default function InstagramFeed() {
 
         {/* Reels grid */}
         {reels.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10 max-w-4xl mx-auto">
             {reels.slice(0, 3).map((reel) => (
               <div key={reel.id} className="rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100">
                 <iframe
@@ -62,6 +62,7 @@ export default function InstagramFeed() {
                   scrolling="no"
                   allowTransparency
                   allow="encrypted-media"
+                  title="Instagram Reel de PlayTime"
                 />
               </div>
             ))}

@@ -56,11 +56,22 @@ export default function CategoryContent() {
         <SearchBar value={search} onChange={setSearch} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((product) => (
-          <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
-        ))}
-      </div>
+      {filtered.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((product) => (
+            <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-16">
+          <div className="text-5xl mb-4">{'\uD83D\uDD0D'}</div>
+          <p className="font-heading font-bold text-lg text-gray-400 mb-2">No encontramos productos en esta categor&iacute;a</p>
+          {search && <p className="font-body text-sm text-gray-400 mb-4">Intenta con otra b&uacute;squeda</p>}
+          <Link href="/catalogo" className="inline-block bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-full hover:bg-purple/90 transition-colors">
+            Ver todo el cat&aacute;logo
+          </Link>
+        </div>
+      )}
 
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
     </div>

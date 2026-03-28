@@ -49,6 +49,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
     const errs: Record<string, string> = {};
     if (!data.name.trim()) errs.name = 'Necesitamos tu nombre para la reserva';
     if (localNumber.length < 7) errs.phone = 'Ingresa tu número de celular';
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = 'El formato del email no es válido';
     setErrors(errs);
     if (Object.keys(errs).length === 0) onNext();
   };
@@ -98,8 +99,9 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
         label="Email (opcional)"
         type="email"
         value={data.email}
-        onChange={(e) => onChange({ ...data, email: e.target.value })}
+        onChange={(e) => { onChange({ ...data, email: e.target.value }); if (errors.email) setErrors(prev => { const n = { ...prev }; delete n.email; return n; }); }}
         placeholder="maria@ejemplo.com"
+        error={errors.email}
       />
       <div className="pt-4">
         <Button type="submit" className="w-full" size="lg">Siguiente</Button>
