@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Nunito, Pacifico } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
 import { LogoProvider } from "@/context/LogoContext";
@@ -8,6 +9,8 @@ import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
+
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -59,6 +62,17 @@ export default async function RootLayout({
     <html lang="es">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        {GA_ID && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+            <Script id="ga4-init" strategy="afterInteractive">{`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_ID}');
+            `}</Script>
+          </>
+        )}
       </head>
       <body
         className={`${nunito.variable} ${pacifico.variable} font-body antialiased`}

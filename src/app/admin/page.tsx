@@ -637,11 +637,12 @@ function ProductsTab() {
     const product = products.find(p => p.id === id);
     if (!product) return;
 
+    const parsedPrice = parseFloat(editForm.price);
     const updated: AdminProduct = {
       ...product,
       name: editForm.name || product.name,
       desc: editForm.desc,
-      price: Number(editForm.price) || product.price,
+      price: isNaN(parsedPrice) ? product.price : parsedPrice,
       cat: editForm.cat || product.cat,
     };
 
@@ -675,7 +676,13 @@ function ProductsTab() {
     flash('Producto eliminado');
   };
 
-  const filtered = filter ? products.filter(p => p.cat === filter) : products;
+  const [productSearch, setProductSearch] = useState('');
+
+  const filtered = products.filter(p => {
+    const matchFilter = !filter || p.cat === filter;
+    const matchSearch = !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase());
+    return matchFilter && matchSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -691,13 +698,24 @@ function ProductsTab() {
 
       {message && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{message}</div>}
 
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar producto por nombre..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
+        {productSearch && (
+          <button onClick={() => setProductSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
+      </div>
+
       {/* Add product form */}
       {showAdd && (
         <div className="bg-white rounded-xl border-2 border-purple/20 p-5 space-y-3">
           <h3 className="font-heading font-bold text-sm text-purple">Nuevo Producto</h3>
           <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} placeholder="Nombre" className={INPUT_CLS} />
           <div className="grid grid-cols-2 gap-3">
-            <select value={newProduct.cat} onChange={(e) => setNewProduct({ ...newProduct, cat: e.target.value })} className={INPUT_CLS + ' capitalize'}>{ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+            <select value={newProduct.cat} onChange={(e) => setNewProduct({ ...newProduct, cat: e.target.value })} className={INPUT_CLS}>{ALL_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</option>)}</select>
             <input type="number" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })} placeholder="Precio ($)" className={INPUT_CLS} />
           </div>
           <input type="text" value={newProduct.desc} onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })} placeholder="Descripción" className={INPUT_CLS} />
@@ -709,7 +727,7 @@ function ProductsTab() {
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
         {ALL_CATEGORIES.map(c => (
-          <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold capitalize ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{c}</button>
+          <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</button>
         ))}
       </div>
 
@@ -747,7 +765,7 @@ function ProductsTab() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                     </button>
                   </div>
-                  <p className="font-body text-xs text-gray-400">{product.cat} · ${product.price}</p>
+                  <p className="font-body text-xs text-gray-400">{CATEGORIES.find(c => c.id === product.cat)?.label || product.cat} · ${product.price}</p>
                 </div>
 
                 {/* Delete custom */}
@@ -765,8 +783,8 @@ function ProductsTab() {
                   <input type="text" value={editForm.desc} onChange={(e) => setEditForm({ ...editForm, desc: e.target.value })} placeholder="Descripción" className={INPUT_CLS} />
                   <div className="grid grid-cols-2 gap-2">
                     <input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} placeholder="Precio" className={INPUT_CLS} />
-                    <select value={editForm.cat} onChange={(e) => setEditForm({ ...editForm, cat: e.target.value })} className={INPUT_CLS + ' capitalize'}>
-                      {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    <select value={editForm.cat} onChange={(e) => setEditForm({ ...editForm, cat: e.target.value })} className={INPUT_CLS}>
+                      {ALL_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</option>)}
                     </select>
                   </div>
                   <div className="flex gap-2">
