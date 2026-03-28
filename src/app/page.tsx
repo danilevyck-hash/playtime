@@ -30,11 +30,13 @@ export default async function Home() {
   let content: HomepageContent | null = null;
   let featuredIds: string[] | null = null;
   let logoUrl: string | null = null;
+  let testimonials: Array<{ name: string; text: string; avatar: string }> | null = null;
   try {
-    [content, featuredIds, logoUrl] = await Promise.all([
+    [content, featuredIds, logoUrl, testimonials] = await Promise.all([
       fetchSetting<HomepageContent>('homepage_content'),
       fetchSetting<string[]>('featured_products'),
       fetchLogoUrl(),
+      fetchSetting<Array<{ name: string; text: string; avatar: string }>>('testimonials'),
     ]);
   } catch {}
 
@@ -43,7 +45,7 @@ export default async function Home() {
       <Hero content={content || undefined} logoUrl={logoUrl} />
       <ServicesOverview content={content || undefined} />
       <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
-      <Testimonials />
+      <Testimonials testimonials={testimonials || undefined} />
       <InstagramFeed />
       <CTABanner content={content || undefined} />
     </>

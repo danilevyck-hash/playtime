@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Nunito, Pacifico } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
+import { ToastProvider } from "@/context/ToastContext";
 import { LogoProvider } from "@/context/LogoContext";
 import { fetchLogoUrl } from "@/lib/supabase-data";
 import Navbar from "@/components/layout/Navbar";
@@ -77,14 +78,16 @@ export default async function RootLayout({
       <body
         className={`${nunito.variable} ${pacifico.variable} font-body antialiased`}
       >
-        <CartProvider>
-          <LogoProvider initialLogoUrl={logoUrl}>
-            <Navbar />
-            <main className="min-h-screen">{children}</main>
-            <Footer />
-          </LogoProvider>
-          <WhatsAppButton />
-        </CartProvider>
+        <ToastProvider>
+          <CartProvider>
+            <LogoProvider initialLogoUrl={logoUrl}>
+              <Navbar />
+              <main className="min-h-screen">{children}</main>
+              <Footer />
+            </LogoProvider>
+            <WhatsAppButton />
+          </CartProvider>
+        </ToastProvider>
         <ServiceWorkerRegistrar />
       </body>
     </html>

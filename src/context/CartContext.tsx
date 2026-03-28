@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { CartItem, Category } from '@/lib/types';
+import { useToast } from '@/context/ToastContext';
 
 interface CartState {
   items: CartItem[];
@@ -100,6 +101,7 @@ function isValidCartItems(data: unknown): data is CartItem[] {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { showToast } = useToast();
   const [state, dispatch] = useReducer(cartReducer, { items: [], hydrated: false });
 
   // Hydrate from localStorage
@@ -131,7 +133,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     items: state.items,
     itemCount,
     subtotal,
-    addItem: (item) => dispatch({ type: 'ADD_ITEM', payload: item }),
+    addItem: (item) => { dispatch({ type: 'ADD_ITEM', payload: item }); showToast('\u2705 Agregado al carrito'); },
     removeItem: (productId) => dispatch({ type: 'REMOVE_ITEM', payload: { productId } }),
     updateQuantity: (productId, quantity) => dispatch({ type: 'UPDATE_QUANTITY', payload: { productId, quantity } }),
     clearCart: () => dispatch({ type: 'CLEAR_CART' }),

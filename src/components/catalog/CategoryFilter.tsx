@@ -1,7 +1,7 @@
 'use client';
 
 import { Category } from '@/lib/types';
-import { CATEGORIES } from '@/lib/constants';
+import { useCategories } from '@/lib/useCategories';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
 interface CategoryFilterProps {
@@ -10,6 +10,8 @@ interface CategoryFilterProps {
 }
 
 export default function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
+  const categories = useCategories();
+
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
       <button
@@ -22,7 +24,7 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
       >
         Todos
       </button>
-      {CATEGORIES.map((cat) => {
+      {categories.map((cat) => {
         const Doodle = CATEGORY_DOODLES[cat.id];
         return (
           <button

@@ -809,6 +809,8 @@ function CatalogTab() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [flashMsg, setFlashMsg] = useState('');
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCat, setNewCat] = useState({ name: '', emoji: '', description: '' });
 
   const flash = (msg: string) => { setFlashMsg(msg); setTimeout(() => setFlashMsg(''), 2000); };
 
@@ -823,7 +825,10 @@ function CatalogTab() {
     async function load() {
       const base = CATEGORIES.map(c => ({ ...c }));
       try {
-        const overrides = await fetchSetting<Record<string, { name?: string; subtitle?: string; emoji?: string }>>('category_overrides');
+        const [overrides, customCats] = await Promise.all([
+          fetchSetting<Record<string, { name?: string; subtitle?: string; emoji?: string }>>('category_overrides'),
+          fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories'),
+        ]);
         if (overrides) {
           for (const cat of base) {
             const ov = overrides[cat.id];
@@ -833,6 +838,10 @@ function CatalogTab() {
               if (ov.emoji) cat.icon = ov.emoji;
             }
           }
+        }
+        if (customCats && customCats.length > 0) {
+          const ids = new Set<string>(base.map(c => c.id));
+          for (const cc of customCats) { if (!ids.has(cc.id)) (base as Array<{ id: string; label: string; icon: string; description: string; subtitle?: string }>).push(cc); }
         }
       } catch {}
       setCategories(base);
@@ -877,10 +886,39 @@ function CatalogTab() {
           <h2 className="font-heading font-bold text-xl text-purple mb-1">Cat\u00e1logo</h2>
           <p className="font-body text-gray-500 text-sm">Edita nombre, emoji y subt\u00edtulo de cada categor\u00eda</p>
         </div>
-        <button onClick={() => alert('Pr\u00f3ximamente')} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">+ Nueva categor\u00eda</button>
+        <button onClick={() => setShowNewCat(!showNewCat)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">{showNewCat ? 'Cancelar' : '+ Nueva categor\u00eda'}</button>
       </div>
 
       {flashMsg && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{flashMsg}</div>}
+
+      {showNewCat && (
+        <div className="bg-white rounded-xl border-2 border-purple/20 p-5 space-y-3">
+          <h3 className="font-heading font-bold text-sm text-purple">Nueva Categor&iacute;a</h3>
+          <div className="grid grid-cols-[60px_1fr] gap-2">
+            <input value={newCat.emoji} onChange={e => setNewCat(p => ({ ...p, emoji: e.target.value }))} placeholder="{'\uD83C\uDF88'}" maxLength={4} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-center text-lg focus:border-purple focus:outline-none" />
+            <input value={newCat.name} onChange={e => setNewCat(p => ({ ...p, name: e.target.value }))} placeholder="Nombre de la categor&iacute;a" className="border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+          </div>
+          <input value={newCat.description} onChange={e => setNewCat(p => ({ ...p, description: e.target.value }))} placeholder="Descripci&oacute;n corta" className="w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+          <button
+            onClick={async () => {
+              const id = newCat.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+              if (!id) { flash('Nombre inv\u00e1lido'); return; }
+              if ([...ALL_CATEGORIES, ...categories.map(c => c.id)].includes(id)) { flash('Esa categor\u00eda ya existe'); return; }
+              const item = { id, label: newCat.name.trim(), icon: newCat.emoji || '\uD83C\uDF88', description: newCat.description.trim() };
+              const existing = await fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories') || [];
+              await upsertSetting('custom_categories', [...existing, item]);
+              setCategories(prev => [...prev, item]);
+              setNewCat({ name: '', emoji: '', description: '' });
+              setShowNewCat(false);
+              flash('\u2705 Categor\u00eda creada');
+            }}
+            disabled={!newCat.name.trim()}
+            className="w-full bg-purple text-white font-heading font-bold py-2.5 rounded-xl disabled:opacity-50"
+          >
+            Crear categor&iacute;a
+          </button>
+        </div>
+      )}
 
       <div className="space-y-2">
         {categories.map(cat => {
@@ -939,7 +977,7 @@ function CatalogTab() {
 const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 function WebsiteTab() {
-  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo'>('homepage');
+  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo' | 'testimonials'>('homepage');
   const [flash, setFlash] = useState('');
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(''), 2000); };
 
@@ -1055,12 +1093,39 @@ function WebsiteTab() {
     setTimeout(() => setReelsSaved(false), 2000);
   };
 
+  // ─── F) TESTIMONIALS ───
+  const [testimonials, setTestimonials] = useState<Array<{ name: string; text: string; avatar: string }>>([]);
+  const [testimonialsLoaded, setTestimonialsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<Array<{ name: string; text: string; avatar: string }>>('testimonials').then(d => {
+      if (d && d.length > 0) {
+        setTestimonials(d);
+      } else {
+        setTestimonials([
+          { name: 'Marianela Rodr\u00edguez', text: 'Contrat\u00e9 el Plan #1 para el cumple de mi hija de 5 a\u00f1os y fue un \u00e9xito total. Las teachers fueron incre\u00edbles y los ni\u00f1os no pararon de re\u00edr.', avatar: '\uD83D\uDC69\u200D\uD83E\uDDB1' },
+          { name: 'Sof\u00eda Arosemena', text: 'Ped\u00ed el gymboree y la m\u00e1quina de algod\u00f3n. Llegaron puntuales, montaron todo r\u00e1pido y los ni\u00f1os estaban felices.', avatar: '\uD83D\uDC69\u200D\uD83E\uDDB0' },
+          { name: 'Patricia \u00c1brego', text: 'Me armaron un paquete a la medida. No tuve que preocuparme por nada, ellos trajeron todo hasta el sal\u00f3n.', avatar: '\uD83D\uDC71\u200D\u2640\uFE0F' },
+          { name: 'Carmen Vergara', text: 'Ya es la segunda vez que los contrato. El show de t\u00edteres es espectacular, los ni\u00f1os quedaron hipnotizados.', avatar: '\uD83D\uDC69' },
+        ]);
+      }
+      setTestimonialsLoaded(true);
+    }).catch(() => setTestimonialsLoaded(true));
+  }, []);
+
+  const saveTestimonials = async () => {
+    const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
+    await upsertSetting('testimonials', clean);
+    showFlash('\u2705 Testimonios guardados');
+  };
+
   const SUB_TABS: { key: typeof section; label: string }[] = [
     { key: 'homepage', label: 'Homepage' },
     { key: 'logo', label: 'Logo' },
     { key: 'featured', label: 'Destacados' },
     { key: 'areas', label: '\u00c1reas' },
     { key: 'reels', label: 'Reels' },
+    { key: 'testimonials', label: 'Testimonios' },
   ];
 
   return (
@@ -1193,6 +1258,31 @@ function WebsiteTab() {
             </div>
           ))}
           <button onClick={saveReels} className={`px-6 py-2.5 rounded-xl font-heading font-bold text-white transition-colors ${reelsSaved ? 'bg-teal' : 'bg-purple hover:bg-purple-light'}`}>{reelsSaved ? 'Guardado' : 'Guardar Reels'}</button>
+        </div>
+      )}
+
+      {/* F) Testimonials */}
+      {section === 'testimonials' && testimonialsLoaded && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">Edita los testimonios que aparecen en la p&aacute;gina principal (m&aacute;x 6)</p>
+          {testimonials.map((t, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <input value={t.avatar} onChange={e => setTestimonials(prev => prev.map((item, j) => j === i ? { ...item, avatar: e.target.value } : item))} placeholder="{'\uD83D\uDC69'}" maxLength={4} className="w-14 border border-gray-200 rounded-lg py-1.5 px-2 font-body text-center text-lg focus:border-purple focus:outline-none" />
+                <input value={t.name} onChange={e => setTestimonials(prev => prev.map((item, j) => j === i ? { ...item, name: e.target.value } : item))} placeholder="Nombre de la mam&aacute;" className={`flex-1 ${WI_CLS}`} />
+                {testimonials.length > 1 && (
+                  <button onClick={() => setTestimonials(prev => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                )}
+              </div>
+              <textarea value={t.text} onChange={e => setTestimonials(prev => prev.map((item, j) => j === i ? { ...item, text: e.target.value } : item))} placeholder="Texto del testimonio..." rows={3} className={WI_CLS} />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <button onClick={() => setTestimonials(prev => prev.length < 6 ? [...prev, { name: '', text: '', avatar: '\uD83D\uDC69' }] : prev)} disabled={testimonials.length >= 6} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors disabled:opacity-40">+ Agregar testimonio</button>
+            <button onClick={saveTestimonials} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Testimonios</button>
+          </div>
         </div>
       )}
     </div>
