@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
+import { CONTACT } from '@/lib/constants';
 
 interface CTAProps {
   content?: { cta_section_title?: string; cta_section_subtitle?: string };
@@ -21,7 +22,7 @@ export default function CTABanner({ content }: CTAProps) {
               Explorar Catálogo
             </Button>
           </Link>
-          <a href="https://wa.me/50764332724" target="_blank" rel="noopener noreferrer">
+          <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
             <Button
               size="lg"
               className="bg-white text-teal hover:bg-white/90"

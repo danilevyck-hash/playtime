@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
@@ -12,7 +13,7 @@ interface ProductCardProps {
   onSelect: (product: Product) => void;
 }
 
-export default function ProductCard({ product, onSelect }: ProductCardProps) {
+export default memo(function ProductCard({ product, onSelect }: ProductCardProps) {
   const { addItem, items } = useCart();
   const inCart = items.find((i) => i.productId === product.id);
 
@@ -83,4 +84,4 @@ export default function ProductCard({ product, onSelect }: ProductCardProps) {
       </div>
     </div>
   );
-}
+});

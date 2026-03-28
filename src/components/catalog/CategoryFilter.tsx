@@ -14,7 +14,7 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
       <button
         onClick={() => onSelect('all')}
-        className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all ${
+        className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all focus:ring-2 focus:ring-purple focus:ring-offset-1 focus:outline-none ${
           selected === 'all'
             ? 'bg-teal text-white'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -28,7 +28,7 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all flex items-center gap-1.5 ${
+            className={`shrink-0 px-4 py-2 rounded-full font-heading font-semibold text-sm transition-all flex items-center gap-1.5 focus:ring-2 focus:ring-purple focus:ring-offset-1 focus:outline-none ${
               selected === cat.id
                 ? 'bg-teal text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

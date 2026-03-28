@@ -13,6 +13,7 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
         <div key={label} className="flex items-center gap-2">
           <div className="flex flex-col items-center">
             <div
+              aria-current={i === current ? 'step' : undefined}
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-heading font-bold transition-colors ${
                 i < current
                   ? 'bg-teal text-white'
