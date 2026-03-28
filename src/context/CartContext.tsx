@@ -86,6 +86,19 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 const STORAGE_KEY = 'playtime-cart';
 
+function isValidCartItems(data: unknown): data is CartItem[] {
+  if (!Array.isArray(data)) return false;
+  return data.every(
+    (item) =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof item.productId === 'string' &&
+      typeof item.name === 'string' &&
+      typeof item.unitPrice === 'number' &&
+      typeof item.quantity === 'number'
+  );
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [], hydrated: false });
 
@@ -94,7 +107,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        dispatch({ type: 'HYDRATE', payload: JSON.parse(saved) });
+        const parsed = JSON.parse(saved);
+        dispatch({ type: 'HYDRATE', payload: isValidCartItems(parsed) ? parsed : [] });
       } else {
         dispatch({ type: 'HYDRATE', payload: [] });
       }

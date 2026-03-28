@@ -1,7 +1,6 @@
 import { CartItem } from './types';
 import { formatCurrency } from './format';
-
-const WHATSAPP_PHONE = '50764332724';
+import { CONTACT } from './constants';
 
 export function buildWhatsAppOrderMessage(params: {
   orderNumber: number;
@@ -61,5 +60,5 @@ export function buildWhatsAppOrderMessage(params: {
 }
 
 export function getWhatsAppUrl(message: string): string {
-  return `https://api.whatsapp.com/send?phone=${WHATSAPP_PHONE}&text=${encodeURIComponent(message)}`;
+  return `https://api.whatsapp.com/send?phone=${CONTACT.whatsapp}&text=${encodeURIComponent(message)}`;
 }

@@ -7,10 +7,21 @@
 CREATE TABLE IF NOT EXISTS pt_product_overrides (
   id TEXT PRIMARY KEY,                          -- product_id
   name_override TEXT,                           -- custom name (null = use default)
+  price_override NUMERIC,                       -- custom price (null = use default)
+  description_override TEXT,                    -- custom description (null = use default)
+  category_override TEXT,                       -- custom category (null = use default)
   disabled BOOLEAN NOT NULL DEFAULT FALSE,      -- hide from catalog
   image_url TEXT,                               -- custom image URL
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add columns if table already exists (idempotent)
+DO $$ BEGIN
+  ALTER TABLE pt_product_overrides ADD COLUMN IF NOT EXISTS price_override NUMERIC;
+  ALTER TABLE pt_product_overrides ADD COLUMN IF NOT EXISTS description_override TEXT;
+  ALTER TABLE pt_product_overrides ADD COLUMN IF NOT EXISTS category_override TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- 2. Custom products added by admin
 CREATE TABLE IF NOT EXISTS pt_custom_products (
