@@ -6,6 +6,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { customer, event, paymentMethod, items, subtotal, surcharge, total } = body;
 
+    // Validate required fields
+    if (!customer?.name || typeof customer.name !== 'string' || customer.name.trim().length === 0 || customer.name.length > 100) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Nombre de cliente requerido (máx 100 caracteres)' }, { status: 400 });
+    }
+    if (!customer?.phone || typeof customer.phone !== 'string' || customer.phone.replace(/\D/g, '').length < 7) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Teléfono requerido (mín 7 dígitos)' }, { status: 400 });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Se requiere al menos un producto' }, { status: 400 });
+    }
+    if (!event?.date || !/^\d{4}-\d{2}-\d{2}$/.test(event.date) || isNaN(Date.parse(event.date))) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Fecha de evento inválida (YYYY-MM-DD)' }, { status: 400 });
+    }
+    if (!paymentMethod || !['bank_transfer', 'card'].includes(paymentMethod)) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o card' }, { status: 400 });
+    }
+
     if (!supabase) {
       // Supabase not configured, return a mock order number
       return NextResponse.json({ orderNumber: Math.floor(Math.random() * 9000) + 1000 });

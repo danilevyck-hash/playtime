@@ -2,15 +2,10 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
-import { fetchLogoUrl } from '@/lib/supabase-data';
+import { useLogoUrl } from '@/context/LogoContext';
 
 export default function Footer() {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchLogoUrl().then(u => { if (u) setLogoUrl(u); }).catch(() => {});
-  }, []);
+  const logoUrl = useLogoUrl();
 
   return (
     <footer className="bg-purple text-white">

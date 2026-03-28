@@ -22,6 +22,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing file or productId' }, { status: 400 });
   }
 
+  if (!file.type.startsWith('image/')) {
+    return NextResponse.json({ error: 'Solo se permiten archivos de imagen' }, { status: 400 });
+  }
+
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json({ error: 'El archivo excede el límite de 5MB' }, { status: 400 });
+  }
+
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
   const ext = file.name.split('.').pop() || 'png';

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CartItem, PaymentMethod } from './types';
 import { BANK_INFO, CONTACT } from './constants';
+import { formatCurrency } from './format';
 
 interface OrderPDFParams {
   orderNumber: number;
@@ -27,10 +28,6 @@ async function loadImageBase64(url: string): Promise<string | null> {
       reader.readAsDataURL(blob);
     });
   } catch { return null; }
-}
-
-function fmt(amount: number): string {
-  return `$${amount.toFixed(2)}`;
 }
 
 function fmtDate(dateStr: string): string {
@@ -173,14 +170,14 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const tableBody = params.items.map((item) => [
     item.name,
     String(item.quantity),
-    fmt(item.unitPrice),
-    fmt(item.unitPrice * item.quantity),
+    formatCurrency(item.unitPrice),
+    formatCurrency(item.unitPrice * item.quantity),
   ]);
   tableBody.push([
     'Transporte, montaje y desmontaje',
     '1',
-    isTransportPending ? 'Por confirmar' : fmt(effectiveTransport),
-    isTransportPending ? 'Por confirmar' : fmt(effectiveTransport),
+    isTransportPending ? 'Por confirmar' : formatCurrency(effectiveTransport),
+    isTransportPending ? 'Por confirmar' : formatCurrency(effectiveTransport),
   ]);
 
   autoTable(doc, {
@@ -201,11 +198,11 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   // ─── 6. TOTAL BOX: purple bg, white text ───
   const payLabel = params.paymentMethod === 'bank_transfer' ? 'Transferencia Bancaria' : 'Tarjeta de Cr\u00e9dito (+5%)';
   const lines: { label: string; value: string }[] = [
-    { label: 'Subtotal', value: fmt(params.subtotal) },
+    { label: 'Subtotal', value: formatCurrency(params.subtotal) },
   ];
-  if (effectiveTransport > 0) lines.push({ label: 'Transporte', value: fmt(effectiveTransport) });
+  if (effectiveTransport > 0) lines.push({ label: 'Transporte', value: formatCurrency(effectiveTransport) });
   if (isTransportPending) lines.push({ label: 'Transporte', value: 'Por confirmar' });
-  if (params.surcharge > 0) lines.push({ label: 'Recargo tarjeta (5%)', value: fmt(params.surcharge) });
+  if (params.surcharge > 0) lines.push({ label: 'Recargo tarjeta (5%)', value: formatCurrency(params.surcharge) });
 
   const totBoxH = 16 + lines.length * 6 + (params.paymentMethod === 'bank_transfer' ? 14 : 6);
   doc.setFillColor(PURPLE[0], PURPLE[1], PURPLE[2]);
@@ -228,7 +225,7 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   doc.setFontSize(14);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
   doc.text('TOTAL', m + 5, ty);
-  const totalStr = isTransportPending ? `${fmt(params.total)}*` : fmt(params.total);
+  const totalStr = isTransportPending ? `${formatCurrency(params.total)}*` : formatCurrency(params.total);
   doc.text(totalStr, pw - m - 5, ty, { align: 'right' });
   ty += 6;
   // Payment method

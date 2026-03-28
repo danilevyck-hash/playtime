@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
-import { fetchLogoUrl } from '@/lib/supabase-data';
+import { useLogoUrl } from '@/context/LogoContext';
 import Badge from '@/components/ui/Badge';
 import MobileMenu from './MobileMenu';
 
@@ -25,12 +25,8 @@ function TypographicLogo({ className = '' }: { className?: string }) {
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoUrl = useLogoUrl();
   const { itemCount } = useCart();
-
-  useEffect(() => {
-    fetchLogoUrl().then(u => { if (u) setLogoUrl(u); }).catch(() => {});
-  }, []);
 
   return (
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">

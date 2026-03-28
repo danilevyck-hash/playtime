@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito, Pacifico } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
+import { LogoProvider } from "@/context/LogoContext";
+import { fetchLogoUrl } from "@/lib/supabase-data";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
@@ -43,11 +45,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let logoUrl: string | null = null;
+  try {
+    logoUrl = await fetchLogoUrl();
+  } catch {}
+
   return (
     <html lang="es">
       <head>
@@ -57,9 +64,11 @@ export default function RootLayout({
         className={`${nunito.variable} ${pacifico.variable} font-body antialiased`}
       >
         <CartProvider>
-          <Navbar />
-          <main className="min-h-screen">{children}</main>
-          <Footer />
+          <LogoProvider initialLogoUrl={logoUrl}>
+            <Navbar />
+            <main className="min-h-screen">{children}</main>
+            <Footer />
+          </LogoProvider>
           <WhatsAppButton />
         </CartProvider>
         <ServiceWorkerRegistrar />

@@ -60,7 +60,8 @@ function getOrderStatus(order: Order): OrderStatus {
   return order.confirmed ? 'confirmado' : 'nuevo';
 }
 
-const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '';
+// PIN is stored in state after server-side auth validation
+let _adminPin = '';
 
 // ─── ORDERS TAB ───
 const OI_CLS = 'w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none';
@@ -82,7 +83,7 @@ function OrdersTab() {
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN },
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin },
       body: JSON.stringify(body),
     });
     return res.ok;
@@ -92,7 +93,7 @@ function OrdersTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': ADMIN_PIN } });
+      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': _adminPin } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
@@ -116,7 +117,7 @@ function OrdersTab() {
   const deleteOrder = async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
-      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': ADMIN_PIN }, body: JSON.stringify({ orderId }) });
+      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin }, body: JSON.stringify({ orderId }) });
       if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); }
     } catch {}
   };
@@ -591,7 +592,7 @@ function ProductsTab() {
       formData.append('file', file);
       formData.append('productId', productId);
       formData.append('folder', 'products');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': ADMIN_PIN }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
@@ -1009,7 +1010,7 @@ function WebsiteTab() {
       formData.append('file', file);
       formData.append('productId', 'site-logo');
       formData.append('folder', 'logos');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': ADMIN_PIN }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const url = data.path + '?t=' + Date.now();
@@ -1187,12 +1188,23 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo' | 'imagenes'>('pedidos');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === ADMIN_PIN) {
-      setAuthenticated(true);
-    } else {
-      setError('PIN incorrecto');
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        _adminPin = pin;
+        setAuthenticated(true);
+      } else {
+        setError('PIN incorrecto');
+      }
+    } catch {
+      setError('Error de conexión');
     }
   };
 
