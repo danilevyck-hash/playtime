@@ -26,11 +26,11 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
 
   return (
     <div className="space-y-6 max-w-lg mx-auto">
-      <h2 className="font-heading font-bold text-xl text-purple mb-4">Revisa tu Pedido</h2>
+      <h2 className="font-heading font-bold text-xl text-purple mb-4">Lo que elegiste para tu fiesta</h2>
 
       {/* Customer info */}
       <div className="bg-white rounded-xl p-4 border border-gray-100">
-        <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-2">Datos de Contacto</h3>
+        <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-2">{'\u00bf'}Con qui&eacute;n hablamos?</h3>
         <p className="font-body text-gray-800">{customer.name}</p>
         <p className="font-body text-gray-600 text-sm">{customer.phone}</p>
         {customer.email && <p className="font-body text-gray-600 text-sm">{customer.email}</p>}
@@ -73,7 +73,7 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
       {/* Payment + Total */}
       <div className="bg-cream rounded-xl p-4">
         <div className="flex justify-between text-sm font-body mb-1">
-          <span className="text-gray-600">Método de pago</span>
+          <span className="text-gray-600">{'\u00bf'}C&oacute;mo prefieres pagar?</span>
           <span className="font-heading font-semibold text-gray-800">
             {paymentMethod === 'bank_transfer' ? 'Transferencia' : 'Tarjeta (+5%)'}
           </span>
@@ -124,7 +124,7 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
           Atrás
         </Button>
         <Button onClick={onSubmit} className="flex-1" size="lg" disabled={loading}>
-          {loading ? 'Enviando...' : 'Confirmar Pedido'}
+          {loading ? 'Preparando magia... \u2728' : '\u00a1Reservar mi fiesta! \uD83C\uDF88'}
         </Button>
       </div>
     </div>

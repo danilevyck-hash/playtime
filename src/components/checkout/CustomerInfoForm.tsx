@@ -56,7 +56,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
-      <h2 className="font-heading font-bold text-xl text-purple mb-4">Tus Datos</h2>
+      <h2 className="font-heading font-bold text-xl text-purple mb-4">{'\u00bf'}Con qui&eacute;n hablamos?</h2>
       <Input
         label="Nombre completo"
         value={data.name}
@@ -104,7 +104,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
         error={errors.email}
       />
       <div className="pt-4">
-        <Button type="submit" className="w-full" size="lg">Siguiente</Button>
+        <Button type="submit" className="w-full" size="lg">Continuar &rarr;</Button>
       </div>
     </form>
   );

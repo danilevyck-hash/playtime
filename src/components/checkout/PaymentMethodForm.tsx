@@ -14,7 +14,7 @@ interface Props {
 export default function PaymentMethodForm({ selected, onChange, onNext, onBack }: Props) {
   return (
     <div className="space-y-6 max-w-md mx-auto">
-      <h2 className="font-heading font-bold text-xl text-purple mb-4">Método de Pago</h2>
+      <h2 className="font-heading font-bold text-xl text-purple mb-4">{'\u00bf'}C&oacute;mo prefieres pagar?</h2>
 
       <div className="space-y-3">
         {/* Bank Transfer */}
@@ -86,7 +86,7 @@ export default function PaymentMethodForm({ selected, onChange, onNext, onBack }
 
       <div className="pt-4 flex gap-3">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>
-        <Button onClick={onNext} className="flex-1" size="lg">Revisar Pedido</Button>
+        <Button onClick={onNext} className="flex-1" size="lg">Casi listo &rarr;</Button>
       </div>
     </div>
   );

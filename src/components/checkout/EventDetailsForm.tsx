@@ -145,7 +145,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
-      <h2 className="font-heading font-bold text-xl text-purple">Detalles del Evento</h2>
+      <h2 className="font-heading font-bold text-xl text-purple">Cu&eacute;ntanos de tu fiesta {'\uD83C\uDF82'}</h2>
 
       {errors.length > 0 && (
         <div className="bg-pink/10 border border-pink/30 rounded-xl p-3">
@@ -210,7 +210,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>
         <Button type="submit" className="flex-1" size="lg" disabled={!areasLoaded}>
-          {areasLoaded ? 'Siguiente' : 'Cargando áreas...'}
+          {areasLoaded ? 'Continuar \u2192' : 'Preparando magia... \u2728'}
         </Button>
       </div>
     </form>
