@@ -3,6 +3,7 @@ import { fetchSetting, fetchLogoUrl } from '@/lib/supabase-data';
 import Hero from '@/components/landing/Hero';
 import ServicesOverview from '@/components/landing/ServicesOverview';
 import FeaturedProducts from '@/components/landing/FeaturedProducts';
+import Testimonials from '@/components/landing/Testimonials';
 import InstagramFeed from '@/components/landing/InstagramFeed';
 import CTABanner from '@/components/landing/CTABanner';
 
@@ -42,6 +43,7 @@ export default async function Home() {
       <Hero content={content || undefined} logoUrl={logoUrl} />
       <ServicesOverview content={content || undefined} />
       <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
+      <Testimonials />
       <InstagramFeed />
       <CTABanner content={content || undefined} />
     </>

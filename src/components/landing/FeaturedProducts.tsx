@@ -6,6 +6,7 @@ import { useProducts } from '@/lib/useProducts';
 import { CATEGORY_ICONS, Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
+import { CATEGORIES } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import ProductModal from '@/components/catalog/ProductModal';
 
@@ -68,7 +69,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
               {/* Content */}
               <div className="p-5 flex flex-col flex-1">
                 <div className="text-xs font-heading font-semibold text-teal uppercase tracking-wider mb-2">
-                  {product.category === 'planes' ? 'Plan' : product.category}
+                  {CATEGORIES.find(c => c.id === product.category)?.label || product.category}
                 </div>
                 <h3
                   className="font-heading font-bold text-lg text-gray-800 mb-1 line-clamp-2 cursor-pointer hover:text-purple transition-colors"

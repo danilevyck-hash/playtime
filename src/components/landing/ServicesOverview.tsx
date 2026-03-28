@@ -1,6 +1,20 @@
 import Link from 'next/link';
 import { CATEGORIES } from '@/lib/constants';
+import { Category } from '@/lib/types';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
+
+const STARTING_PRICES: Record<Category, string> = {
+  planes: 'Desde $260',
+  belleza: 'Desde $100',
+  entretenimiento: 'Desde $150',
+  snacks: 'Desde $100',
+  gymboree: 'Desde $160',
+  inflables: 'Desde $90',
+  piscinas: 'Desde $40',
+  alquiler: 'Desde $2',
+  servicios: 'Desde $10',
+  manualidades: 'Consultar',
+};
 
 const CATEGORY_COLORS = [
   'bg-teal/10 border-teal/30 hover:border-teal',
@@ -43,6 +57,9 @@ export default function ServicesOverview({ content }: ServicesProps) {
               {Doodle ? <Doodle className="w-12 h-12 md:w-14 md:h-14 mb-3" /> : <span className="text-3xl md:text-4xl block mb-3">{cat.icon}</span>}
               <h3 className="font-heading font-bold text-lg text-gray-800 mb-1">{cat.label}</h3>
               <p className="font-body text-sm text-gray-500 leading-relaxed">{cat.description}</p>
+              <p className={`font-heading font-bold text-sm mt-1 ${STARTING_PRICES[cat.id] === 'Consultar' ? 'text-gray-400' : 'text-orange'}`}>
+                {STARTING_PRICES[cat.id]}
+              </p>
             </Link>
           );
         })}
