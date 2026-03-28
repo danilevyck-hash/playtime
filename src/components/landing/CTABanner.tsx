@@ -19,7 +19,7 @@ export default function CTABanner({ content }: CTAProps) {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/catalogo">
             <Button variant="secondary" size="lg">
-              Explorar Catálogo
+              Ver servicios &#10024;
             </Button>
           </Link>
           <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
@@ -27,7 +27,7 @@ export default function CTABanner({ content }: CTAProps) {
               size="lg"
               className="bg-white text-teal hover:bg-white/90"
             >
-              Contactar por WhatsApp
+              Hablar con nosotras {'\uD83D\uDCAC'}
             </Button>
           </a>
         </div>

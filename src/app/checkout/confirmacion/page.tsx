@@ -2,13 +2,19 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { fetchLogoUrl } from '@/lib/supabase-data';
 import { BANK_INFO, CONTACT } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
 
-export default function ConfirmacionPage() {
+function ConfirmacionContent() {
+  const searchParams = useSearchParams();
+  const pedido = searchParams.get('pedido');
+  const metodo = searchParams.get('metodo');
+  const showBankInfo = metodo !== 'credit_card';
+
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -42,25 +48,27 @@ export default function ConfirmacionPage() {
         <h1 className="font-heading font-black text-3xl md:text-4xl text-purple">
           {'\u00a1'}Tu solicitud fue enviada!
         </h1>
+        {pedido && <p className="font-heading font-bold text-lg text-purple">Pedido #{pedido}</p>}
         <p className="font-body text-lg text-gray-600 max-w-md mx-auto">
           Te contactamos por WhatsApp en menos de 2 horas para confirmar tu reserva.
         </p>
 
-        {/* Bank info */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-2 shadow-sm">
-          <p className="font-heading font-bold text-sm text-gray-800">Para confirmar tu reserva, env&iacute;a el dep&oacute;sito a:</p>
-          <div className="font-body text-sm text-gray-600 space-y-0.5">
-            <p><span className="font-semibold">Banco:</span> {BANK_INFO.bank}</p>
-            <p><span className="font-semibold">Titular:</span> {BANK_INFO.name}</p>
-            <p><span className="font-semibold">{BANK_INFO.accountType}:</span> {BANK_INFO.accountNumber}</p>
+        {showBankInfo && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-2 shadow-sm">
+            <p className="font-heading font-bold text-sm text-gray-800">Para confirmar tu reserva, env&iacute;a el dep&oacute;sito a:</p>
+            <div className="font-body text-sm text-gray-600 space-y-0.5">
+              <p><span className="font-semibold">Banco:</span> {BANK_INFO.bank}</p>
+              <p><span className="font-semibold">Titular:</span> {BANK_INFO.name}</p>
+              <p><span className="font-semibold">{BANK_INFO.accountType}:</span> {BANK_INFO.accountNumber}</p>
+            </div>
+            <button
+              onClick={copyBank}
+              className="w-full mt-2 bg-teal/10 text-teal font-heading font-bold text-sm py-2.5 rounded-xl hover:bg-teal/20 transition-colors"
+            >
+              {copied ? '\u2705 Copiado!' : 'Copiar datos bancarios'}
+            </button>
           </div>
-          <button
-            onClick={copyBank}
-            className="w-full mt-2 bg-teal/10 text-teal font-heading font-bold text-sm py-2.5 rounded-xl hover:bg-teal/20 transition-colors"
-          >
-            {copied ? '\u2705 Copiado!' : 'Copiar datos bancarios'}
-          </button>
-        </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
           <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
@@ -78,5 +86,13 @@ export default function ConfirmacionPage() {
         </p>
       </div>
     </ConfettiBackground>
+  );
+}
+
+export default function ConfirmacionPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[70vh] flex items-center justify-center"><p className="font-body text-gray-400">Cargando...</p></div>}>
+      <ConfirmacionContent />
+    </Suspense>
   );
 }

@@ -40,7 +40,7 @@ export default function CarritoContent() {
           <p className="font-body text-gray-500">{items.length} {items.length === 1 ? 'producto' : 'productos'}</p>
         </div>
         <button
-          onClick={clearCart}
+          onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
           className="text-sm font-heading font-semibold text-gray-400 hover:text-pink transition-colors"
         >
           Empezar de nuevo

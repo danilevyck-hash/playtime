@@ -183,6 +183,16 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
               <option key={area.name} value={area.name}>{area.name}</option>
             ))}
           </select>
+          {data.area && (() => {
+            const selectedArea = areas.find(a => a.name === data.area);
+            if (data.area === 'Otra \u00e1rea' || !selectedArea) {
+              return <p className="font-body text-sm text-teal mt-1">{'\uD83D\uDE9A'} Transporte: se confirma por WhatsApp</p>;
+            }
+            if (selectedArea.price === 0) {
+              return <p className="font-body text-sm text-teal mt-1">{'\uD83D\uDE9A'} Transporte gratuito</p>;
+            }
+            return <p className="font-body text-sm text-orange mt-1">{'\uD83D\uDE9A'} Transporte incluido: ${selectedArea.price}</p>;
+          })()}
         </div>
         <Input
           label="Lugar del evento y piso"
@@ -193,7 +203,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       </div>
 
       {/* Birthday child - collapsible */}
-      <details className="group">
+      <details className="group" open>
         <summary className="font-heading font-semibold text-sm text-gray-500 cursor-pointer hover:text-purple transition-colors list-none flex items-center gap-2">
           <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
           Datos del cumpleañero/a (opcional)

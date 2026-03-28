@@ -95,7 +95,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                       })
                     }
                   >
-                    Agregar
+                    {'\u00a1'}Lo quiero! {'\uD83C\uDF89'}
                   </Button>
                 </div>
               </div>

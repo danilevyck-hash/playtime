@@ -36,6 +36,7 @@ export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [orderNum, setOrderNum] = useState<number | null>(null);
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
   const [areasLoaded, setAreasLoaded] = useState(false);
 
@@ -166,6 +167,7 @@ export default function CheckoutPage() {
       });
 
       setWhatsappUrl(getWhatsAppUrl(message));
+      setOrderNum(orderNumber);
       clearCheckoutState();
       setStep(4);
     } catch {
@@ -175,11 +177,9 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleWhatsAppClick = () => {
-    clearCheckoutState();
+  const handleFinish = () => {
     clearCart();
-    // Navigate to confirmation after a brief delay so the link opens first
-    setTimeout(() => router.push('/checkout/confirmacion'), 500);
+    router.push(`/checkout/confirmacion?pedido=${orderNum || ''}&metodo=${paymentMethod}`);
   };
 
   return (
@@ -213,6 +213,7 @@ export default function CheckoutPage() {
         <div className="max-w-md mx-auto text-center space-y-6">
           <div className="text-6xl mb-2 animate-bounce">{'\u2705'}</div>
           <h2 className="font-heading font-black text-2xl text-purple">{'\u00a1'}Tu solicitud fue enviada!</h2>
+          {orderNum && <p className="font-heading font-bold text-lg text-purple">Pedido #{orderNum}</p>}
           <p className="font-body text-gray-600">
             Te contactamos por WhatsApp en menos de 2 horas para confirmar tu reserva.
           </p>
@@ -238,7 +239,6 @@ export default function CheckoutPage() {
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={handleWhatsAppClick}
             className="inline-flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-heading font-bold text-lg py-4 px-6 rounded-2xl transition-colors shadow-lg"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -246,6 +246,12 @@ export default function CheckoutPage() {
             </svg>
             Abrir WhatsApp
           </a>
+          <button
+            onClick={handleFinish}
+            className="w-full font-heading font-semibold text-sm text-purple hover:text-purple/80 transition-colors py-2"
+          >
+            Ya envi&eacute; mi pedido &rarr; Ver confirmaci&oacute;n
+          </button>
           <p className="font-body text-xs text-gray-400">
             {'\u00bf'}Tienes preguntas? Escr&iacute;benos al {CONTACT.phone}
           </p>
