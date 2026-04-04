@@ -3,7 +3,7 @@ import { formatCurrency } from './format';
 import { CONTACT } from './constants';
 
 export function buildWhatsAppOrderMessage(params: {
-  orderNumber: number;
+  orderNumber: string | number;
   customerName: string;
   customerPhone: string;
   eventDate: string;

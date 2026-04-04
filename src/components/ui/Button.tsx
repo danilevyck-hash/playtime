@@ -28,7 +28,7 @@ export default function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`font-heading font-semibold rounded-full transition-all duration-200 inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`font-heading font-semibold rounded-full transition-all duration-200 inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-purple focus-visible:ring-offset-2 ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}

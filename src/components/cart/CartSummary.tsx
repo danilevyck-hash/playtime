@@ -2,6 +2,7 @@
 
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/format';
+import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 
 interface CartSummaryProps {
   showSurcharge?: boolean;
@@ -10,7 +11,7 @@ interface CartSummaryProps {
 
 export default function CartSummary({ showSurcharge, paymentMethod }: CartSummaryProps) {
   const { subtotal } = useCart();
-  const surcharge = paymentMethod === 'credit_card' ? subtotal * 0.05 : 0;
+  const surcharge = paymentMethod === 'credit_card' ? subtotal * CREDIT_CARD_SURCHARGE : 0;
   const total = subtotal + surcharge;
 
   return (

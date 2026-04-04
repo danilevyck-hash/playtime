@@ -5,23 +5,22 @@ import { useCart } from '@/context/CartContext';
 import CartItemComponent from '@/components/cart/CartItem';
 import CartSummary from '@/components/cart/CartSummary';
 import Button from '@/components/ui/Button';
-import ConfettiBackground from '@/components/ui/ConfettiBackground';
 
 export default function CarritoContent() {
   const { items, clearCart } = useCart();
 
   if (items.length === 0) {
     return (
-      <ConfettiBackground className="bg-beige min-h-[60vh]">
+      <div className="bg-beige min-h-[60vh]">
         <div className="max-w-6xl mx-auto px-4 py-16 text-center">
-          <div className="text-6xl mb-4">{'\uD83C\uDF89'}</div>
+          <div className="text-6xl mb-4">{'\uD83D\uDED2'}</div>
           <h1 className="font-heading font-bold text-2xl text-gray-400 mb-2">{'\u00a1'}Tu fiesta te est&aacute; esperando!</h1>
           <p className="font-body text-gray-400 mb-6">Explora nuestros servicios y arma algo incre&iacute;ble {'\uD83C\uDF89'}</p>
           <Link href="/catalogo">
             <Button>{'\u00a1'}Arma tu fiesta! {'\uD83C\uDF89'}</Button>
           </Link>
         </div>
-      </ConfettiBackground>
+      </div>
     );
   }
 

@@ -60,7 +60,9 @@ function getOrderStatus(order: Order): OrderStatus {
   return order.confirmed ? 'confirmado' : 'nuevo';
 }
 
-// PIN is stored in state after server-side auth validation
+// Session token stored after server-side auth validation
+let _adminToken = '';
+// Keep PIN for backward compat with API headers
 let _adminPin = '';
 
 // ─── ORDERS TAB ───
@@ -83,7 +85,7 @@ function OrdersTab() {
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin },
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
       body: JSON.stringify(body),
     });
     return res.ok;
@@ -93,7 +95,7 @@ function OrdersTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': _adminPin } });
+      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
@@ -117,9 +119,13 @@ function OrdersTab() {
   const deleteOrder = async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
-      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin }, body: JSON.stringify({ orderId }) });
+      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
       if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); }
-    } catch {}
+      else { alert('Error al eliminar pedido'); }
+    } catch (e) {
+      console.error('Delete order error:', e);
+      alert('Error de conexión al eliminar pedido');
+    }
   };
 
   const saveNote = async (orderId: number) => {
@@ -592,7 +598,7 @@ function ProductsTab() {
       formData.append('file', file);
       formData.append('productId', productId);
       formData.append('folder', 'products');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
@@ -601,13 +607,13 @@ function ProductsTab() {
 
         const product = products.find(p => p.id === productId);
         if (product?.custom) {
-          upsertCustomProduct({ id: productId, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: newUrl, active: product.active }).catch(() => {});
+          upsertCustomProduct({ id: productId, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: newUrl, active: product.active }).catch((e) => console.error('Save custom product error:', e));
         } else {
-          upsertProductOverride({ id: productId, image_url: newUrl }).catch(() => {});
+          upsertProductOverride({ id: productId, image_url: newUrl }).catch((e) => console.error('Save override error:', e));
         }
         flash('Foto actualizada');
       } else { flash('Error al subir foto'); }
-    } catch { flash('Error de conexión'); }
+    } catch (e) { console.error('Upload error:', e); flash('Error de conexión'); }
     finally { setUploading(''); }
   };
 
@@ -619,9 +625,9 @@ function ProductsTab() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: nowActive } : p));
 
     if (product.custom) {
-      upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: product.imgUrl || null, active: nowActive }).catch(() => {});
+      upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: product.imgUrl || null, active: nowActive }).catch((e) => { console.error('Toggle error:', e); flash('Error al guardar'); });
     } else {
-      upsertProductOverride({ id, disabled: !nowActive }).catch(() => {});
+      upsertProductOverride({ id, disabled: !nowActive }).catch((e) => { console.error('Toggle error:', e); flash('Error al guardar'); });
     }
     flash(nowActive ? 'Producto activado' : 'Producto desactivado');
   };
@@ -650,9 +656,9 @@ function ProductsTab() {
     setEditingId(null);
 
     if (product.custom) {
-      upsertCustomProduct({ id, name: updated.name, category: updated.cat, price: updated.price, description: updated.desc, image_url: product.imgUrl || null, active: product.active }).catch(() => {});
+      upsertCustomProduct({ id, name: updated.name, category: updated.cat, price: updated.price, description: updated.desc, image_url: product.imgUrl || null, active: product.active }).catch((e) => { console.error('Save error:', e); flash('Error al guardar'); });
     } else {
-      upsertProductOverride({ id, name_override: updated.name, price_override: updated.price, description_override: updated.desc, category_override: updated.cat }).catch(() => {});
+      upsertProductOverride({ id, name_override: updated.name, price_override: updated.price, description_override: updated.desc, category_override: updated.cat }).catch((e) => { console.error('Save error:', e); flash('Error al guardar'); });
     }
     flash('Producto guardado');
   };
@@ -663,7 +669,7 @@ function ProductsTab() {
     const id = `custom-${Date.now()}`;
     const product: AdminProduct = { id, name: newProduct.name, cat: newProduct.cat, price: Number(newProduct.price) || 0, desc: newProduct.desc, imgUrl: '', active: true, custom: true };
     setProducts(prev => [...prev, product]);
-    upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: null, active: true }).catch(() => {});
+    upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: null, active: true }).catch((e) => { console.error('Add product error:', e); flash('Error al guardar'); });
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
     flash('Producto agregado');
@@ -672,7 +678,7 @@ function ProductsTab() {
   // ─── REMOVE CUSTOM PRODUCT ───
   const handleRemove = async (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
-    deleteCustomProduct(id).catch(() => {});
+    deleteCustomProduct(id).catch((e) => { console.error('Delete product error:', e); flash('Error al eliminar'); });
     flash('Producto eliminado');
   };
 
@@ -843,7 +849,9 @@ function CatalogTab() {
           const ids = new Set<string>(base.map(c => c.id));
           for (const cc of customCats) { if (!ids.has(cc.id)) (base as Array<{ id: string; label: string; icon: string; description: string; subtitle?: string }>).push(cc); }
         }
-      } catch {}
+      } catch (e) {
+        console.error('Error loading category overrides:', e);
+      }
       setCategories(base);
     }
     load();
@@ -993,7 +1001,7 @@ function WebsiteTab() {
     fetchSetting<typeof hp>('homepage_content').then(d => {
       if (d) setHp(prev => ({ ...prev, ...d }));
       setHpLoaded(true);
-    }).catch(() => setHpLoaded(true));
+    }).catch((e) => { console.error('Load homepage error:', e); setHpLoaded(true); });
   }, []);
 
   const saveHomepage = async () => {
@@ -1009,7 +1017,7 @@ function WebsiteTab() {
     fetchSetting<string[]>('featured_products').then(d => {
       if (d) setFeaturedIds(d);
       setFeatLoaded(true);
-    }).catch(() => setFeatLoaded(true));
+    }).catch((e) => { console.error('Load featured error:', e); setFeatLoaded(true); });
   }, []);
 
   const toggleFeatured = (id: string) => {
@@ -1029,7 +1037,7 @@ function WebsiteTab() {
     fetchSetting<{ name: string; price: number }[]>('event_areas').then(d => {
       setAreas(d && d.length > 0 ? d : [...EVENT_AREAS]);
       setAreasLoaded(true);
-    }).catch(() => { setAreas([...EVENT_AREAS]); setAreasLoaded(true); });
+    }).catch((e) => { console.error('Load areas error:', e); setAreas([...EVENT_AREAS]); setAreasLoaded(true); });
   }, []);
 
   const saveAreas = async () => {
@@ -1046,7 +1054,7 @@ function WebsiteTab() {
   useEffect(() => {
     fetchSetting<Array<{ url: string; id: string }>>('reels').then(d => {
       if (d && d.length > 0) setReelUrls([d[0]?.url || '', d[1]?.url || '', d[2]?.url || '']);
-    }).catch(() => {});
+    }).catch((e) => console.error('Load reels error:', e));
   }, []);
 
   // ─── E) LOGO ───
@@ -1054,7 +1062,7 @@ function WebsiteTab() {
   const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
-    fetchSetting<string>('site_logo_url').then(u => { if (u) setLogoUrl(u); }).catch(() => {});
+    fetchSetting<string>('site_logo_url').then(u => { if (u) setLogoUrl(u); }).catch((e) => console.error('Load logo error:', e));
   }, []);
 
   const handleLogoUpload = async (file: File) => {
@@ -1066,7 +1074,7 @@ function WebsiteTab() {
       formData.append('file', file);
       formData.append('productId', 'site-logo');
       formData.append('folder', 'logos');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const url = data.path + '?t=' + Date.now();
@@ -1110,7 +1118,7 @@ function WebsiteTab() {
         ]);
       }
       setTestimonialsLoaded(true);
-    }).catch(() => setTestimonialsLoaded(true));
+    }).catch((e) => { console.error('Load testimonials error:', e); setTestimonialsLoaded(true); });
   }, []);
 
   const saveTestimonials = async () => {
@@ -1307,9 +1315,10 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.ok) {
         _adminPin = pin;
+        _adminToken = data.token || '';
         setAuthenticated(true);
       } else {
-        setError('PIN incorrecto');
+        setError(data.error || 'PIN incorrecto');
       }
     } catch {
       setError('Error de conexión');

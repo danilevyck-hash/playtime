@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { isValidSession } from '@/lib/admin-auth';
 
 const BUCKET = 'playtime-images';
+const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']);
 
 export async function POST(request: NextRequest) {
+  // Auth check: session token or PIN
+  const token = request.headers.get('x-admin-token');
   const pin = request.headers.get('x-admin-pin');
-  if (pin !== process.env.ADMIN_PIN) {
+  if (!isValidSession(token) && pin !== process.env.ADMIN_PIN) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!supabase) {
+  if (!supabaseAdmin) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 
@@ -33,11 +37,20 @@ export async function POST(request: NextRequest) {
 
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-  const ext = file.name.split('.').pop() || 'png';
-  const filePath = `${folder}/${productId}.${ext}`;
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+
+  // Validate extension
+  if (!ALLOWED_EXTENSIONS.has(ext)) {
+    return NextResponse.json({ error: 'Extensión no permitida' }, { status: 400 });
+  }
+
+  // Sanitize path components to prevent traversal
+  const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '');
+  const safeProductId = productId.replace(/[^a-zA-Z0-9_-]/g, '');
+  const filePath = `${safeFolder}/${safeProductId}.${ext}`;
 
   // Upload to Supabase Storage (upsert = overwrite if exists)
-  const { error } = await supabase.storage
+  const { error } = await supabaseAdmin.storage
     .from(BUCKET)
     .upload(filePath, buffer, {
       contentType: file.type,
@@ -50,7 +63,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Get public URL
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = supabaseAdmin.storage
     .from(BUCKET)
     .getPublicUrl(filePath);
 

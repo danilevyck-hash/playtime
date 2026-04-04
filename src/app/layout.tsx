@@ -57,7 +57,9 @@ export default async function RootLayout({
   let logoUrl: string | null = null;
   try {
     logoUrl = await fetchLogoUrl();
-  } catch {}
+  } catch (e) {
+    console.error('Error loading logo:', e);
+  }
 
   return (
     <html lang="es">

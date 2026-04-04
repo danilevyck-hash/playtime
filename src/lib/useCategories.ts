@@ -25,7 +25,7 @@ export function useCategories(): CategoryItem[] {
           return [...prev, ...newOnes];
         });
       }
-    }).catch(() => {});
+    }).catch((e) => console.error('Error loading custom categories:', e));
   }, []);
 
   return categories;

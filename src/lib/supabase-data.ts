@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseAdmin } from './supabase';
 
 // ─── Types ───
 export interface ProductOverride {
@@ -43,9 +43,10 @@ export async function fetchProductOverrides(): Promise<ProductOverride[]> {
 }
 
 export async function upsertProductOverride(override: Partial<ProductOverride> & { id: string }): Promise<boolean> {
-  if (!supabase) return false;
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('pt_product_overrides')
       .upsert({ ...override, updated_at: new Date().toISOString() }, { onConflict: 'id' });
     if (error) throw error;
@@ -90,9 +91,10 @@ export async function fetchAllCustomProducts(): Promise<CustomProduct[]> {
 }
 
 export async function upsertCustomProduct(product: CustomProduct): Promise<boolean> {
-  if (!supabase) return false;
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('pt_custom_products')
       .upsert(product, { onConflict: 'id' });
     if (error) throw error;
@@ -104,9 +106,10 @@ export async function upsertCustomProduct(product: CustomProduct): Promise<boole
 }
 
 export async function deleteCustomProduct(id: string): Promise<boolean> {
-  if (!supabase) return false;
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('pt_custom_products')
       .delete()
       .eq('id', id);
@@ -143,7 +146,9 @@ export async function fetchEventAreas(): Promise<{ name: string; price: number }
   try {
     const areas = await fetchSetting<{ name: string; price: number }[]>('event_areas');
     if (areas && areas.length > 0) return areas;
-  } catch {}
+  } catch (e) {
+    console.error('fetchEventAreas error:', e);
+  }
   // Dynamic import to avoid circular dependency
   const { EVENT_AREAS } = await import('./types');
   return EVENT_AREAS;
@@ -154,9 +159,10 @@ export async function fetchLogoUrl(): Promise<string | null> {
 }
 
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
-  if (!supabase) return false;
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('pt_settings')
       .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (error) throw error;

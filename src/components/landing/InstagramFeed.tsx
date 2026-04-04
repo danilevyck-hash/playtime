@@ -21,7 +21,9 @@ export default function InstagramFeed() {
           setReels(data);
           return;
         }
-      } catch {}
+      } catch (e) {
+        console.error('Error loading reels:', e);
+      }
 
       // Fallback to localStorage
       if (!cancelled) {
@@ -30,7 +32,9 @@ export default function InstagramFeed() {
           if (saved) {
             setReels(JSON.parse(saved));
           }
-        } catch {}
+        } catch (e) {
+          console.error('Error loading cached reels:', e);
+        }
       }
     }
 

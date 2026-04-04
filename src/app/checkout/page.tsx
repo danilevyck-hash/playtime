@@ -8,6 +8,7 @@ import { fetchEventAreas, fetchLogoUrl } from '@/lib/supabase-data';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
 import { generateOrderPDF } from '@/lib/pdf-order';
 import { createClient } from '@supabase/supabase-js';
+import { useToast } from '@/context/ToastContext';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
 import EventDetailsForm from '@/components/checkout/EventDetailsForm';
@@ -15,7 +16,7 @@ import PaymentMethodForm from '@/components/checkout/PaymentMethodForm';
 import OrderReview from '@/components/checkout/OrderReview';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { BANK_INFO, CONTACT } from '@/lib/constants';
+import { BANK_INFO, CONTACT, CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 
 const CHECKOUT_STORAGE_KEY = 'playtime-checkout';
 
@@ -34,14 +35,15 @@ function clearCheckoutState() {
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
-  const [orderNum, setOrderNum] = useState<number | null>(null);
+  const [orderNum, setOrderNum] = useState<string | number | null>(null);
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
   const [areasLoaded, setAreasLoaded] = useState(false);
 
   useEffect(() => {
-    fetchEventAreas().then(setEventAreas).catch(() => {}).finally(() => setAreasLoaded(true));
+    fetchEventAreas().then(setEventAreas).catch((e) => console.error('Error loading areas:', e)).finally(() => setAreasLoaded(true));
   }, []);
 
   const saved = typeof window !== 'undefined' ? loadCheckoutState() : null;
@@ -88,11 +90,15 @@ export default function CheckoutPage() {
     setLoading(true);
     try {
       const subtotalWithTransport = subtotal + transportCost;
-      const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+      const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * CREDIT_CARD_SURCHARGE : 0;
       const total = subtotalWithTransport + surcharge;
 
       // Try to save to Supabase
-      let orderNumber = Math.floor(Math.random() * 9000) + 1000;
+      // Generate unique order number: YYMMDD + 4 random digits (e.g. 260404-7382)
+      const now = new Date();
+      const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+      let orderNumber: string | number = `${datePart}-${randPart}`;
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
@@ -110,9 +116,13 @@ export default function CheckoutPage() {
         if (res.ok) {
           const data = await res.json();
           orderNumber = data.orderNumber || orderNumber;
+        } else {
+          console.error('Order API error:', res.status);
+          showToast('No se pudo guardar el pedido, pero puedes continuar por WhatsApp');
         }
-      } catch {
-        // Supabase not configured, continue with WhatsApp only
+      } catch (e) {
+        console.error('Order save error:', e);
+        showToast('No se pudo guardar el pedido, pero puedes continuar por WhatsApp');
       }
 
       // Generate PDF and upload to Supabase Storage
@@ -145,8 +155,9 @@ export default function CheckoutPage() {
           const { data: urlData } = sb.storage.from('playtime-images').getPublicUrl(fileName);
           pdfUrl = urlData.publicUrl;
         }
-      } catch {
-        // If upload fails, continue without PDF link
+      } catch (e) {
+        console.error('PDF upload error:', e);
+        // Continue without PDF link — order still goes through WhatsApp
       }
 
       // Build WhatsApp URL and store it — user will click a native link
@@ -170,8 +181,9 @@ export default function CheckoutPage() {
       setOrderNum(orderNumber);
       clearCheckoutState();
       setStep(4);
-    } catch {
-      alert('Ups, algo sali\u00f3 mal. Escr\u00edbenos por WhatsApp y te ayudamos \uD83D\uDCAC');
+    } catch (e) {
+      console.error('Checkout error:', e);
+      showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos');
     } finally {
       setLoading(false);
     }
@@ -206,6 +218,7 @@ export default function CheckoutPage() {
           transportCost={isTransportPending ? -1 : transportCost}
           onBack={() => setStep(2)}
           onSubmit={handleSubmit}
+          onEditStep={(s) => setStep(s)}
           loading={loading}
         />
       )}

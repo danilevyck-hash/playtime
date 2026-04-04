@@ -6,12 +6,17 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
 const COUNTRY_CODES = [
-  { code: '+507', country: 'Panamá', flag: '🇵🇦' },
-  { code: '+1', country: 'USA', flag: '🇺🇸' },
-  { code: '+57', country: 'Colombia', flag: '🇨🇴' },
-  { code: '+52', country: 'México', flag: '🇲🇽' },
-  { code: '+506', country: 'Costa Rica', flag: '🇨🇷' },
-  { code: '+58', country: 'Venezuela', flag: '🇻🇪' },
+  { code: '+507', country: 'Panamá', flag: '🇵🇦', minDigits: 7 },
+  { code: '+1', country: 'USA/Canadá', flag: '🇺🇸', minDigits: 10 },
+  { code: '+57', country: 'Colombia', flag: '🇨🇴', minDigits: 10 },
+  { code: '+52', country: 'México', flag: '🇲🇽', minDigits: 10 },
+  { code: '+506', country: 'Costa Rica', flag: '🇨🇷', minDigits: 8 },
+  { code: '+58', country: 'Venezuela', flag: '🇻🇪', minDigits: 10 },
+  { code: '+593', country: 'Ecuador', flag: '🇪🇨', minDigits: 9 },
+  { code: '+51', country: 'Perú', flag: '🇵🇪', minDigits: 9 },
+  { code: '+56', country: 'Chile', flag: '🇨🇱', minDigits: 9 },
+  { code: '+55', country: 'Brasil', flag: '🇧🇷', minDigits: 10 },
+  { code: '+34', country: 'España', flag: '🇪🇸', minDigits: 9 },
 ];
 
 interface Props {
@@ -48,8 +53,10 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!data.name.trim()) errs.name = 'Necesitamos tu nombre para la reserva';
-    if (localNumber.length < 7) errs.phone = 'Ingresa tu número de celular';
-    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = 'El formato del email no es válido';
+    const ccInfo = COUNTRY_CODES.find(c => c.code === countryCode);
+    const minDigits = ccInfo?.minDigits ?? 7;
+    if (localNumber.length < minDigits) errs.phone = `Ingresa al menos ${minDigits} dígitos`;
+    if (data.email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data.email)) errs.email = 'El formato del email no es válido';
     setErrors(errs);
     if (Object.keys(errs).length === 0) onNext();
   };

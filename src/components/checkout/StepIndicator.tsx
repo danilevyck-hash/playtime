@@ -8,12 +8,14 @@ interface StepIndicatorProps {
 
 export default function StepIndicator({ current }: StepIndicatorProps) {
   return (
-    <div className="flex items-center justify-center gap-2 mb-8">
+    <nav aria-label="Progreso del pedido" className="flex items-center justify-center gap-2 mb-8">
       {STEPS.map((label, i) => (
         <div key={label} className="flex items-center gap-2">
           <div className="flex flex-col items-center">
             <div
+              role="listitem"
               aria-current={i === current ? 'step' : undefined}
+              aria-label={`Paso ${i + 1}: ${label}${i < current ? ' (completado)' : i === current ? ' (actual)' : ''}`}
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-heading font-bold transition-colors ${
                 i < current
                   ? 'bg-teal text-white'
@@ -39,6 +41,6 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
           )}
         </div>
       ))}
-    </div>
+    </nav>
   );
 }

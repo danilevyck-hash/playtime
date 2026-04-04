@@ -38,7 +38,9 @@ export default async function Home() {
       fetchLogoUrl(),
       fetchSetting<Array<{ name: string; text: string; avatar: string }>>('testimonials'),
     ]);
-  } catch {}
+  } catch (e) {
+    console.error('Error loading homepage data:', e);
+  }
 
   return (
     <>

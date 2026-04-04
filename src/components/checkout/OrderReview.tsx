@@ -2,7 +2,7 @@
 
 import { OrderCustomer, OrderEvent, PaymentMethod, CartItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
-import { BANK_INFO } from '@/lib/constants';
+import { BANK_INFO, CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -14,14 +14,15 @@ interface Props {
   transportCost: number; // -1 means "por confirmar"
   onBack: () => void;
   onSubmit: () => void;
+  onEditStep?: (step: number) => void;
   loading: boolean;
 }
 
-export default function OrderReview({ customer, event, paymentMethod, items, subtotal, transportCost, onBack, onSubmit, loading }: Props) {
+export default function OrderReview({ customer, event, paymentMethod, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading }: Props) {
   const isTransportPending = transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : transportCost;
   const subtotalWithTransport = subtotal + effectiveTransport;
-  const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+  const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * CREDIT_CARD_SURCHARGE : 0;
   const total = subtotalWithTransport + surcharge;
 
   return (
@@ -30,7 +31,10 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
 
       {/* Customer info */}
       <div className="bg-white rounded-xl p-4 border border-gray-100">
-        <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-2">{'\u00bf'}Con qui&eacute;n hablamos?</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider">{'\u00bf'}Con qui&eacute;n hablamos?</h3>
+          {onEditStep && <button onClick={() => onEditStep(0)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>}
+        </div>
         <p className="font-body text-gray-800">{customer.name}</p>
         <p className="font-body text-gray-600 text-sm">{customer.phone}</p>
         {customer.email && <p className="font-body text-gray-600 text-sm">{customer.email}</p>}
@@ -38,7 +42,10 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
 
       {/* Event info */}
       <div className="bg-white rounded-xl p-4 border border-gray-100">
-        <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-2">Evento</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider">Evento</h3>
+          {onEditStep && <button onClick={() => onEditStep(1)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>}
+        </div>
         <p className="font-body text-gray-800">{event.date} a las {event.time}</p>
         <p className="font-body text-gray-600 text-sm">{event.area} - {event.address}</p>
         {event.birthdayChildName && (
@@ -73,7 +80,10 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
       {/* Payment + Total */}
       <div className="bg-cream rounded-xl p-4">
         <div className="flex justify-between text-sm font-body mb-1">
-          <span className="text-gray-600">{'\u00bf'}C&oacute;mo prefieres pagar?</span>
+          <span className="text-gray-600">
+            {'\u00bf'}C&oacute;mo prefieres pagar?
+            {onEditStep && <button onClick={() => onEditStep(2)} className="ml-2 text-xs text-purple font-heading font-semibold hover:underline">Cambiar</button>}
+          </span>
           <span className="font-heading font-semibold text-gray-800">
             {paymentMethod === 'bank_transfer' ? 'Transferencia' : 'Tarjeta (+5%)'}
           </span>

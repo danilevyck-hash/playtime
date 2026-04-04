@@ -43,50 +43,69 @@ CREATE TABLE IF NOT EXISTS pt_settings (
 );
 
 -- ============================================================
--- RLS: Allow anonymous (anon) full access
+-- RLS: Anon can READ all tables. Only authenticated can WRITE.
 -- ============================================================
+
+-- Drop old permissive anon policies (idempotent)
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_insert_pt_product_overrides" ON pt_product_overrides;
+  DROP POLICY IF EXISTS "anon_update_pt_product_overrides" ON pt_product_overrides;
+  DROP POLICY IF EXISTS "anon_delete_pt_product_overrides" ON pt_product_overrides;
+  DROP POLICY IF EXISTS "anon_insert_pt_custom_products" ON pt_custom_products;
+  DROP POLICY IF EXISTS "anon_update_pt_custom_products" ON pt_custom_products;
+  DROP POLICY IF EXISTS "anon_delete_pt_custom_products" ON pt_custom_products;
+  DROP POLICY IF EXISTS "anon_insert_pt_settings" ON pt_settings;
+  DROP POLICY IF EXISTS "anon_update_pt_settings" ON pt_settings;
+  DROP POLICY IF EXISTS "anon_delete_pt_settings" ON pt_settings;
+END $$;
 
 -- pt_product_overrides
 ALTER TABLE pt_product_overrides ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "anon_select_pt_product_overrides" ON pt_product_overrides
+CREATE POLICY IF NOT EXISTS "anon_select_pt_product_overrides" ON pt_product_overrides
   FOR SELECT TO anon USING (TRUE);
 
-CREATE POLICY "anon_insert_pt_product_overrides" ON pt_product_overrides
-  FOR INSERT TO anon WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_insert_pt_product_overrides" ON pt_product_overrides
+  FOR INSERT TO authenticated WITH CHECK (TRUE);
 
-CREATE POLICY "anon_update_pt_product_overrides" ON pt_product_overrides
-  FOR UPDATE TO anon USING (TRUE) WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_update_pt_product_overrides" ON pt_product_overrides
+  FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
-CREATE POLICY "anon_delete_pt_product_overrides" ON pt_product_overrides
-  FOR DELETE TO anon USING (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_delete_pt_product_overrides" ON pt_product_overrides
+  FOR DELETE TO authenticated USING (TRUE);
 
 -- pt_custom_products
 ALTER TABLE pt_custom_products ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "anon_select_pt_custom_products" ON pt_custom_products
+CREATE POLICY IF NOT EXISTS "anon_select_pt_custom_products" ON pt_custom_products
   FOR SELECT TO anon USING (TRUE);
 
-CREATE POLICY "anon_insert_pt_custom_products" ON pt_custom_products
-  FOR INSERT TO anon WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_insert_pt_custom_products" ON pt_custom_products
+  FOR INSERT TO authenticated WITH CHECK (TRUE);
 
-CREATE POLICY "anon_update_pt_custom_products" ON pt_custom_products
-  FOR UPDATE TO anon USING (TRUE) WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_update_pt_custom_products" ON pt_custom_products
+  FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
-CREATE POLICY "anon_delete_pt_custom_products" ON pt_custom_products
-  FOR DELETE TO anon USING (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_delete_pt_custom_products" ON pt_custom_products
+  FOR DELETE TO authenticated USING (TRUE);
 
 -- pt_settings
 ALTER TABLE pt_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "anon_select_pt_settings" ON pt_settings
+CREATE POLICY IF NOT EXISTS "anon_select_pt_settings" ON pt_settings
   FOR SELECT TO anon USING (TRUE);
 
-CREATE POLICY "anon_insert_pt_settings" ON pt_settings
-  FOR INSERT TO anon WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_insert_pt_settings" ON pt_settings
+  FOR INSERT TO authenticated WITH CHECK (TRUE);
 
-CREATE POLICY "anon_update_pt_settings" ON pt_settings
-  FOR UPDATE TO anon USING (TRUE) WITH CHECK (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_update_pt_settings" ON pt_settings
+  FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
-CREATE POLICY "anon_delete_pt_settings" ON pt_settings
-  FOR DELETE TO anon USING (TRUE);
+CREATE POLICY IF NOT EXISTS "auth_delete_pt_settings" ON pt_settings
+  FOR DELETE TO authenticated USING (TRUE);
+
+-- ============================================================
+-- Service-role bypass: The app's API routes use the service role
+-- key (SUPABASE_SERVICE_ROLE_KEY) for admin writes, which
+-- bypasses RLS automatically. No extra policy needed.
+-- ============================================================

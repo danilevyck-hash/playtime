@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { isValidSession } from '@/lib/admin-auth';
+
+function isAdminAuthorized(request: NextRequest): boolean {
+  // Check session token first, then fall back to PIN
+  const token = request.headers.get('x-admin-token');
+  if (isValidSession(token)) return true;
+  const pin = request.headers.get('x-admin-pin');
+  return pin === process.env.ADMIN_PIN;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,16 +25,31 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Se requiere al menos un producto' }, { status: 400 });
     }
-    if (!event?.date || !/^\d{4}-\d{2}-\d{2}$/.test(event.date) || isNaN(Date.parse(event.date))) {
+    if (!event?.date || !/^\d{4}-\d{2}-\d{2}$/.test(event.date)) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Fecha de evento inválida (YYYY-MM-DD)' }, { status: 400 });
     }
-    if (!paymentMethod || !['bank_transfer', 'card'].includes(paymentMethod)) {
-      return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o card' }, { status: 400 });
+    // Validate it's a real date (not 2024-13-45)
+    const [year, month, day] = event.date.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    if (dateObj.getFullYear() !== year || dateObj.getMonth() !== month - 1 || dateObj.getDate() !== day) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'La fecha no es válida' }, { status: 400 });
+    }
+    // Reject past dates (Panama timezone UTC-5)
+    const nowPanama = new Date(Date.now() - 5 * 60 * 60 * 1000);
+    const todayStr = nowPanama.toISOString().slice(0, 10);
+    if (event.date < todayStr) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'La fecha del evento no puede ser en el pasado' }, { status: 400 });
+    }
+    if (!paymentMethod || !['bank_transfer', 'credit_card'].includes(paymentMethod)) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o credit_card' }, { status: 400 });
     }
 
     if (!supabase) {
       // Supabase not configured, return a mock order number
-      return NextResponse.json({ orderNumber: Math.floor(Math.random() * 9000) + 1000 });
+      const now = new Date();
+      const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+      return NextResponse.json({ orderNumber: `${datePart}-${randPart}` });
     }
 
     // Insert order
@@ -83,26 +107,26 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const pin = request.headers.get('x-admin-pin');
-    if (pin !== process.env.ADMIN_PIN) {
+    if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!supabase) {
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
     const { orderId, confirmed, internalNote, status, editFields, depositAmount, transportCostConfirmed } = body;
 
     if (internalNote !== undefined) {
-      const { error: noteError } = await supabase
+      const { error: noteError } = await db
         .from('pt_orders')
         .update({ internal_note: internalNote })
         .eq('id', orderId);
       if (noteError) {
-        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCDD Nota interna: ${internalNote}` }).eq('id', orderId);
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCDD Nota interna: ${internalNote}` }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
@@ -110,11 +134,9 @@ export async function PATCH(request: NextRequest) {
     if (status !== undefined) {
       const isConfirmed = status !== 'nuevo';
       const updateData: Record<string, unknown> = { confirmed: isConfirmed };
-      // Try status column, gracefully ignore if it doesn't exist
-      const { error: statusError } = await supabase.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
+      const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
       if (statusError) {
-        // status column may not exist — just update confirmed
-        await supabase.from('pt_orders').update(updateData).eq('id', orderId);
+        await db.from('pt_orders').update(updateData).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
@@ -132,7 +154,7 @@ export async function PATCH(request: NextRequest) {
       if (editFields.birthday_child_age !== undefined) mapped.birthday_child_age = editFields.birthday_child_age || null;
       if (editFields.notes !== undefined) mapped.notes = editFields.notes || null;
       if (Object.keys(mapped).length > 0) {
-        const { error } = await supabase.from('pt_orders').update(mapped).eq('id', orderId);
+        const { error } = await db.from('pt_orders').update(mapped).eq('id', orderId);
         if (error) {
           console.error('Edit error:', error);
           return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
@@ -142,30 +164,29 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (depositAmount !== undefined) {
-      const { error: depError } = await supabase.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+      const { error: depError } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
       if (depError) {
-        // Column may not exist — store in notes as fallback
-        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCB0 Dep\u00f3sito: $${depositAmount}` }).eq('id', orderId);
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCB0 Dep\u00f3sito: $${depositAmount}` }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (transportCostConfirmed !== undefined) {
-      const { error: tcError } = await supabase.from('pt_orders').update({ transport_cost_confirmed: transportCostConfirmed }).eq('id', orderId);
+      const { error: tcError } = await db.from('pt_orders').update({ transport_cost_confirmed: transportCostConfirmed }).eq('id', orderId);
       if (tcError) {
-        const { data: existing } = await supabase.from('pt_orders').select('notes').eq('id', orderId).single();
+        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await supabase.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${transportCostConfirmed}` }).eq('id', orderId);
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${transportCostConfirmed}` }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (confirmed !== undefined) {
-      const { error } = await supabase.from('pt_orders').update({ confirmed }).eq('id', orderId);
+      const { error } = await db.from('pt_orders').update({ confirmed }).eq('id', orderId);
       if (error) {
         console.error('Update error:', error);
         return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
@@ -182,17 +203,16 @@ export async function PATCH(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Simple PIN auth via header
-    const pin = request.headers.get('x-admin-pin');
-    if (pin !== process.env.ADMIN_PIN) {
+    if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!supabase) {
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       return NextResponse.json({ orders: [], message: 'Supabase not configured' });
     }
 
-    const { data: orders, error } = await supabase
+    const { data: orders, error } = await db
       .from('pt_orders')
       .select('*')
       .order('created_at', { ascending: false })
@@ -203,12 +223,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
     }
 
-    // Fetch items for each order
     const orderIds = (orders || []).map((o: { id: number }) => o.id);
     const allItems: Record<number, Array<{ product_name: string; quantity: number; unit_price: number; line_total: number }>> = {};
 
     if (orderIds.length > 0) {
-      const { data: items } = await supabase
+      const { data: items } = await db
         .from('pt_order_items')
         .select('*')
         .in('order_id', orderIds);
@@ -235,19 +254,18 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const pin = request.headers.get('x-admin-pin');
-    if (pin !== process.env.ADMIN_PIN) {
+    if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!supabase) {
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const { orderId } = await request.json();
 
-    // Delete items first in case there's no CASCADE
-    await supabase.from('pt_order_items').delete().eq('order_id', orderId);
+    await db.from('pt_order_items').delete().eq('order_id', orderId);
 
-    const { error } = await supabase.from('pt_orders').delete().eq('id', orderId);
+    const { error } = await db.from('pt_orders').delete().eq('id', orderId);
     if (error) {
       console.error('Delete error:', error);
       return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });

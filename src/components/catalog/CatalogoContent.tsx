@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product, CATEGORY_ICONS } from '@/lib/types';
@@ -68,6 +68,8 @@ export default function CatalogoContent() {
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const PAGE_SIZE = 12;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const planes = useMemo(() => products.filter(p => p.category === 'planes'), [products]);
 
@@ -81,6 +83,20 @@ export default function CatalogoContent() {
       return matchCategory && matchSearch;
     });
   }, [products, category, search]);
+
+  const visibleProducts = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visibleCount < filtered.length;
+
+  // Reset pagination when filters change
+  const handleCategoryChange = useCallback((cat: Category | 'all') => {
+    setCategory(cat);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const handleSearchChange = useCallback((val: string) => {
+    setSearch(val);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
 
   const handleAddPlan = (product: Product) => {
     addItem({ productId: product.id, name: product.name, category: product.category, unitPrice: product.price });
@@ -154,8 +170,8 @@ export default function CatalogoContent() {
             </p>
           </div>
           <div className="flex flex-col gap-4 mb-8">
-            <SearchBar value={search} onChange={setSearch} />
-            <CategoryFilter selected={category} onSelect={setCategory} />
+            <SearchBar value={search} onChange={handleSearchChange} />
+            <CategoryFilter selected={category} onSelect={handleCategoryChange} />
           </div>
           {filtered.length === 0 ? (
             <div className="text-center py-16">
@@ -164,11 +180,23 @@ export default function CatalogoContent() {
               <p className="font-body text-sm text-gray-400">Prueba con otra b&uacute;squeda o categor&iacute;a</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filtered.map((product) => (
-                <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {visibleProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
+                ))}
+              </div>
+              {hasMore && (
+                <div className="text-center mt-8">
+                  <button
+                    onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                    className="bg-purple/10 text-purple font-heading font-bold px-8 py-3 rounded-2xl hover:bg-purple/20 transition-colors"
+                  >
+                    Ver más productos ({filtered.length - visibleCount} restantes)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

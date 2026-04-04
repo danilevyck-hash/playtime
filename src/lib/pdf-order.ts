@@ -5,7 +5,7 @@ import { BANK_INFO, CONTACT } from './constants';
 import { formatCurrency } from './format';
 
 interface OrderPDFParams {
-  orderNumber: number;
+  orderNumber: string | number;
   customer: { name: string; phone: string; email: string };
   event: { date: string; time: string; area: string; address: string; birthdayChildName: string; birthdayChildAge: number | ''; theme: string };
   items: CartItem[];
