@@ -39,7 +39,11 @@ export const metadata: Metadata = {
   },
   description: "Fiestas infantiles en Panam\u00e1. Animaci\u00f3n, alquiler de equipos y manualidades para cumplea\u00f1os y eventos. \u00a1Todo hasta tu puerta!",
   openGraph: {
-    images: ["/images/logo.png"],
+    images: ["/logo.png"],
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
   manifest: "/manifest.json",
   appleWebApp: {

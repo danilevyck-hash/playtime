@@ -19,7 +19,7 @@ function ConfirmacionContent() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchLogoUrl().then(u => { if (u) setLogoUrl(u); }).catch(() => {});
+    fetchLogoUrl().then(u => { if (u) setLogoUrl(u); else setLogoUrl('/logo.png'); }).catch(() => setLogoUrl('/logo.png'));
   }, []);
 
   const copyBank = () => {
