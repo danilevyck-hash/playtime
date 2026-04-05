@@ -6,7 +6,7 @@ import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
-import { CATEGORIES } from '@/lib/constants';
+import { CATEGORIES, CONTACT } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 
 interface ProductCardProps {
@@ -65,20 +65,30 @@ export default memo(function ProductCard({ product, onSelect }: ProductCardProps
               {formatCurrency(product.price)}
             </span>
           )}
-          <Button
-            size="sm"
-            onClick={() =>
-              addItem({
-                productId: product.id,
-                name: product.name,
-                category: product.category,
-                unitPrice: product.price,
-                image: product.image,
-              })
-            }
-          >
-            {isConsultar ? 'Consultar' : inCart ? '+' : '\u00a1Lo quiero!'}
-          </Button>
+          {isConsultar ? (
+            <a
+              href={`https://wa.me/${CONTACT.whatsapp}?text=${encodeURIComponent(`Hola! Me interesa ${product.name}. ¿Me pueden dar más información?`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="sm" variant="outline">Consultar</Button>
+            </a>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() =>
+                addItem({
+                  productId: product.id,
+                  name: product.name,
+                  category: product.category,
+                  unitPrice: product.price,
+                  image: product.image,
+                })
+              }
+            >
+              {inCart ? '+' : '\u00a1Lo quiero!'}
+            </Button>
+          )}
         </div>
       </div>
     </div>

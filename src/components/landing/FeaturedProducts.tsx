@@ -6,7 +6,7 @@ import { useProducts } from '@/lib/useProducts';
 import { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
-import { CATEGORIES } from '@/lib/constants';
+import { CATEGORIES, CONTACT } from '@/lib/constants';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 import Button from '@/components/ui/Button';
 import ProductModal from '@/components/catalog/ProductModal';
@@ -93,20 +93,26 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                       {formatCurrency(product.price)}
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      addItem({
-                        productId: product.id,
-                        name: product.name,
-                        category: product.category,
-                        unitPrice: product.price,
-                        image: product.image,
-                      })
-                    }
-                  >
-                    {'\u00a1'}Lo quiero! {'\uD83C\uDF89'}
-                  </Button>
+                  {product.price === 0 ? (
+                    <a href={`https://wa.me/${CONTACT.whatsapp}?text=${encodeURIComponent(`Hola! Me interesa ${product.name}`)}`} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline">Consultar</Button>
+                    </a>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        addItem({
+                          productId: product.id,
+                          name: product.name,
+                          category: product.category,
+                          unitPrice: product.price,
+                          image: product.image,
+                        })
+                      }
+                    >
+                      {'\u00a1'}Lo quiero!
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
