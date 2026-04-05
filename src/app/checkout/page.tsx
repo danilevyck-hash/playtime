@@ -126,7 +126,7 @@ export default function CheckoutPage() {
       }
 
       // Generate PDF and upload to Supabase Storage
-      const pdfLogoUrl = await fetchLogoUrl().catch(() => null);
+      const pdfLogoUrl = await fetchLogoUrl().catch(() => null) || `${window.location.origin}/logo-white.png`;
       const pdfDoc = await generateOrderPDF({
         orderNumber,
         customer,

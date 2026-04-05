@@ -78,31 +78,27 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   };
 
   // ─── 1. HEADER: purple banner with logo ───
-  const headerH = 28;
+  const headerH = 32;
   doc.setFillColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.rect(0, 0, pw, headerH, 'F');
 
   // Logo: image if available, text fallback
   const logoData = params.logoUrl ? await loadImageBase64(params.logoUrl) : null;
   if (logoData) {
-    doc.addImage(logoData, 'PNG', m, 3, 22, 22);
-    // "Pedido confirmado" shifted right
-    doc.setFontSize(14);
+    doc.addImage(logoData, 'PNG', m, 4, 24, 24);
+    doc.setFontSize(16);
     doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.text('Pedido confirmado', m + 26, 16);
+    doc.text('Pedido confirmado', m + 28, 18);
   } else {
     doc.setFontSize(20);
     doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
-    doc.text('play time', m, 13);
+    doc.text('play time', m, 15);
     doc.setFontSize(9);
     doc.setTextColor(200, 180, 200);
-    doc.text('creando momentos.', m, 19);
-  }
-
-  if (!logoData) {
-    doc.setFontSize(14);
+    doc.text('creando momentos.', m, 21);
+    doc.setFontSize(16);
     doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.text('Pedido confirmado', pw - m, 14, { align: 'right' });
+    doc.text('Pedido confirmado', pw - m, 18, { align: 'right' });
   }
 
   y = headerH + 6;
