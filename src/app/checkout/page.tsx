@@ -165,15 +165,6 @@ export default function CheckoutPage() {
         orderNumber,
         customerName: customer.name,
         customerPhone: customer.phone,
-        eventDate: event.date,
-        eventTime: event.time,
-        eventAddress: `${event.area} - ${event.address}`,
-        items,
-        subtotal: subtotalWithTransport,
-        surcharge,
-        total,
-        paymentMethod,
-        transportCost: isTransportPending ? -1 : transportCost,
         pdfUrl,
       });
 

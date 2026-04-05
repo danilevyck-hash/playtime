@@ -1,59 +1,20 @@
-import { CartItem } from './types';
-import { formatCurrency } from './format';
 import { CONTACT } from './constants';
 
 export function buildWhatsAppOrderMessage(params: {
   orderNumber: string | number;
   customerName: string;
   customerPhone: string;
-  eventDate: string;
-  eventTime: string;
-  eventAddress: string;
-  items: CartItem[];
-  subtotal: number;
-  surcharge: number;
-  total: number;
-  paymentMethod: string;
-  transportCost?: number;
   pdfUrl?: string;
 }): string {
-  const itemLines = params.items
-    .map((item) => `  • ${item.name} x${item.quantity} — ${formatCurrency(item.unitPrice * item.quantity)}`)
-    .join('\n');
-
-  const paymentLabel = params.paymentMethod === 'bank_transfer'
-    ? 'Transferencia Bancaria'
-    : 'Tarjeta de Crédito (+5%)';
-
-  const transportLine = params.transportCost !== undefined
-    ? params.transportCost < 0
-      ? `*Transporte, montaje y desmontaje:* Por confirmar`
-      : params.transportCost > 0
-        ? `*Transporte, montaje y desmontaje:* ${formatCurrency(params.transportCost)}`
-        : ''
-    : '';
-
   const lines = [
     `🎉 *Nuevo Pedido #${params.orderNumber}*`,
     '',
     `*Cliente:* ${params.customerName}`,
     `*Teléfono:* ${params.customerPhone}`,
-    `*Fecha:* ${params.eventDate}`,
-    `*Hora:* ${params.eventTime}`,
-    `*Ubicación:* ${params.eventAddress}`,
-    '',
-    `*Artículos:*`,
-    itemLines,
-    '',
-    `*Subtotal:* ${formatCurrency(params.subtotal)}`,
-    transportLine,
-    params.surcharge > 0 ? `*Recargo tarjeta (5%):* ${formatCurrency(params.surcharge)}` : '',
-    `*Total:* ${formatCurrency(params.total)}`,
-    `*Método de Pago:* ${paymentLabel}`,
   ];
 
   if (params.pdfUrl) {
-    lines.push('', `📄 *Ver PDF del pedido:* ${params.pdfUrl}`);
+    lines.push('', `📄 *PDF del pedido:* ${params.pdfUrl}`);
   }
 
   return lines.filter(Boolean).join('\n');
