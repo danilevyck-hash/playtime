@@ -292,11 +292,21 @@ function OrdersTab() {
     setSavingAction(`additem-${orderId}`);
     try {
       if (await patchOrder({ orderId, addItem: { product_name: newItemForm.name, quantity: Number(newItemForm.qty) || 1, unit_price: Number(newItemForm.price) || 0 } })) {
+        // First save any pending item edits too
+        const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
+          id: Number(id),
+          quantity: Number(vals.quantity) || 1,
+          unit_price: Number(vals.unit_price) || 0,
+        }));
+        if (pendingEdits.length > 0) {
+          await patchOrder({ orderId, editItems: pendingEdits });
+        }
         await fetchOrders();
+        setEditingItems(null);
         setNewItemForm({ name: '', qty: '1', price: '' });
         showToast('Item agregado');
       } else { showToast('Error al agregar item'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
+    } catch { showToast('Error al agregar'); }
     finally { setSavingAction(null); }
   };
 
@@ -466,7 +476,7 @@ function OrdersTab() {
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={OI_CLS} />
+                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder={"Teléfono"} className={OI_CLS} />
                 </div>
                 <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email" className={OI_CLS} />
                 <div className="grid grid-cols-2 gap-2">
@@ -475,10 +485,10 @@ function OrdersTab() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
-                    <option value="">\u00c1rea</option>
+                    <option value="">&Aacute;rea</option>
                     {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
                   </select>
-                  <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
+                  <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder={"Dirección"} className={OI_CLS} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder={"Cumpleañero"} className={OI_CLS} />
@@ -494,9 +504,9 @@ function OrdersTab() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
                 <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
-                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">\u00c1rea</span><br/>{order.event_area}</div>}
+                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">&Aacute;rea</span><br/>{order.event_area}</div>}
                 <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
-                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumplea\u00f1ero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</div>}
+                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumplea&ntilde;ero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</div>}
                 {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
               </div>
             )}
@@ -1256,10 +1266,10 @@ function CatalogTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-heading font-bold text-xl text-purple mb-1">Cat\u00e1logo</h2>
-          <p className="font-body text-gray-500 text-sm">Edita nombre, emoji y subt\u00edtulo de cada categor\u00eda</p>
+          <h2 className="font-heading font-bold text-xl text-purple mb-1">Cat&aacute;logo</h2>
+          <p className="font-body text-gray-500 text-sm">Edita nombre, emoji y subt&iacute;tulo de cada categor&iacute;a</p>
         </div>
-        <button onClick={() => setShowNewCat(!showNewCat)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">{showNewCat ? 'Cancelar' : '+ Nueva categor\u00eda'}</button>
+        <button onClick={() => setShowNewCat(!showNewCat)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">{showNewCat ? 'Cancelar' : '+ Nueva categoría'}</button>
       </div>
 
       {showNewCat && (
@@ -1319,7 +1329,7 @@ function CatalogTab() {
                         <input value={editForm.emoji || ''} onChange={e => setEditForm(p => ({ ...p, emoji: e.target.value }))} placeholder="Emoji" className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-center text-lg focus:border-purple focus:outline-none" />
                         <input value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="Nombre" className="border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
                       </div>
-                      <input value={editForm.subtitle || ''} onChange={e => setEditForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="Subt\u00edtulo (opcional)" className="w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+                      <input value={editForm.subtitle || ''} onChange={e => setEditForm(p => ({ ...p, subtitle: e.target.value }))} placeholder={"Subtítulo (opcional)"} className="w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
                       <div className="flex gap-2">
                         <button onClick={() => setEditingCatId(null)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
                         <button onClick={saveEdit} disabled={saving} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
@@ -1329,7 +1339,7 @@ function CatalogTab() {
                     <div className="flex items-center justify-between">
                       <div className="font-body text-sm text-gray-500">
                         <p>ID: <span className="text-gray-800">{cat.id}</span></p>
-                        <p>Descripci\u00f3n: <span className="text-gray-800">{cat.description}</span></p>
+                        <p>Descripci&oacute;n:<span className="text-gray-800">{cat.description}</span></p>
                       </div>
                       <button onClick={() => startEdit(cat)} className="bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>
                     </div>
@@ -1572,7 +1582,7 @@ function WebsiteTab() {
       {/* A) Homepage */}
       {section === 'homepage' && hpLoaded && (
         <div className="space-y-4">
-          <p className="font-body text-gray-500 text-sm">Edita los textos del homepage. Deja vac\u00edo para usar el valor por defecto.</p>
+          <p className="font-body text-gray-500 text-sm">Edita los textos del homepage. Deja vac&iacute;o para usar el valor por defecto.</p>
           {([
             ['hero_title', 'T\u00edtulo Hero (H1)', 'Fiestas que los ni\u00f1os nunca olvidan'],
             ['hero_subtitle', 'Subt\u00edtulo Hero', 'Animaci\u00f3n, alquiler y manualidades...'],
@@ -1580,7 +1590,7 @@ function WebsiteTab() {
             ['social_proof_text', 'Social Proof', '+200 fiestas realizadas \u00b7 Panam\u00e1'],
             ['services_title', 'T\u00edtulo Servicios', 'Nuestros Servicios'],
             ['services_subtitle', 'Subt\u00edtulo Servicios', 'Todo lo que necesitas...'],
-            ['featured_title', 'T\u00edtulo Destacados', 'Los M\u00e1s Populares'],
+            ['featured_title', 'T\u00edtulo Destacados', 'Los M&aacute;s Populares'],
             ['featured_subtitle', 'Subt\u00edtulo Destacados', 'Los favoritos de nuestros clientes'],
             ['cta_section_title', 'T\u00edtulo CTA', 'Haz tu reserva hoy'],
             ['cta_section_subtitle', 'Subt\u00edtulo CTA', 'Arma tu paquete ideal...'],
@@ -1623,7 +1633,7 @@ function WebsiteTab() {
                 <span className="font-heading font-black text-3xl text-teal tracking-tight leading-none">play</span>
                 <span className="font-heading font-black text-3xl text-teal tracking-tight leading-none -mt-1">time</span>
                 <span className="font-script text-sm text-purple">creando momentos.</span>
-                <p className="font-body text-xs text-gray-400 mt-2">Logo tipogr\u00e1fico (por defecto)</p>
+                <p className="font-body text-xs text-gray-400 mt-2">Logo tipogr&aacute;fico (por defecto)</p>
               </div>
             )}
           </div>
@@ -1633,7 +1643,7 @@ function WebsiteTab() {
               <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
             </label>
             {logoUrl && (
-              <button onClick={resetLogo} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Usar logo tipogr\u00e1fico</button>
+              <button onClick={resetLogo} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Usar logo tipogr&aacute;fico</button>
             )}
           </div>
 
@@ -1655,7 +1665,7 @@ function WebsiteTab() {
       {section === 'featured' && featLoaded && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="font-body text-gray-500 text-sm">Selecciona hasta 6 productos para &ldquo;Los M\u00e1s Populares&rdquo;</p>
+            <p className="font-body text-gray-500 text-sm">Selecciona hasta 6 productos para &ldquo;Los M&aacute;s Populares&rdquo;</p>
             <span className={`font-heading font-bold text-sm ${featuredIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{featuredIds.length}/6</span>
           </div>
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
@@ -1680,7 +1690,7 @@ function WebsiteTab() {
       {/* C) Areas */}
       {section === 'areas' && areasLoaded && (
         <div className="space-y-4">
-          <p className="font-body text-gray-500 text-sm">\u00c1reas de cobertura con precio de transporte</p>
+          <p className="font-body text-gray-500 text-sm">&Aacute;reas de cobertura con precio de transporte</p>
           <div className="space-y-2">
             {areas.map((area, i) => (
               <div key={i} className="flex gap-2 items-center">
