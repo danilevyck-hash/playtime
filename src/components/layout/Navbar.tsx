@@ -34,7 +34,7 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link href="/carrito" className={`relative flex items-center gap-1.5 transition-colors ${itemCount > 0 ? 'bg-teal/10 rounded-full px-3 py-1.5' : ''}`}>
+          <Link href="/carrito" aria-label={`Carrito${itemCount > 0 ? ` (${itemCount})` : ''}`} className={`relative flex items-center gap-1.5 transition-colors ${itemCount > 0 ? 'bg-teal/10 rounded-full px-3 py-1.5' : ''}`}>
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600 hover:text-teal transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
             </svg>
@@ -49,7 +49,7 @@ export default function Navbar() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
             </svg>
-            {itemCount > 0 && <span className="font-heading font-bold text-xs text-teal">${subtotal.toFixed(2)}</span>}
+            {/* Price hidden on mobile — only badge shows */}
             <Badge count={itemCount} />
           </Link>
           <button onClick={() => setMenuOpen(true)} className="p-1" aria-label="Abrir men\u00fa">

@@ -24,10 +24,10 @@ export default function Hero({ content, logoUrl }: HeroProps) {
     <ConfettiBackground className="bg-beige">
       <div className="max-w-6xl mx-auto px-4 py-12 md:py-20 text-center">
         <div className="mb-6">
-          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={384} height={154} className="w-72 md:w-96 h-auto object-contain mx-auto" priority />
+          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={384} height={154} className="w-56 sm:w-72 md:w-96 h-auto object-contain mx-auto" priority />
         </div>
 
-        <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">
+        <h1 className="font-heading font-black text-3xl sm:text-4xl md:text-6xl text-purple mb-4 leading-tight">
           {title}
         </h1>
         <p className="font-body text-lg md:text-xl text-gray-600 max-w-lg mx-auto mb-10 leading-relaxed">

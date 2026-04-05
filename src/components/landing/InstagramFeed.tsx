@@ -71,7 +71,7 @@ export default function InstagramFeed() {
                   src={`https://www.instagram.com/reel/${reel.id}/media/?size=l`}
                   alt="Instagram Reel de PlayTime"
                   className="w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.parentElement?.classList.add('bg-gradient-to-br', 'from-purple/20', 'to-teal/20'); }}
                 />
                 {/* Play overlay */}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">

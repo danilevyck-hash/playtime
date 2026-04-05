@@ -88,6 +88,8 @@ export default function CheckoutPage() {
   }
 
   const handleSubmit = async () => {
+    const total = subtotal + transportCost + (paymentMethod === 'credit_card' ? (subtotal + transportCost) * CREDIT_CARD_SURCHARGE : 0);
+    if (!window.confirm(`\u00bfConfirmar reserva por $${total.toFixed(2)}?`)) return;
     setLoading(true);
     try {
       const subtotalWithTransport = subtotal + transportCost;

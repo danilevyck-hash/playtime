@@ -44,7 +44,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
   const localNumber = getLocalNumber();
 
   const handlePhoneChange = (code: string, number: string) => {
-    const clean = number.replace(/\D/g, '');
+    const clean = number.replace(/\D/g, '').slice(0, 12);
     onChange({ ...data, phone: `${code}${clean}` });
     if (clean.length >= 7) setErrors(prev => { const n = { ...prev }; delete n.phone; return n; });
   };

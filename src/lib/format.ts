@@ -1,5 +1,7 @@
+const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+
 export function formatCurrency(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  return currencyFmt.format(amount);
 }
 
 export function formatPhone(phone: string): string {

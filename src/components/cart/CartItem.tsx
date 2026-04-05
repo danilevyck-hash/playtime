@@ -32,7 +32,13 @@ export default function CartItem({ item }: CartItemProps) {
 
       <div className="flex items-center gap-2">
         <button
-          onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+          onClick={() => {
+            if (item.quantity === 1) {
+              if (window.confirm(`\u00bfEliminar "${item.name}" del carrito?`)) removeItem(item.productId);
+            } else {
+              updateQuantity(item.productId, item.quantity - 1);
+            }
+          }}
           className="min-w-[44px] min-h-[44px] rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-lg text-gray-600 hover:bg-gray-200 active:bg-gray-300 transition-colors"
           aria-label={`Disminuir cantidad de ${item.name}`}
         >

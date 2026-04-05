@@ -10,6 +10,7 @@ interface OrderPDFParams {
   event: { date: string; time: string; area: string; address: string; birthdayChildName: string; birthdayChildAge: number | ''; theme: string };
   items: CartItem[];
   subtotal: number;
+  discount?: number;
   transportCost: number; // -1 = pending
   surcharge: number;
   total: number;
@@ -193,9 +194,11 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
 
   // ─── 6. TOTAL BOX: purple bg, white text ───
   const payLabel = params.paymentMethod === 'bank_transfer' ? 'Transferencia Bancaria' : 'Tarjeta de Cr\u00e9dito (+5%)';
-  const lines: { label: string; value: string }[] = [
+  const discountAmount = params.discount || 0;
+  const lines: { label: string; value: string; isDiscount?: boolean }[] = [
     { label: 'Subtotal', value: formatCurrency(params.subtotal) },
   ];
+  if (discountAmount > 0) lines.push({ label: 'Descuento', value: `-${formatCurrency(discountAmount)}`, isDiscount: true });
   if (effectiveTransport > 0) lines.push({ label: 'Transporte', value: formatCurrency(effectiveTransport) });
   if (isTransportPending) lines.push({ label: 'Transporte', value: 'Por confirmar' });
   if (params.surcharge > 0) lines.push({ label: 'Recargo tarjeta (5%)', value: formatCurrency(params.surcharge) });
@@ -209,7 +212,11 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   for (const line of lines) {
     doc.setTextColor(200, 180, 200);
     doc.text(line.label, m + 5, ty);
-    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+    if (line.isDiscount) {
+      doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
+    } else {
+      doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+    }
     doc.text(line.value, pw - m - 5, ty, { align: 'right' });
     ty += 6;
   }

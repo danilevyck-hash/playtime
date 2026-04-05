@@ -52,6 +52,7 @@ export default memo(function ProductCard({ product, onSelect }: ProductCardProps
         <h3
           className="font-heading font-bold text-sm sm:text-base text-gray-800 mb-0.5 line-clamp-2 cursor-pointer hover:text-purple transition-colors"
           onClick={() => onSelect(product)}
+          title={product.name}
         >
           {product.name}
         </h3>

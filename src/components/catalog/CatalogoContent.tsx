@@ -215,7 +215,7 @@ export default function CatalogoContent() {
                     onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
                     className="bg-purple/10 text-purple font-heading font-bold px-8 py-3 rounded-2xl hover:bg-purple/20 transition-colors"
                   >
-                    Ver más productos ({filtered.length - visibleCount} restantes)
+                    Ver m&aacute;s ({filtered.length - visibleCount})
                   </button>
                 </div>
               )}

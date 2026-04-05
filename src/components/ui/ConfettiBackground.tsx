@@ -34,15 +34,17 @@ interface ConfettiBackgroundProps {
 
 export default function ConfettiBackground({ className = '', children, patternIndex }: ConfettiBackgroundProps) {
   const idx = patternIndex ?? 0;
+  // Use fewer blobs for better mobile performance
+  const visibleBlobs = typeof window !== 'undefined' && window.innerWidth < 640 ? BLOBS.slice(0, 8) : BLOBS;
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
       {idx === 0 ? (
-        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          {BLOBS.map((b, i) => (
+        <div className="absolute inset-0 pointer-events-none motion-reduce:hidden" aria-hidden="true">
+          {visibleBlobs.map((b, i) => (
             <div
               key={i}
-              className="absolute"
+              className="absolute will-change-transform"
               style={{
                 left: `${b.x}%`,
                 top: `${b.y}%`,

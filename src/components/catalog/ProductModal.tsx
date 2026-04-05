@@ -95,12 +95,14 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
             <>
               <button
                 onClick={() => setActiveIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1)}
+                aria-label="Imagen anterior"
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
               >
                 <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button
                 onClick={() => setActiveIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0)}
+                aria-label="Imagen siguiente"
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
               >
                 <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
