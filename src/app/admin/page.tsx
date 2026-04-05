@@ -1007,6 +1007,13 @@ function CatalogTab() {
 // ─── WEBSITE TAB (CMS) ───
 const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
+function revalidateSite() {
+  fetch('/api/revalidate', {
+    method: 'POST',
+    headers: { 'x-admin-token': _adminToken },
+  }).catch(() => {});
+}
+
 function WebsiteTab() {
   const { showToast } = useToast();
   const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo' | 'testimonials'>('homepage');
@@ -1031,6 +1038,7 @@ function WebsiteTab() {
     setSavingSection('homepage');
     try {
       await upsertSetting('homepage_content', hp);
+      revalidateSite();
       showToast('Homepage guardado');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }
@@ -1055,6 +1063,7 @@ function WebsiteTab() {
     setSavingSection('featured');
     try {
       await upsertSetting('featured_products', featuredIds);
+      revalidateSite();
       showToast('Productos destacados guardados');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }
@@ -1077,6 +1086,7 @@ function WebsiteTab() {
       const clean = areas.filter(a => a.name.trim());
       await upsertSetting('event_areas', clean);
       setAreas(clean);
+      revalidateSite();
       showToast('\u00c1reas guardadas');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }
@@ -1114,6 +1124,7 @@ function WebsiteTab() {
         const url = data.path + '?t=' + Date.now();
         await upsertSetting('site_logo_url', url);
         setLogoUrl(url);
+        revalidateSite();
         showToast('Logo actualizado');
       } else { showToast('Error al subir logo'); }
     } catch { showToast('Error de conexi\u00f3n'); }
@@ -1123,6 +1134,7 @@ function WebsiteTab() {
   const resetLogo = async () => {
     await upsertSetting('site_logo_url', null);
     setLogoUrl(null);
+    revalidateSite();
     showToast('Logo tipogr\u00e1fico restaurado');
   };
 
@@ -1133,6 +1145,7 @@ function WebsiteTab() {
     try {
       const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
       await upsertSetting('reels', reels);
+      revalidateSite();
       showToast('Reels guardados');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }
@@ -1163,6 +1176,7 @@ function WebsiteTab() {
     try {
       const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
       await upsertSetting('testimonials', clean);
+      revalidateSite();
       showToast('Testimonios guardados');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }

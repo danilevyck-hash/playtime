@@ -7,6 +7,9 @@ import Testimonials from '@/components/landing/Testimonials';
 import InstagramFeed from '@/components/landing/InstagramFeed';
 import CTABanner from '@/components/landing/CTABanner';
 
+// Revalidar cada 60 segundos para reflejar cambios del admin sin necesidad de push
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   title: 'Fiestas Infantiles en Panam\u00e1 | PlayTime',
   description: 'Organizamos fiestas infantiles completas en Panam\u00e1: animaci\u00f3n, inflables, gymboree, snacks y manualidades. Dise\u00f1amos tu evento y lo llevamos hasta tu puerta.',
