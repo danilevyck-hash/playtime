@@ -31,20 +31,6 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
     return d.toLocaleDateString('es-PA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   };
 
-  // Time slots as grouped options
-  const timeOptions = [
-    { label: 'Mañana', slots: ['07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'] },
-    { label: 'Mediodía', slots: ['12:00', '12:30', '13:00', '13:30'] },
-    { label: 'Tarde', slots: ['14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'] },
-  ];
-
-  const formatTime = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errs: string[] = [];
@@ -85,23 +71,60 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         )}
       </div>
 
-      {/* Time — dropdown with grouped options */}
+      {/* Time — 3 selectors: hour, minutes, AM/PM */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'\uD83D\uDD52'} Hora del evento</label>
-        <select
-          value={data.time}
-          onChange={(e) => onChange({ ...data, time: e.target.value })}
-          className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
-        >
-          <option value="">Selecciona una hora</option>
-          {timeOptions.map((group) => (
-            <optgroup key={group.label} label={group.label}>
-              {group.slots.map((t) => (
-                <option key={t} value={t}>{formatTime(t)}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83D\uDD52'} Hora del evento</label>
+        <div className="flex gap-2 items-center">
+          <select
+            value={data.time ? (() => { const h = parseInt(data.time.split(':')[0]); return h === 0 ? '12' : h > 12 ? String(h - 12) : String(h); })() : ''}
+            onChange={(e) => {
+              const hr = parseInt(e.target.value);
+              if (!hr) { onChange({ ...data, time: '' }); return; }
+              const currentMin = data.time ? data.time.split(':')[1] : '00';
+              const currentH = data.time ? parseInt(data.time.split(':')[0]) : 7;
+              const isPM = currentH >= 12;
+              const h24 = isPM ? (hr === 12 ? 12 : hr + 12) : (hr === 12 ? 0 : hr);
+              onChange({ ...data, time: `${String(h24).padStart(2, '0')}:${currentMin}` });
+            }}
+            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
+          >
+            <option value="">Hora</option>
+            {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => (
+              <option key={h} value={String(h)}>{h}</option>
+            ))}
+          </select>
+          <span className="text-xl text-gray-400 font-bold">:</span>
+          <select
+            value={data.time ? data.time.split(':')[1] : ''}
+            onChange={(e) => {
+              const currentH = data.time ? data.time.split(':')[0] : '07';
+              onChange({ ...data, time: `${currentH}:${e.target.value}` });
+            }}
+            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
+          >
+            <option value="">Min</option>
+            <option value="00">00</option>
+            <option value="30">30</option>
+          </select>
+          <select
+            value={data.time ? (parseInt(data.time.split(':')[0]) >= 12 ? 'PM' : 'AM') : ''}
+            onChange={(e) => {
+              if (!data.time) return;
+              const [hStr, m] = data.time.split(':');
+              let h = parseInt(hStr);
+              const currentlyPM = h >= 12;
+              const wantPM = e.target.value === 'PM';
+              if (currentlyPM && !wantPM) h = h === 12 ? 0 : h - 12;
+              if (!currentlyPM && wantPM) h = h === 0 ? 12 : h + 12;
+              onChange({ ...data, time: `${String(h).padStart(2, '0')}:${m}` });
+            }}
+            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-heading font-bold text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
+          >
+            <option value="">—</option>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
       </div>
 
       {/* Area */}
