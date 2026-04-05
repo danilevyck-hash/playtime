@@ -1109,13 +1109,13 @@ function ProductsTab() {
       </div>
 
       {/* Product list */}
-      {!filter && !reorderMode && !productSearch ? (
+      {!filter && !productSearch ? (
         <div className="text-center py-6">
           <p className="font-body text-sm text-gray-400">Selecciona una categor&iacute;a</p>
         </div>
       ) : (
       <div className="space-y-2">
-        {(reorderMode ? products : filtered).map((product) => {
+        {filtered.map((product) => {
           const isEditing = editingId === product.id;
           const imgSrc = product.imgUrl || `/images/products/${product.id}.png`;
 
