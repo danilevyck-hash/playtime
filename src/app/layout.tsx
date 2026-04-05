@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Nunito, Pacifico } from "next/font/google";
+import localFont from "next/font/local";
 import { CartProvider } from "@/context/CartContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { LogoProvider } from "@/context/LogoContext";
@@ -13,17 +13,11 @@ import "./globals.css";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const nunito = Nunito({
-  subsets: ["latin"],
-  variable: "--font-nunito",
-  weight: ["400", "700", "900"],
+const chalet = localFont({
+  src: "./fonts/Chalet-LondonNineteenEighty.otf",
+  variable: "--font-chalet",
 });
 
-const pacifico = Pacifico({
-  subsets: ["latin"],
-  variable: "--font-pacifico",
-  weight: "400",
-});
 
 export const viewport: Viewport = {
   themeColor: "#580459",
@@ -82,7 +76,7 @@ export default async function RootLayout({
         )}
       </head>
       <body
-        className={`${nunito.variable} ${pacifico.variable} font-body antialiased`}
+        className={`${chalet.variable} font-body antialiased`}
       >
         <ToastProvider>
           <CartProvider>

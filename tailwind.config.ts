@@ -20,9 +20,9 @@ const config: Config = {
         mint: { DEFAULT: '#84D9D0', light: '#A8E6DF' },
       },
       fontFamily: {
-        heading: ['var(--font-nunito)', 'sans-serif'],
-        script: ['var(--font-pacifico)', 'cursive'],
-        body: ['var(--font-nunito)', 'sans-serif'],
+        heading: ['var(--font-chalet)', 'sans-serif'],
+        script: ['var(--font-chalet)', 'sans-serif'],
+        body: ['var(--font-chalet)', 'sans-serif'],
       },
     },
   },
