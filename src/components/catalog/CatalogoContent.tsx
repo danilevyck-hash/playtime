@@ -176,8 +176,22 @@ export default function CatalogoContent() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16">
-              <p className="font-heading text-lg text-gray-400">Cargando planes...</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[1, 2].map(i => (
+                <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="skeleton aspect-[4/3]" />
+                  <div className="p-5 space-y-3">
+                    <div className="skeleton w-20 h-3" />
+                    <div className="skeleton w-3/4 h-5" />
+                    <div className="skeleton w-full h-3" />
+                    <div className="skeleton w-2/3 h-3" />
+                    <div className="flex justify-between pt-3 border-t border-gray-100">
+                      <div className="skeleton w-20 h-6" />
+                      <div className="skeleton w-24 h-8 rounded-full" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

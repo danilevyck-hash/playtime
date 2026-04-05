@@ -782,7 +782,27 @@ function OrdersTab() {
 
       {error && <div className="bg-yellow/20 border border-yellow rounded-xl p-4 mb-6"><p className="font-body text-sm text-gray-700">{error}</p></div>}
 
-      {filteredOrders.length === 0 && !loading && !error && (
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="skeleton w-16 h-5" />
+                  <div>
+                    <div className="skeleton w-24 h-4 mb-1.5" />
+                    <div className="skeleton w-40 h-3" />
+                  </div>
+                </div>
+                <div className="skeleton w-20 h-5" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && filteredOrders.length === 0 && !error && (
         <div className="text-center py-16">
           <div className="text-4xl mb-3">{'📋'}</div>
           <p className="font-heading font-bold text-lg text-gray-400 mb-1">{search ? 'No se encontraron pedidos' : 'No hay pedidos'}</p>
@@ -790,7 +810,7 @@ function OrdersTab() {
         </div>
       )}
 
-      {groupedByEvent ? (
+      {!loading && groupedByEvent ? (
         groupedByEvent.map(group => (
           <div key={group.date} className="mb-6">
             <div className="flex items-center gap-2 mb-2">
@@ -800,9 +820,9 @@ function OrdersTab() {
             <div className="space-y-3">{group.orders.map(renderOrderCard)}</div>
           </div>
         ))
-      ) : (
+      ) : !loading ? (
         <div className="space-y-3">{filteredOrders.map(renderOrderCard)}</div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1741,12 +1761,26 @@ function WebsiteTab() {
   );
 }
 
+// ─── CATÁLOGO ADMIN TAB (merges Products + Categories) ───
+function CatalogoAdminTab() {
+  const [subTab, setSubTab] = useState<'productos' | 'categorias'>('productos');
+  return (
+    <div>
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 mb-5">
+        <button onClick={() => setSubTab('productos')} className={`flex-1 py-1.5 rounded-md font-heading font-semibold text-xs transition-all ${subTab === 'productos' ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}>Productos</button>
+        <button onClick={() => setSubTab('categorias')} className={`flex-1 py-1.5 rounded-md font-heading font-semibold text-xs transition-all ${subTab === 'categorias' ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}>Categor&iacute;as</button>
+      </div>
+      {subTab === 'productos' ? <ProductsTab /> : <CatalogTab />}
+    </div>
+  );
+}
+
 // ─── MAIN ADMIN PAGE ───
 export default function AdminPage() {
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo' | 'imagenes'>('pedidos');
+  const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo'>('pedidos');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1812,7 +1846,7 @@ export default function AdminPage() {
 
       {/* Clean tab bar */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-        {([['pedidos', 'Pedidos'], ['imagenes', 'Productos'], ['catalogo', 'Categor\u00edas'], ['website', 'Sitio']] as const).map(([t, label]) => (
+        {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['website', 'Sitio']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -1826,9 +1860,8 @@ export default function AdminPage() {
       </div>
 
       {tab === 'pedidos' && <OrdersTab />}
+      {tab === 'catalogo' && <CatalogoAdminTab />}
       {tab === 'website' && <WebsiteTab />}
-      {tab === 'catalogo' && <CatalogTab />}
-      {tab === 'imagenes' && <ProductsTab />}
     </div>
   );
 }
