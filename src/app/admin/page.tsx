@@ -105,7 +105,11 @@ function OrdersTab() {
   const [editingItems, setEditingItems] = useState<number | null>(null);
   const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
   const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
+  const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingAction, setSavingAction] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -513,12 +517,39 @@ function OrdersTab() {
                     </div>
                   ))}
                 </div>
-                {/* Add new item */}
+                {/* Add new item with autocomplete */}
                 {editingItems === order.id && (
                   <div className="border-t border-gray-200 px-3 py-2 bg-gray-50/50 space-y-2">
                     <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
                     <div className="flex gap-1">
-                      <input type="text" value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Nombre" className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs font-body" />
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={newItemForm.name}
+                          onChange={e => {
+                            const q = e.target.value;
+                            setNewItemForm(p => ({ ...p, name: q }));
+                            if (q.trim().length >= 2) {
+                              setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6));
+                              setShowSuggestions(true);
+                            } else { setShowSuggestions(false); }
+                          }}
+                          onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
+                          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                          placeholder="Nombre"
+                          className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-body"
+                        />
+                        {showSuggestions && productSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-40 overflow-y-auto">
+                            {productSuggestions.map(p => (
+                              <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-2 py-1.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2">
+                                <span className="truncate text-gray-700">{p.name}</span>
+                                <span className="text-gray-400 shrink-0">${p.price}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1 text-center text-xs" min="1" />
                       <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1 text-right text-xs" min="0" step="0.01" />
                       <button onClick={() => handleAddItem(order.id)} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === `additem-${order.id}`} className="bg-purple text-white font-heading font-semibold px-2 py-1 rounded text-xs disabled:opacity-40">+</button>
@@ -557,16 +588,64 @@ function OrdersTab() {
               </div>
             )}
 
-            {/* Discount */}
-            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-heading font-semibold text-sm text-gray-700">{'🏷️'} Descuento</span>
-                {(order.discount ?? 0) > 0 && <span className="font-heading font-bold text-sm text-green-600">-{formatCurrency(order.discount)}</span>}
-              </div>
-              <div className="flex gap-2">
-                <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-green-500 focus:outline-none" />
-                <button onClick={() => saveDiscount(order.id)} disabled={!discountInputs[order.id] || savingAction === `discount-${order.id}`} className="bg-green-600 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-green-700 transition-colors">{savingAction === `discount-${order.id}` ? 'Guardando...' : 'Aplicar'}</button>
-              </div>
+            {/* 💰 Pagos y Depósitos — collapsible */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <button onClick={() => toggleSection(`pay-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100 hover:bg-gray-100 transition-colors">
+                <span className="font-heading font-semibold text-xs text-gray-500 uppercase">{'💰'} Pagos y Dep{'ó'}sitos</span>
+                <span className="text-gray-400 text-xs">{openSections[`pay-${order.id}`] !== false ? '▾' : '▸'}</span>
+              </button>
+              {openSections[`pay-${order.id}`] !== false && (
+                <div className="p-3 space-y-3">
+                  {/* Discount */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-heading font-semibold text-sm text-gray-700">{'🏷️'} Descuento</span>
+                      {(order.discount ?? 0) > 0 && <span className="font-heading font-bold text-sm text-green-600">-{formatCurrency(order.discount)}</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-green-500 focus:outline-none" />
+                      <button onClick={() => saveDiscount(order.id)} disabled={!discountInputs[order.id] || savingAction === `discount-${order.id}`} className="bg-green-600 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-green-700 transition-colors">{savingAction === `discount-${order.id}` ? 'Guardando...' : 'Aplicar'}</button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-heading font-semibold text-sm text-gray-700">{'💰'} Dep{'ó'}sitos</span>
+                      {totalDeposits > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(totalDeposits)}</span>}
+                    </div>
+                    {deposits.length > 0 && (
+                      <div className="space-y-1">
+                        {deposits.map((d, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2 py-1">
+                            <span className="font-body text-gray-600">{d.date}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
+                              <button onClick={() => removeDeposit(order.id, i)} className="text-gray-400 hover:text-red-500 text-xs">{'✕'}</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - totalDeposits)}</span></p>}
+                    <div className="flex gap-2">
+                      <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
+                      <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
+                      <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+'}</button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-heading font-semibold text-sm text-gray-700">{'🚚'} Transporte</span>
+                      {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
+                      <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? '...' : 'Guardar'}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Actions */}
@@ -579,15 +658,22 @@ function OrdersTab() {
               <button onClick={async () => {
                 const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
                 const logoUrl = await fetchLogoUrl().catch(() => null);
+                // Recalculate from current items
+                const recalcSubtotal = order.items.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
+                const recalcDiscount = order.discount || 0;
+                const recalcTransport = order.transport_cost_confirmed ?? -1;
+                const recalcBase = recalcSubtotal - recalcDiscount + (recalcTransport > 0 ? recalcTransport : 0);
+                const recalcSurcharge = order.payment_method === 'credit_card' ? recalcBase * 0.05 : 0;
+                const recalcTotal = recalcBase + recalcSurcharge;
                 await downloadOrderPDF({
                   orderNumber: order.order_number,
                   customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' },
                   event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme },
                   items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })),
-                  subtotal: order.subtotal,
-                  transportCost: order.transport_cost_confirmed ?? -1,
-                  surcharge: order.surcharge,
-                  total: order.total,
+                  subtotal: recalcSubtotal,
+                  transportCost: recalcTransport,
+                  surcharge: recalcSurcharge,
+                  total: recalcTotal,
                   paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card',
                   logoUrl,
                 });
@@ -596,52 +682,21 @@ function OrdersTab() {
               <button onClick={() => deleteOrder(order.id, order.order_number)} disabled={savingAction === `delete-${order.id}`} className="inline-flex items-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">{savingAction === `delete-${order.id}` ? 'Eliminando...' : 'Eliminar'}</button>
             </div>
 
-            {/* Internal note */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-2">
-              {order.internal_note && <p className="font-body text-sm text-gray-700">{order.internal_note}</p>}
-              <div className="flex gap-2">
-                <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white" />
-                <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">{savingAction === `note-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
-              </div>
-            </div>
-
-            {/* Deposits */}
-            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-heading font-semibold text-sm text-gray-700">{'💰'} Dep{'ó'}sitos</span>
-                {totalDeposits > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(totalDeposits)}</span>}
-              </div>
-              {deposits.length > 0 && (
-                <div className="space-y-1">
-                  {deposits.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2 py-1">
-                      <span className="font-body text-gray-600">{d.date}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                        <button onClick={() => removeDeposit(order.id, i)} className="text-gray-400 hover:text-red-500 text-xs">{'✕'}</button>
-                      </div>
-                    </div>
-                  ))}
+            {/* 📝 Nota interna — collapsible, closed by default */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl overflow-hidden">
+              <button onClick={() => toggleSection(`note-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-yellow-100/50 transition-colors">
+                <span className="font-heading font-semibold text-xs text-gray-600">{'📝'} Nota interna {order.internal_note ? '(1)' : ''}</span>
+                <span className="text-gray-400 text-xs">{openSections[`note-${order.id}`] ? '▾' : '▸'}</span>
+              </button>
+              {openSections[`note-${order.id}`] && (
+                <div className="px-3 pb-3 space-y-2">
+                  {order.internal_note && <p className="font-body text-sm text-gray-700">{order.internal_note}</p>}
+                  <div className="flex gap-2">
+                    <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white" />
+                    <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">{savingAction === `note-${order.id}` ? '...' : 'Guardar'}</button>
+                  </div>
                 </div>
               )}
-              {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - totalDeposits)}</span></p>}
-              <div className="flex gap-2">
-                <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
-                <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+ Agregar'}</button>
-              </div>
-            </div>
-
-            {/* Transport */}
-            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-heading font-semibold text-sm text-gray-700">{'🚚'} Transporte</span>
-                {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
-              </div>
-              <div className="flex gap-2">
-                <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
-                <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
-              </div>
             </div>
           </div>
         )}
@@ -701,27 +756,24 @@ function OrdersTab() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="font-body text-gray-500 text-sm">{filteredOrders.length} pedido{filteredOrders.length !== 1 ? 's' : ''}</p>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm">{'\u2B07\uFE0F'} CSV</button>
-          <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors text-sm">
-            {sortMode === 'created' ? '\uD83D\uDD50 Por creaci\u00f3n' : '\uD83D\uDCC5 Por evento'}
+      {/* Header + Search + Filters */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+        <div className="flex gap-2 flex-wrap">
+          {([['all', 'Todos'], ['pending', 'Pendientes'], ['confirmed', 'Confirmados']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setStatusFilter(key)} className={`px-3 py-1 rounded-full font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2 md:ml-auto flex-wrap">
+          <button onClick={exportCSV} className="bg-purple/10 text-purple font-heading font-semibold px-3 py-1.5 rounded-xl hover:bg-purple/20 transition-colors text-xs">CSV</button>
+          <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="bg-purple/10 text-purple font-heading font-semibold px-3 py-1.5 rounded-xl hover:bg-purple/20 transition-colors text-xs">
+            {sortMode === 'created' ? 'Por fecha' : 'Por evento'}
           </button>
-          <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-4 py-2 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-sm">
-            {loading ? 'Cargando...' : 'Actualizar'}
+          <button onClick={fetchOrders} disabled={loading} className="bg-purple/10 text-purple font-heading font-semibold px-3 py-1.5 rounded-xl hover:bg-purple/20 transition-colors disabled:opacity-50 text-xs">
+            {loading ? '...' : 'Actualizar'}
           </button>
         </div>
-      </div>
-
-      {/* Status filter */}
-      <div className="flex gap-2 mb-4">
-        {([['all', 'Todos'], ['pending', 'Pendientes'], ['confirmed', 'Confirmados']] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setStatusFilter(key)} className={`px-4 py-1.5 rounded-full font-heading font-semibold text-sm transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* Search */}
@@ -738,8 +790,10 @@ function OrdersTab() {
       {error && <div className="bg-yellow/20 border border-yellow rounded-xl p-4 mb-6"><p className="font-body text-sm text-gray-700">{error}</p></div>}
 
       {filteredOrders.length === 0 && !loading && !error && (
-        <div className="text-center py-12">
-          <p className="font-heading text-lg text-gray-400">{search ? 'No se encontraron pedidos' : 'No hay pedidos aún'}</p>
+        <div className="text-center py-16">
+          <div className="text-4xl mb-3">{'📋'}</div>
+          <p className="font-heading font-bold text-lg text-gray-400 mb-1">{search ? 'No se encontraron pedidos' : 'No hay pedidos'}</p>
+          <p className="font-body text-sm text-gray-400">{search ? 'Prueba con otro nombre o fecha' : 'Los pedidos aparecer\u00e1n aqu\u00ed'}</p>
         </div>
       )}
 
@@ -785,6 +839,8 @@ function ProductsTab() {
   const [imageKeys, setImageKeys] = useState<Record<string, number>>({});
   const [imageGalleries, setImageGalleries] = useState<Record<string, string[]>>({});
   const [reorderMode, setReorderMode] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // ─── LOAD from constants.ts + Supabase overrides ───
   useEffect(() => {
@@ -968,13 +1024,18 @@ function ProductsTab() {
     upsertSetting('product_order', newProducts.map(p => p.id)).catch(e => console.error('Save order error:', e));
   };
 
-  const moveProduct = (index: number, direction: 'up' | 'down') => {
-    const swap = direction === 'up' ? index - 1 : index + 1;
-    if (swap < 0 || swap >= products.length) return;
+  const handleDrop = (targetId: string) => {
+    if (!draggingId || draggingId === targetId) return;
+    const fromIdx = products.findIndex(p => p.id === draggingId);
+    const toIdx = products.findIndex(p => p.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
     const newProducts = [...products];
-    [newProducts[index], newProducts[swap]] = [newProducts[swap], newProducts[index]];
+    const [moved] = newProducts.splice(fromIdx, 1);
+    newProducts.splice(toIdx, 0, moved);
     setProducts(newProducts);
     saveOrder(newProducts);
+    setDraggingId(null);
+    setDragOverId(null);
   };
 
   const [productSearch, setProductSearch] = useState('');
@@ -1037,21 +1098,25 @@ function ProductsTab() {
 
       {/* Product list */}
       <div className="space-y-2">
-        {(reorderMode ? products : filtered).map((product, productIndex) => {
+        {(reorderMode ? products : filtered).map((product) => {
           const isEditing = editingId === product.id;
           const imgSrc = product.imgUrl || `/images/products/${product.id}.png`;
-          const fullIndex = reorderMode ? productIndex : products.indexOf(product);
 
           return (
-            <div key={product.id} className={`bg-white rounded-xl border p-3 transition-opacity ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'}`}>
+            <div
+              key={product.id}
+              draggable={reorderMode}
+              onDragStart={() => { if (reorderMode) setDraggingId(product.id); }}
+              onDragOver={(e) => { if (reorderMode) { e.preventDefault(); setDragOverId(product.id); } }}
+              onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+              onDrop={() => { if (reorderMode) handleDrop(product.id); }}
+              className={`bg-white rounded-xl border p-3 transition-all ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'} ${draggingId === product.id ? 'opacity-40 scale-95' : ''} ${dragOverId === product.id && draggingId !== product.id ? 'border-t-2 border-t-purple' : ''}`}
+            >
               {/* Collapsed view */}
               <div className="flex items-center gap-3">
-                {/* Toggle or reorder arrows */}
+                {/* Toggle or drag handle */}
                 {reorderMode ? (
-                  <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button onClick={() => moveProduct(fullIndex, 'up')} disabled={fullIndex === 0} className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-purple/10 text-gray-500 hover:text-purple disabled:opacity-20 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors text-xs font-bold">{'\u2191'}</button>
-                    <button onClick={() => moveProduct(fullIndex, 'down')} disabled={fullIndex === products.length - 1} className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-purple/10 text-gray-500 hover:text-purple disabled:opacity-20 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors text-xs font-bold">{'\u2193'}</button>
-                  </div>
+                  <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg leading-none px-1">{'\u2807'}</div>
                 ) : (
                   <button onClick={() => toggleActive(product.id)} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${!product.active ? 'left-1' : 'left-5'}`} />
