@@ -5,15 +5,14 @@ import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
 const STARTING_PRICES: Record<Category, string> = {
   planes: 'Desde $260',
-  belleza: 'Desde $100',
-  entretenimiento: 'Desde $150',
+  spa: 'Desde $100',
+  show: 'Desde $150',
   snacks: 'Desde $100',
-  gymboree: 'Desde $160',
-  inflables: 'Desde $90',
-  piscinas: 'Desde $40',
-  alquiler: 'Desde $2',
-  servicios: 'Desde $10',
-  manualidades: 'Consultar',
+  softplay: 'Desde $160',
+  bounces: 'Desde $90',
+  ballpit: 'Desde $40',
+  addons: 'Desde $2',
+  creative: 'Consultar',
 };
 
 const CATEGORY_COLORS = [

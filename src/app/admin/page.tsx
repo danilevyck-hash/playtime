@@ -20,12 +20,11 @@ import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
 import { downloadOrderPDF } from '@/lib/pdf-order';
 
-type OrderStatus = 'nuevo' | 'aprobada' | 'rechazada' | 'realizado';
+type OrderStatus = 'pendiente' | 'confirmado' | 'realizado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
-  { key: 'nuevo', label: 'Nuevo', color: 'text-gray-600', bg: 'bg-gray-200' },
-  { key: 'aprobada', label: 'Aprobada', color: 'text-teal', bg: 'bg-teal' },
-  { key: 'rechazada', label: 'Rechazada', color: 'text-red-500', bg: 'bg-red-500' },
-  { key: 'realizado', label: 'Realizado', color: 'text-purple', bg: 'bg-purple' },
+  { key: 'pendiente', label: 'Pendiente', color: 'text-gray-600', bg: 'bg-gray-200' },
+  { key: 'confirmado', label: 'Confirmado', color: 'text-white', bg: 'bg-teal' },
+  { key: 'realizado', label: 'Realizado', color: 'text-white', bg: 'bg-purple' },
 ];
 
 interface OrderItem {
@@ -70,8 +69,13 @@ interface Order {
 }
 
 function getOrderStatus(order: Order): OrderStatus {
-  if (order.status) return order.status as OrderStatus;
-  return order.confirmed ? 'aprobada' : 'nuevo';
+  // Map legacy statuses to new pipeline
+  const s = order.status as string;
+  if (s === 'realizado') return 'realizado';
+  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
+  if (s === 'pendiente' || s === 'nuevo' || s === 'rechazada') return 'pendiente';
+  if (order.confirmed) return 'confirmado';
+  return 'pendiente';
 }
 
 // Session token stored after server-side auth validation
@@ -131,7 +135,7 @@ function OrdersTab() {
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
-    const confirmed = newStatus === 'aprobada' || newStatus === 'realizado';
+    const confirmed = newStatus === 'confirmado' || newStatus === 'realizado';
     const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
     setSavingAction(`status-${orderId}`);
     try {
@@ -365,7 +369,7 @@ function OrdersTab() {
     return groups;
   }, [filteredOrders, sortMode]);
 
-  // Monthly summary — only confirmed orders (aprobada/realizado)
+  // Monthly summary — only confirmed orders (confirmado/realizado)
   const monthlySummary = useMemo(() => {
     const confirmedOnly = orders.filter(o => o.confirmed);
     const months: Record<string, { total: number; count: number }> = {};
@@ -403,7 +407,7 @@ function OrdersTab() {
       : undefined;
 
     return (
-      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'nuevo' ? 'border-gray-100' : st === 'aprobada' ? 'border-teal/30' : st === 'rechazada' ? 'border-red-200' : 'border-purple/30'}`}>
+      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : 'border-purple/30'}`}>
         <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -453,7 +457,7 @@ function OrdersTab() {
                   <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
+                  <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder={"Cumpleañero"} className={OI_CLS} />
                   <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
                   <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
                 </div>
@@ -757,7 +761,7 @@ function OrdersTab() {
 }
 
 // ─── PRODUCTS TAB ───
-const ALL_CATEGORIES = ['planes', 'belleza', 'entretenimiento', 'snacks', 'gymboree', 'inflables', 'piscinas', 'alquiler', 'servicios', 'manualidades'];
+const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'ballpit', 'addons', 'creative'];
 const INPUT_CLS = 'w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 interface AdminProduct {

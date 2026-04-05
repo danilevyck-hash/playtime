@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (status !== undefined) {
-      const isConfirmed = status === 'aprobada' || status === 'realizado';
+      const isConfirmed = status === 'confirmado' || status === 'realizado';
       const updateData: Record<string, unknown> = { confirmed: isConfirmed };
       const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
       if (statusError) {

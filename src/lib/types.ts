@@ -1,14 +1,13 @@
 export type Category =
   | 'planes'
-  | 'belleza'
-  | 'entretenimiento'
+  | 'spa'
+  | 'show'
   | 'snacks'
-  | 'gymboree'
-  | 'inflables'
-  | 'piscinas'
-  | 'alquiler'
-  | 'servicios'
-  | 'manualidades';
+  | 'softplay'
+  | 'bounces'
+  | 'ballpit'
+  | 'addons'
+  | 'creative';
 
 export interface Product {
   id: string;
@@ -78,27 +77,25 @@ export interface Order {
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {
-  planes: 'Planes',
-  belleza: 'Belleza',
-  entretenimiento: 'Entretenimiento',
-  snacks: 'Snacks',
-  gymboree: 'Gymboree',
-  inflables: 'Inflables',
-  piscinas: 'Piscinas',
-  alquiler: 'Alquiler',
-  servicios: 'Servicios',
-  manualidades: 'Manualidades',
+  planes: 'Experiences',
+  spa: 'Spa Experience',
+  show: 'Show & Personajes',
+  snacks: 'Snack Bar',
+  softplay: 'Soft Play',
+  bounces: 'Bounces',
+  ballpit: 'Ball Pit & Slides',
+  addons: 'Add-Ons',
+  creative: 'Creative Studio',
 };
 
 export const CATEGORY_ICONS: Record<Category, string> = {
-  planes: '🎉',
-  belleza: '💅',
-  entretenimiento: '🎭',
-  snacks: '🍿',
-  gymboree: '🏰',
-  inflables: '🎪',
-  piscinas: '🔵',
-  alquiler: '🎈',
-  servicios: '🎵',
-  manualidades: '🎨',
+  planes: '\uD83C\uDF89',
+  spa: '\uD83D\uDC85',
+  show: '\uD83C\uDFAD',
+  snacks: '\uD83C\uDF7F',
+  softplay: '\uD83C\uDFF0',
+  bounces: '\uD83C\uDFAA',
+  ballpit: '\uD83D\uDD35',
+  addons: '\uD83C\uDF88',
+  creative: '\uD83C\uDFA8',
 };

@@ -175,13 +175,12 @@ export function DoodleManualidades({ className = 'w-10 h-10' }: { className?: st
 // Map category IDs to doodle components
 export const CATEGORY_DOODLES: Record<string, React.FC<{ className?: string }>> = {
   planes: DoodlePlanes,
-  belleza: DoodleBelleza,
-  entretenimiento: DoodleEntretenimiento,
+  spa: DoodleBelleza,
+  show: DoodleEntretenimiento,
   snacks: DoodleSnacks,
-  gymboree: DoodleGymboree,
-  inflables: DoodleInflables,
-  piscinas: DoodlePiscinas,
-  alquiler: DoodleAlquiler,
-  servicios: DoodleServicios,
-  manualidades: DoodleManualidades,
+  softplay: DoodleGymboree,
+  bounces: DoodleInflables,
+  ballpit: DoodlePiscinas,
+  addons: DoodleAlquiler,
+  creative: DoodleManualidades,
 };

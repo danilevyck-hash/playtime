@@ -4,8 +4,8 @@ import { Category } from '@/lib/types';
 import { useCategories } from '@/lib/useCategories';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
-const MAIN_ORDER: Category[] = ['planes', 'entretenimiento', 'belleza', 'gymboree', 'inflables', 'snacks'];
-const EXTRA_ORDER: Category[] = ['alquiler', 'piscinas', 'servicios', 'manualidades'];
+const MAIN_ORDER: Category[] = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces'];
+const EXTRA_ORDER: Category[] = ['ballpit', 'addons', 'creative'];
 
 interface CategoryFilterProps {
   selected: Category | 'all';
