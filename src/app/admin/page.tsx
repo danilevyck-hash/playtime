@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
+import { useToast } from '@/context/ToastContext';
 import {
   fetchProductOverrides,
   fetchAllCustomProducts,
@@ -69,6 +70,7 @@ let _adminPin = '';
 const OI_CLS = 'w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none';
 
 function OrdersTab() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -81,6 +83,7 @@ function OrdersTab() {
   const [editOrderForm, setEditOrderForm] = useState<Record<string, string>>({});
   const [depositInputs, setDepositInputs] = useState<Record<number, string>>({});
   const [transportInputs, setTransportInputs] = useState<Record<number, string>>({});
+  const [savingAction, setSavingAction] = useState<string | null>(null);
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -111,30 +114,42 @@ function OrdersTab() {
 
   const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
     const confirmed = newStatus !== 'nuevo';
-    if (await patchOrder({ orderId, status: newStatus })) {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o));
-    }
+    const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
+    setSavingAction(`status-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, status: newStatus })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o));
+        showToast(`Estado: ${label}`);
+      } else { showToast('Error al cambiar estado'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
   };
 
   const deleteOrder = async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
+    setSavingAction(`delete-${orderId}`);
     try {
       const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
-      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); }
-      else { alert('Error al eliminar pedido'); }
+      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); showToast('Pedido eliminado'); }
+      else { showToast('Error al eliminar pedido'); }
     } catch (e) {
       console.error('Delete order error:', e);
-      alert('Error de conexión al eliminar pedido');
-    }
+      showToast('Error de conexi\u00f3n al eliminar');
+    } finally { setSavingAction(null); }
   };
 
   const saveNote = async (orderId: number) => {
     const text = (noteInputs[orderId] || '').trim();
     if (!text) return;
-    if (await patchOrder({ orderId, internalNote: text })) {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text } : o));
-      setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
-    }
+    setSavingAction(`note-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, internalNote: text })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text } : o));
+        setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
+        showToast('Nota guardada');
+      } else { showToast('Error al guardar nota'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
   };
 
   const startEditOrder = (o: Order) => {
@@ -155,33 +170,48 @@ function OrdersTab() {
       birthday_child_name: f.birthday_child_name, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
       notes: f.notes,
     };
-    if (await patchOrder({ orderId, editFields })) {
-      setOrders(prev => prev.map(o => o.id === orderId ? {
-        ...o, customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
-        event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
-        birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
-        notes: f.notes || null,
-      } : o));
-      setEditingOrderId(null);
-    }
+    setSavingAction(`edit-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, editFields })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? {
+          ...o, customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
+          event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
+          birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
+          notes: f.notes || null,
+        } : o));
+        setEditingOrderId(null);
+        showToast('Pedido actualizado');
+      } else { showToast('Error al guardar cambios'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
   };
 
   const saveDeposit = async (orderId: number) => {
     const val = Number(depositInputs[orderId]);
     if (isNaN(val) || val < 0) return;
-    if (await patchOrder({ orderId, depositAmount: val })) {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposit_amount: val } : o));
-      setDepositInputs(prev => ({ ...prev, [orderId]: '' }));
-    }
+    setSavingAction(`deposit-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, depositAmount: val })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposit_amount: val } : o));
+        setDepositInputs(prev => ({ ...prev, [orderId]: '' }));
+        showToast('Dep\u00f3sito guardado');
+      } else { showToast('Error al guardar dep\u00f3sito'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
   };
 
   const saveTransport = async (orderId: number) => {
     const val = Number(transportInputs[orderId]);
     if (isNaN(val) || val < 0) return;
-    if (await patchOrder({ orderId, transportCostConfirmed: val })) {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, transport_cost_confirmed: val } : o));
-      setTransportInputs(prev => ({ ...prev, [orderId]: '' }));
-    }
+    setSavingAction(`transport-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, transportCostConfirmed: val })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, transport_cost_confirmed: val } : o));
+        setTransportInputs(prev => ({ ...prev, [orderId]: '' }));
+        showToast('Transporte confirmado');
+      } else { showToast('Error al confirmar transporte'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
   };
 
   const exportCSV = () => {
@@ -292,7 +322,8 @@ function OrdersTab() {
             <div className="flex gap-1">
               {ORDER_STATUSES.map(s => (
                 <button key={s.key} onClick={() => setOrderStatus(order.id, s.key)}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  disabled={savingAction === `status-${order.id}`}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                 >{s.label}</button>
               ))}
             </div>
@@ -322,8 +353,8 @@ function OrdersTab() {
                   <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setEditingOrderId(null)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
-                  <button onClick={() => saveEditOrder(order.id)} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm">Guardar cambios</button>
+                  <button onClick={() => setEditingOrderId(null)} disabled={savingAction === `edit-${order.id}`} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
+                  <button onClick={() => saveEditOrder(order.id)} disabled={savingAction === `edit-${order.id}`} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{savingAction === `edit-${order.id}` ? 'Guardando...' : 'Guardar cambios'}</button>
                 </div>
               </div>
             ) : (
@@ -356,7 +387,7 @@ function OrdersTab() {
                 Contactar
               </a>
               {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>}
-              <button onClick={() => deleteOrder(order.id, order.order_number)} className="inline-flex items-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Eliminar</button>
+              <button onClick={() => deleteOrder(order.id, order.order_number)} disabled={savingAction === `delete-${order.id}`} className="inline-flex items-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">{savingAction === `delete-${order.id}` ? 'Eliminando...' : 'Eliminar'}</button>
             </div>
 
             {/* Internal note */}
@@ -364,7 +395,7 @@ function OrdersTab() {
               {order.internal_note && <p className="font-body text-sm text-gray-700">{order.internal_note}</p>}
               <div className="flex gap-2">
                 <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white" />
-                <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim()} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">Guardar</button>
+                <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">{savingAction === `note-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </div>
 
@@ -377,7 +408,7 @@ function OrdersTab() {
               {dep > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - dep)}</span></p>}
               <div className="flex gap-2">
                 <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                <button onClick={() => saveDeposit(order.id)} disabled={!depositInputs[order.id]} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">Guardar</button>
+                <button onClick={() => saveDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </div>
 
@@ -390,7 +421,7 @@ function OrdersTab() {
                 </div>
                 <div className="flex gap-2">
                   <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
-                  <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id]} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">Confirmar</button>
+                  <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? 'Guardando...' : 'Confirmar'}</button>
                 </div>
               </div>
             )}
@@ -531,7 +562,7 @@ interface EditForm {
 }
 
 function ProductsTab() {
-  const [message, setMessage] = useState('');
+  const { showToast } = useToast();
   const [filter, setFilter] = useState('');
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -540,8 +571,6 @@ function ProductsTab() {
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
   const [imageKeys, setImageKeys] = useState<Record<string, number>>({});
-
-  const flash = (msg: string) => { setMessage(msg); setTimeout(() => setMessage(''), 2000); };
 
   // ─── LOAD from constants.ts + Supabase overrides ───
   useEffect(() => {
@@ -589,7 +618,7 @@ function ProductsTab() {
   // ─── UPLOAD IMAGE ───
   const handleUpload = async (productId: string, file: File) => {
     if (file.size > 2 * 1024 * 1024) {
-      flash('\u274C Foto muy grande. M\u00e1ximo 2MB. Comprime la imagen antes de subir.');
+      showToast('Foto muy grande. M\u00e1ximo 2MB');
       return;
     }
     setUploading(productId);
@@ -611,9 +640,9 @@ function ProductsTab() {
         } else {
           upsertProductOverride({ id: productId, image_url: newUrl }).catch((e) => console.error('Save override error:', e));
         }
-        flash('Foto actualizada');
-      } else { flash('Error al subir foto'); }
-    } catch (e) { console.error('Upload error:', e); flash('Error de conexión'); }
+        showToast('Foto actualizada');
+      } else { showToast('Error al subir foto'); }
+    } catch (e) { console.error('Upload error:', e); showToast('Error de conexi\u00f3n'); }
     finally { setUploading(''); }
   };
 
@@ -625,11 +654,11 @@ function ProductsTab() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: nowActive } : p));
 
     if (product.custom) {
-      upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: product.imgUrl || null, active: nowActive }).catch((e) => { console.error('Toggle error:', e); flash('Error al guardar'); });
+      upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: product.imgUrl || null, active: nowActive }).catch((e) => { console.error('Toggle error:', e); showToast('Error al guardar'); });
     } else {
-      upsertProductOverride({ id, disabled: !nowActive }).catch((e) => { console.error('Toggle error:', e); flash('Error al guardar'); });
+      upsertProductOverride({ id, disabled: !nowActive }).catch((e) => { console.error('Toggle error:', e); showToast('Error al guardar'); });
     }
-    flash(nowActive ? 'Producto activado' : 'Producto desactivado');
+    showToast(nowActive ? 'Producto activado' : 'Producto desactivado');
   };
 
   // ─── START EDITING ───
@@ -656,11 +685,11 @@ function ProductsTab() {
     setEditingId(null);
 
     if (product.custom) {
-      upsertCustomProduct({ id, name: updated.name, category: updated.cat, price: updated.price, description: updated.desc, image_url: product.imgUrl || null, active: product.active }).catch((e) => { console.error('Save error:', e); flash('Error al guardar'); });
+      upsertCustomProduct({ id, name: updated.name, category: updated.cat, price: updated.price, description: updated.desc, image_url: product.imgUrl || null, active: product.active }).catch((e) => { console.error('Save error:', e); showToast('Error al guardar'); });
     } else {
-      upsertProductOverride({ id, name_override: updated.name, price_override: updated.price, description_override: updated.desc, category_override: updated.cat }).catch((e) => { console.error('Save error:', e); flash('Error al guardar'); });
+      upsertProductOverride({ id, name_override: updated.name, price_override: updated.price, description_override: updated.desc, category_override: updated.cat }).catch((e) => { console.error('Save error:', e); showToast('Error al guardar'); });
     }
-    flash('Producto guardado');
+    showToast('Producto guardado');
   };
 
   // ─── ADD PRODUCT ───
@@ -669,17 +698,17 @@ function ProductsTab() {
     const id = `custom-${Date.now()}`;
     const product: AdminProduct = { id, name: newProduct.name, cat: newProduct.cat, price: Number(newProduct.price) || 0, desc: newProduct.desc, imgUrl: '', active: true, custom: true };
     setProducts(prev => [...prev, product]);
-    upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: null, active: true }).catch((e) => { console.error('Add product error:', e); flash('Error al guardar'); });
+    upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: null, active: true }).catch((e) => { console.error('Add product error:', e); showToast('Error al guardar'); });
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
-    flash('Producto agregado');
+    showToast('Producto agregado');
   };
 
   // ─── REMOVE CUSTOM PRODUCT ───
   const handleRemove = async (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
-    deleteCustomProduct(id).catch((e) => { console.error('Delete product error:', e); flash('Error al eliminar'); });
-    flash('Producto eliminado');
+    deleteCustomProduct(id).catch((e) => { console.error('Delete product error:', e); showToast('Error al eliminar'); });
+    showToast('Producto eliminado');
   };
 
   const [productSearch, setProductSearch] = useState('');
@@ -701,8 +730,6 @@ function ProductsTab() {
           {showAdd ? 'Cancelar' : '+ Agregar'}
         </button>
       </div>
-
-      {message && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{message}</div>}
 
       {/* Search */}
       <div className="relative">
@@ -809,16 +836,14 @@ function ProductsTab() {
 
 // ─── CATALOG TAB ───
 function CatalogTab() {
+  const { showToast } = useToast();
   const [categories, setCategories] = useState<{ id: string; label: string; icon: string; description: string; subtitle?: string }[]>([]);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [flashMsg, setFlashMsg] = useState('');
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', emoji: '', description: '' });
-
-  const flash = (msg: string) => { setFlashMsg(msg); setTimeout(() => setFlashMsg(''), 2000); };
 
   // Count products per category
   const productCounts = useMemo(() => {
@@ -884,7 +909,7 @@ function CatalogTab() {
     setCategories(prev => prev.map(c => c.id === editingCatId ? { ...c, label: editForm.name, icon: editForm.emoji, subtitle: editForm.subtitle || undefined } : c));
     setEditingCatId(null);
     setSaving(false);
-    flash('Categor\u00eda guardada');
+    showToast('Categor\u00eda guardada');
   };
 
   return (
@@ -897,8 +922,6 @@ function CatalogTab() {
         <button onClick={() => setShowNewCat(!showNewCat)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">{showNewCat ? 'Cancelar' : '+ Nueva categor\u00eda'}</button>
       </div>
 
-      {flashMsg && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{flashMsg}</div>}
-
       {showNewCat && (
         <div className="bg-white rounded-xl border-2 border-purple/20 p-5 space-y-3">
           <h3 className="font-heading font-bold text-sm text-purple">Nueva Categor&iacute;a</h3>
@@ -910,15 +933,15 @@ function CatalogTab() {
           <button
             onClick={async () => {
               const id = newCat.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-              if (!id) { flash('Nombre inv\u00e1lido'); return; }
-              if ([...ALL_CATEGORIES, ...categories.map(c => c.id)].includes(id)) { flash('Esa categor\u00eda ya existe'); return; }
+              if (!id) { showToast('Nombre inv\u00e1lido'); return; }
+              if ([...ALL_CATEGORIES, ...categories.map(c => c.id)].includes(id)) { showToast('Esa categor\u00eda ya existe'); return; }
               const item = { id, label: newCat.name.trim(), icon: newCat.emoji || '\uD83C\uDF88', description: newCat.description.trim() };
               const existing = await fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories') || [];
               await upsertSetting('custom_categories', [...existing, item]);
               setCategories(prev => [...prev, item]);
               setNewCat({ name: '', emoji: '', description: '' });
               setShowNewCat(false);
-              flash('\u2705 Categor\u00eda creada');
+              showToast('Categor\u00eda creada');
             }}
             disabled={!newCat.name.trim()}
             className="w-full bg-purple text-white font-heading font-bold py-2.5 rounded-xl disabled:opacity-50"
@@ -985,9 +1008,9 @@ function CatalogTab() {
 const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 function WebsiteTab() {
+  const { showToast } = useToast();
   const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo' | 'testimonials'>('homepage');
-  const [flash, setFlash] = useState('');
-  const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(''), 2000); };
+  const [savingSection, setSavingSection] = useState<string | null>(null);
 
   // ─── A) HOMEPAGE ───
   const [hp, setHp] = useState({
@@ -1005,8 +1028,12 @@ function WebsiteTab() {
   }, []);
 
   const saveHomepage = async () => {
-    await upsertSetting('homepage_content', hp);
-    showFlash('Homepage guardado');
+    setSavingSection('homepage');
+    try {
+      await upsertSetting('homepage_content', hp);
+      showToast('Homepage guardado');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
   };
 
   // ─── B) FEATURED ───
@@ -1025,8 +1052,12 @@ function WebsiteTab() {
   };
 
   const saveFeatured = async () => {
-    await upsertSetting('featured_products', featuredIds);
-    showFlash('Productos destacados guardados');
+    setSavingSection('featured');
+    try {
+      await upsertSetting('featured_products', featuredIds);
+      showToast('Productos destacados guardados');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
   };
 
   // ─── C) AREAS ───
@@ -1041,15 +1072,18 @@ function WebsiteTab() {
   }, []);
 
   const saveAreas = async () => {
-    const clean = areas.filter(a => a.name.trim());
-    await upsertSetting('event_areas', clean);
-    setAreas(clean);
-    showFlash('\u00c1reas guardadas');
+    setSavingSection('areas');
+    try {
+      const clean = areas.filter(a => a.name.trim());
+      await upsertSetting('event_areas', clean);
+      setAreas(clean);
+      showToast('\u00c1reas guardadas');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
   };
 
   // ─── D) REELS (inline) ───
   const [reelUrls, setReelUrls] = useState(['', '', '']);
-  const [reelsSaved, setReelsSaved] = useState(false);
 
   useEffect(() => {
     fetchSetting<Array<{ url: string; id: string }>>('reels').then(d => {
@@ -1066,8 +1100,8 @@ function WebsiteTab() {
   }, []);
 
   const handleLogoUpload = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) { showFlash('\u274c Foto muy grande. M\u00e1ximo 2MB.'); return; }
-    if (!file.type.startsWith('image/')) { showFlash('\u274c Solo se permiten im\u00e1genes.'); return; }
+    if (file.size > 2 * 1024 * 1024) { showToast('Foto muy grande. M\u00e1ximo 2MB'); return; }
+    if (!file.type.startsWith('image/')) { showToast('Solo se permiten im\u00e1genes'); return; }
     setLogoUploading(true);
     try {
       const formData = new FormData();
@@ -1080,25 +1114,28 @@ function WebsiteTab() {
         const url = data.path + '?t=' + Date.now();
         await upsertSetting('site_logo_url', url);
         setLogoUrl(url);
-        showFlash('Logo actualizado');
-      } else { showFlash('Error al subir logo'); }
-    } catch { showFlash('Error de conexi\u00f3n'); }
+        showToast('Logo actualizado');
+      } else { showToast('Error al subir logo'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
     finally { setLogoUploading(false); }
   };
 
   const resetLogo = async () => {
     await upsertSetting('site_logo_url', null);
     setLogoUrl(null);
-    showFlash('Logo tipogr\u00e1fico restaurado');
+    showToast('Logo tipogr\u00e1fico restaurado');
   };
 
   const extractReelIdLocal = (url: string) => { const m = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; };
 
   const saveReels = async () => {
-    const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
-    await upsertSetting('reels', reels);
-    setReelsSaved(true);
-    setTimeout(() => setReelsSaved(false), 2000);
+    setSavingSection('reels');
+    try {
+      const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
+      await upsertSetting('reels', reels);
+      showToast('Reels guardados');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
   };
 
   // ─── F) TESTIMONIALS ───
@@ -1122,9 +1159,13 @@ function WebsiteTab() {
   }, []);
 
   const saveTestimonials = async () => {
-    const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
-    await upsertSetting('testimonials', clean);
-    showFlash('\u2705 Testimonios guardados');
+    setSavingSection('testimonials');
+    try {
+      const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
+      await upsertSetting('testimonials', clean);
+      showToast('Testimonios guardados');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
   };
 
   const SUB_TABS: { key: typeof section; label: string }[] = [
@@ -1147,8 +1188,6 @@ function WebsiteTab() {
         ))}
       </div>
 
-      {flash && <div className="rounded-xl p-3 text-sm font-body bg-teal/10 text-teal">{flash}</div>}
-
       {/* A) Homepage */}
       {section === 'homepage' && hpLoaded && (
         <div className="space-y-4">
@@ -1170,7 +1209,7 @@ function WebsiteTab() {
               <input value={hp[key]} onChange={e => setHp(prev => ({ ...prev, [key]: e.target.value }))} placeholder={placeholder} className={WI_CLS} />
             </div>
           ))}
-          <button onClick={saveHomepage} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Homepage</button>
+          <button onClick={saveHomepage} disabled={savingSection === 'homepage'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'homepage' ? 'Guardando...' : 'Guardar Homepage'}</button>
         </div>
       )}
 
@@ -1225,7 +1264,7 @@ function WebsiteTab() {
               );
             })}
           </div>
-          <button onClick={saveFeatured} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Destacados</button>
+          <button onClick={saveFeatured} disabled={savingSection === 'featured'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'featured' ? 'Guardando...' : 'Guardar Destacados'}</button>
         </div>
       )}
 
@@ -1249,7 +1288,7 @@ function WebsiteTab() {
           </div>
           <div className="flex gap-2">
             <button onClick={() => setAreas(prev => [...prev, { name: '', price: 0 }])} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">+ Agregar \u00e1rea</button>
-            <button onClick={saveAreas} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar \u00c1reas</button>
+            <button onClick={saveAreas} disabled={savingSection === 'areas'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'areas' ? 'Guardando...' : 'Guardar \u00c1reas'}</button>
           </div>
         </div>
       )}
@@ -1265,7 +1304,7 @@ function WebsiteTab() {
               {url && extractReelIdLocal(url) && <p className="text-xs text-teal mt-1 font-body">ID: {extractReelIdLocal(url)}</p>}
             </div>
           ))}
-          <button onClick={saveReels} className={`px-6 py-2.5 rounded-xl font-heading font-bold text-white transition-colors ${reelsSaved ? 'bg-teal' : 'bg-purple hover:bg-purple-light'}`}>{reelsSaved ? 'Guardado' : 'Guardar Reels'}</button>
+          <button onClick={saveReels} disabled={savingSection === 'reels'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'reels' ? 'Guardando...' : 'Guardar Reels'}</button>
         </div>
       )}
 
@@ -1289,7 +1328,7 @@ function WebsiteTab() {
           ))}
           <div className="flex gap-2">
             <button onClick={() => setTestimonials(prev => prev.length < 6 ? [...prev, { name: '', text: '', avatar: '\uD83D\uDC69' }] : prev)} disabled={testimonials.length >= 6} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors disabled:opacity-40">+ Agregar testimonio</button>
-            <button onClick={saveTestimonials} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm">Guardar Testimonios</button>
+            <button onClick={saveTestimonials} disabled={savingSection === 'testimonials'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'testimonials' ? 'Guardando...' : 'Guardar Testimonios'}</button>
           </div>
         </div>
       )}
