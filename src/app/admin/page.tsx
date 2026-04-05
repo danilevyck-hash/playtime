@@ -1224,6 +1224,23 @@ function CatalogTab() {
   const [saving, setSaving] = useState(false);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', emoji: '', description: '' });
+  const [catDragging, setCatDragging] = useState<string | null>(null);
+  const [catDragOver, setCatDragOver] = useState<string | null>(null);
+
+  const handleCatDrop = (targetId: string) => {
+    if (!catDragging || catDragging === targetId) return;
+    const fromIdx = categories.findIndex(c => c.id === catDragging);
+    const toIdx = categories.findIndex(c => c.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newCats = [...categories];
+    const [moved] = newCats.splice(fromIdx, 1);
+    newCats.splice(toIdx, 0, moved);
+    setCategories(newCats);
+    upsertSetting('category_order', newCats.map(c => c.id)).catch(e => console.error('Save cat order:', e));
+    setCatDragging(null);
+    setCatDragOver(null);
+    showToast('Orden guardado');
+  };
 
   // Count products per category
   const productCounts = useMemo(() => {
@@ -1256,6 +1273,12 @@ function CatalogTab() {
         }
       } catch (e) {
         console.error('Error loading category overrides:', e);
+      }
+      // Apply saved order
+      const savedOrder = await fetchSetting<string[]>('category_order');
+      if (savedOrder && savedOrder.length > 0) {
+        const orderMap = new Map(savedOrder.map((id, idx) => [id, idx]));
+        base.sort((a, b) => (orderMap.get(a.id) ?? Infinity) - (orderMap.get(b.id) ?? Infinity));
       }
       setCategories(base);
     }
@@ -1338,8 +1361,18 @@ function CatalogTab() {
           const count = productCounts[cat.id] || 0;
 
           return (
-            <div key={cat.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+            <div
+              key={cat.id}
+              draggable
+              onDragStart={() => setCatDragging(cat.id)}
+              onDragOver={(e) => { e.preventDefault(); setCatDragOver(cat.id); }}
+              onDragEnd={() => { setCatDragging(null); setCatDragOver(null); }}
+              onDrop={() => handleCatDrop(cat.id)}
+              className={`bg-white rounded-xl border border-gray-100 overflow-hidden transition-all ${catDragging === cat.id ? 'opacity-40 scale-95' : ''} ${catDragOver === cat.id && catDragging !== cat.id ? 'border-t-2 border-t-purple' : ''}`}
+            >
+              <div className="flex items-center">
+                <div className="px-2 cursor-grab active:cursor-grabbing text-gray-300 hover:text-purple select-none text-lg">{'\u2807'}</div>
+                <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="flex-1 text-left p-4 pl-0 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{cat.icon}</span>
@@ -1351,6 +1384,7 @@ function CatalogTab() {
                   <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{count} productos</span>
                 </div>
               </button>
+              </div>
               {isExpanded && (
                 <div className="border-t border-gray-100 p-4 bg-gray-50/50">
                   {isEditing ? (

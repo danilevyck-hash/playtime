@@ -17,15 +17,32 @@ export function useCategories(): CategoryItem[] {
   const [categories, setCategories] = useState<CategoryItem[]>(CATEGORIES);
 
   useEffect(() => {
-    fetchSetting<CategoryItem[]>('custom_categories').then(custom => {
-      if (custom && Array.isArray(custom) && custom.length > 0) {
-        setCategories(prev => {
-          const ids = new Set(prev.map(c => c.id));
+    async function load() {
+      try {
+        const [custom, savedOrder] = await Promise.all([
+          fetchSetting<CategoryItem[]>('custom_categories'),
+          fetchSetting<string[]>('category_order'),
+        ]);
+
+        let cats = [...CATEGORIES] as CategoryItem[];
+
+        if (custom && Array.isArray(custom) && custom.length > 0) {
+          const ids = new Set(cats.map(c => c.id));
           const newOnes = custom.filter(c => !ids.has(c.id));
-          return [...prev, ...newOnes];
-        });
+          cats = [...cats, ...newOnes];
+        }
+
+        if (savedOrder && savedOrder.length > 0) {
+          const orderMap = new Map(savedOrder.map((id, idx) => [id, idx]));
+          cats.sort((a, b) => (orderMap.get(a.id) ?? Infinity) - (orderMap.get(b.id) ?? Infinity));
+        }
+
+        setCategories(cats);
+      } catch (e) {
+        console.error('Error loading categories:', e);
       }
-    }).catch((e) => console.error('Error loading custom categories:', e));
+    }
+    load();
   }, []);
 
   return categories;
