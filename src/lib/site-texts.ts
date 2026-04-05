@@ -30,7 +30,7 @@ export const DEFAULT_SITE_TEXTS: SiteTexts = {
   cart_empty_title: '¡Tu fiesta te está esperando!',
   cart_empty_subtitle: 'Explora nuestros servicios y arma algo increíble 🎉',
   cart_clear_label: 'Empezar de nuevo',
-  checkout_title: '¡Casi lista tu fiesta!',
+  checkout_title: 'Confirma tu experiencia',
   checkout_submit: '¡Reservar mi fiesta! 🎈',
   checkout_loading: 'Preparando magia... ✨',
   catalog_cta: '¡Arma tu fiesta! 🎉',

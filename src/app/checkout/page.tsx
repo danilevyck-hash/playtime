@@ -173,8 +173,13 @@ export default function CheckoutPage() {
       clearCheckoutState();
       clearCart();
 
-      // Redirect to confirmation page with WhatsApp URL
-      router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}&wa=${encodeURIComponent(waUrl)}`);
+      // Open WhatsApp directly via location (works on mobile without popup blocker)
+      window.location.href = waUrl;
+
+      // After a short delay, redirect to confirmation page
+      setTimeout(() => {
+        router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}`);
+      }, 1000);
     } catch (e) {
       console.error('Checkout error:', e);
       showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos');

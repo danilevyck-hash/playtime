@@ -14,9 +14,11 @@ import {
   upsertSetting,
   fetchProductImages,
   upsertProductImages,
+  fetchLogoUrl,
 } from '@/lib/supabase-data';
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
+import { downloadOrderPDF } from '@/lib/pdf-order';
 
 type OrderStatus = 'nuevo' | 'aprobada' | 'rechazada' | 'realizado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
@@ -395,6 +397,10 @@ function OrdersTab() {
     const ef = editOrderForm;
     const deposits = order.deposits || [];
     const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
+    // Auto-suggest transport cost from area price if not yet confirmed
+    const areaSuggestion = order.transport_cost_confirmed === null && order.event_area
+      ? EVENT_AREAS.find(a => a.name === order.event_area)?.price
+      : undefined;
 
     return (
       <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'nuevo' ? 'border-gray-100' : st === 'aprobada' ? 'border-teal/30' : st === 'rechazada' ? 'border-red-200' : 'border-purple/30'}`}>
@@ -566,6 +572,23 @@ function OrdersTab() {
                 Contactar
               </a>
               {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>}
+              <button onClick={async () => {
+                const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
+                const logoUrl = await fetchLogoUrl().catch(() => null);
+                await downloadOrderPDF({
+                  orderNumber: order.order_number,
+                  customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' },
+                  event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme },
+                  items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })),
+                  subtotal: order.subtotal,
+                  transportCost: order.transport_cost_confirmed ?? -1,
+                  surcharge: order.surcharge,
+                  total: order.total,
+                  paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card',
+                  logoUrl,
+                });
+                showToast('PDF descargado');
+              }} className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">{'📄'} PDF</button>
               <button onClick={() => deleteOrder(order.id, order.order_number)} disabled={savingAction === `delete-${order.id}`} className="inline-flex items-center gap-1 bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors disabled:opacity-50">{savingAction === `delete-${order.id}` ? 'Eliminando...' : 'Eliminar'}</button>
             </div>
 
@@ -612,7 +635,7 @@ function OrdersTab() {
                 {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
               </div>
               <div className="flex gap-2">
-                <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
+                <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
                 <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </div>
