@@ -22,13 +22,13 @@ export default function CTABanner({ content }: CTAProps) {
               Ver servicios &#10024;
             </Button>
           </Link>
-          <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
-            <Button
-              size="lg"
-              className="bg-white text-teal hover:bg-white/90"
-            >
-              Hablar con nosotras {'\uD83D\uDCAC'}
-            </Button>
+          <a
+            href={`https://wa.me/${CONTACT.whatsapp}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 font-heading font-semibold rounded-full px-8 py-3.5 text-lg bg-white text-teal hover:bg-white/90 transition-all duration-200 shadow-sm"
+          >
+            Hablar con nosotras {'\uD83D\uDCAC'}
           </a>
         </div>
       </div>
