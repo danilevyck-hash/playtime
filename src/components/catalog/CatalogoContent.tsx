@@ -99,7 +99,7 @@ export default function CatalogoContent() {
   }, []);
 
   const handleAddPlan = (product: Product) => {
-    addItem({ productId: product.id, name: product.name, category: product.category, unitPrice: product.price });
+    addItem({ productId: product.id, name: product.name, category: product.category, unitPrice: product.price, image: product.image });
   };
 
   return (
@@ -123,7 +123,10 @@ export default function CatalogoContent() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          {'\uD83D\uDCE6'} Planes completos
+          <span>{'\uD83D\uDCE6'} Planes completos</span>
+          <span className={`block text-xs font-body font-normal mt-0.5 ${mode === 'planes' ? 'text-white/80' : 'text-gray-400'}`}>
+            Paquetes listos con todo incluido
+          </span>
         </button>
         <button
           onClick={() => setMode('custom')}
@@ -133,7 +136,10 @@ export default function CatalogoContent() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          &#10024; Armar mi paquete
+          <span>&#10024; Armar mi paquete</span>
+          <span className={`block text-xs font-body font-normal mt-0.5 ${mode === 'custom' ? 'text-white/80' : 'text-gray-400'}`}>
+            Elige cada servicio por separado
+          </span>
         </button>
       </div>
 

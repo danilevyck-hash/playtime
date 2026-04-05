@@ -1,7 +1,6 @@
 'use client';
 
 import { PaymentMethod } from '@/lib/types';
-import { BANK_INFO } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -40,14 +39,10 @@ export default function PaymentMethodForm({ selected, onChange, onNext, onBack }
           </div>
         </button>
 
-        {/* Bank info shown when selected */}
+        {/* Bank transfer selected note */}
         {selected === 'bank_transfer' && (
-          <div className="bg-cream rounded-xl p-4 ml-8 text-sm font-body space-y-1">
-            <p><span className="font-semibold">Banco:</span> {BANK_INFO.bank}</p>
-            <p><span className="font-semibold">Titular:</span> {BANK_INFO.name}</p>
-            <p><span className="font-semibold">Tipo:</span> {BANK_INFO.accountType}</p>
-            <p><span className="font-semibold">Cuenta:</span> {BANK_INFO.accountNumber}</p>
-            <p className="text-xs text-gray-400 mt-2">Envía el comprobante de pago al WhatsApp para confirmar tu reserva.</p>
+          <div className="bg-cream rounded-xl p-4 ml-8 text-sm font-body">
+            <p className="text-gray-600">Transferencia bancaria seleccionada. Los datos bancarios se muestran al confirmar tu pedido.</p>
           </div>
         )}
 
@@ -77,8 +72,7 @@ export default function PaymentMethodForm({ selected, onChange, onNext, onBack }
         {selected === 'credit_card' && (
           <div className="bg-orange/5 border border-orange/20 rounded-xl p-4 ml-8 text-sm font-body">
             <p className="text-gray-600">
-              Te enviaremos un link de pago seguro por WhatsApp después de confirmar tu pedido.
-              El recargo del 5% será agregado al total.
+              Despu&eacute;s de confirmar tu pedido por WhatsApp, te enviaremos un link de pago seguro. El recargo del 5% se aplica al total.
             </p>
           </div>
         )}

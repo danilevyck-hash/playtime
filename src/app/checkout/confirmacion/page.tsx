@@ -53,6 +53,13 @@ function ConfirmacionContent() {
           Te contactamos por WhatsApp en menos de 2 horas para confirmar tu reserva.
         </p>
 
+        {/* WhatsApp warning */}
+        <div className="bg-orange/10 border border-orange/30 rounded-xl p-4 max-w-md mx-auto">
+          <p className="font-heading font-bold text-sm text-orange">
+            {'\u26a0\ufe0f'} Tu pedido se confirma al enviar el mensaje por WhatsApp
+          </p>
+        </div>
+
         {showBankInfo && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-2 shadow-sm">
             <p className="font-heading font-bold text-sm text-gray-800">Para confirmar tu reserva, env&iacute;a el dep&oacute;sito a:</p>
@@ -72,17 +79,21 @@ function ConfirmacionContent() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
           <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
-            <Button size="lg" className="bg-[#25D366] hover:bg-[#20bd5a] text-white w-full">
+            <Button size="lg" className="bg-[#25D366] hover:bg-[#20bd5a] text-white w-full animate-pulse">
               Abrir WhatsApp
             </Button>
           </a>
           <Link href="/">
-            <Button variant="outline" size="lg">Volver al Inicio</Button>
+            <Button variant="outline" size="lg">Volver al inicio</Button>
           </Link>
         </div>
 
+        <p className="font-body text-sm text-gray-500">
+          {'\u00bf'}No tienes WhatsApp? Ll&aacute;manos al {CONTACT.phone}
+        </p>
+
         <p className="font-body text-sm text-gray-400">
-          {'\u00bf'}Tienes preguntas? Escr&iacute;benos al {CONTACT.phone}
+          Tambi&eacute;n puedes enviarnos el comprobante de pago a {CONTACT.email}
         </p>
       </div>
     </ConfettiBackground>

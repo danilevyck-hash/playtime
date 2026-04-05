@@ -10,7 +10,7 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number } }
+  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string } }
   | { type: 'REMOVE_ITEM'; payload: { productId: string } }
   | { type: 'UPDATE_QUANTITY'; payload: { productId: string; quantity: number } }
   | { type: 'CLEAR_CART' }
@@ -43,6 +43,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
             category: action.payload.category,
             unitPrice: action.payload.unitPrice,
             quantity: action.payload.quantity || 1,
+            image: action.payload.image,
           },
         ],
       };
@@ -77,7 +78,7 @@ interface CartContextValue {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number }) => void;
+  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -134,7 +135,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     itemCount,
     subtotal,
     addItem: (item) => { dispatch({ type: 'ADD_ITEM', payload: item }); showToast('\u2705 Agregado al carrito'); },
-    removeItem: (productId) => dispatch({ type: 'REMOVE_ITEM', payload: { productId } }),
+    removeItem: (productId) => { dispatch({ type: 'REMOVE_ITEM', payload: { productId } }); showToast('Producto eliminado del carrito'); },
     updateQuantity: (productId, quantity) => dispatch({ type: 'UPDATE_QUANTITY', payload: { productId, quantity } }),
     clearCart: () => dispatch({ type: 'CLEAR_CART' }),
   };

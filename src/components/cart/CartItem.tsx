@@ -1,6 +1,7 @@
 'use client';
 
-import { CartItem as CartItemType } from '@/lib/types';
+import Image from 'next/image';
+import { CartItem as CartItemType, CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 
@@ -12,7 +13,18 @@ export default function CartItem({ item }: CartItemProps) {
   const { updateQuantity, removeItem } = useCart();
 
   return (
-    <div className="flex items-center gap-4 py-4 border-b border-gray-100">
+    <div className="flex items-center gap-3 py-4 border-b border-gray-100">
+      {/* Product image */}
+      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+        {item.image ? (
+          <Image src={item.image} alt={item.name} width={48} height={48} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-2xl">
+            {CATEGORY_ICONS[item.category] || '\uD83C\uDF88'}
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 min-w-0">
         <h3 className="font-heading font-semibold text-gray-800 truncate">{item.name}</h3>
         <p className="text-sm font-body text-gray-400">{formatCurrency(item.unitPrice)} c/u</p>
@@ -21,7 +33,7 @@ export default function CartItem({ item }: CartItemProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+          className="min-w-[44px] min-h-[44px] rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-lg text-gray-600 hover:bg-gray-200 active:bg-gray-300 transition-colors"
           aria-label={`Disminuir cantidad de ${item.name}`}
         >
           -
@@ -29,7 +41,7 @@ export default function CartItem({ item }: CartItemProps) {
         <span className="w-8 text-center font-heading font-semibold text-gray-800">{item.quantity}</span>
         <button
           onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+          className="min-w-[44px] min-h-[44px] rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-lg text-gray-600 hover:bg-gray-200 active:bg-gray-300 transition-colors"
           aria-label={`Aumentar cantidad de ${item.name}`}
         >
           +
@@ -42,7 +54,7 @@ export default function CartItem({ item }: CartItemProps) {
 
       <button
         onClick={() => removeItem(item.productId)}
-        className="p-1 text-gray-400 hover:text-pink transition-colors"
+        className="p-2 text-gray-400 hover:text-pink transition-colors"
         aria-label={`Eliminar ${item.name}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { OrderCustomer, OrderEvent, PaymentMethod, CartItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
-import { BANK_INFO, CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -59,7 +60,10 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
 
       {/* Items */}
       <div className="bg-white rounded-xl p-4 border border-gray-100">
-        <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">Artículos</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider">Art&iacute;culos</h3>
+          <Link href="/carrito" className="text-xs text-purple font-heading font-semibold hover:underline">Editar</Link>
+        </div>
         <div className="space-y-2">
           {items.map((item) => (
             <div key={item.productId} className="flex justify-between text-sm font-body">
@@ -71,7 +75,7 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
           <div className="flex justify-between text-sm font-body pt-2 border-t border-gray-100">
             <span className="text-gray-700">Transporte, montaje y desmontaje</span>
             <span className="font-heading font-semibold text-gray-800">
-              {isTransportPending ? 'Por confirmar' : formatCurrency(effectiveTransport)}
+              {isTransportPending ? 'Se confirma por WhatsApp' : formatCurrency(effectiveTransport)}
             </span>
           </div>
         </div>
@@ -101,7 +105,7 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
         {isTransportPending && (
           <div className="flex justify-between text-sm font-body mb-1">
             <span className="text-gray-600">Transporte</span>
-            <span className="font-heading font-semibold text-orange">Por confirmar</span>
+            <span className="font-heading font-semibold text-orange">Se confirma por WhatsApp</span>
           </div>
         )}
         {surcharge > 0 && (
@@ -117,15 +121,13 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
           </span>
         </div>
         {isTransportPending && (
-          <p className="text-xs text-gray-400 font-body mt-1">*El costo de transporte se confirmará por WhatsApp</p>
+          <p className="text-xs text-gray-400 font-body mt-1">*El costo de transporte se confirma por WhatsApp antes de proceder con el pago</p>
         )}
       </div>
 
       {paymentMethod === 'bank_transfer' && (
         <div className="bg-teal/5 border border-teal/20 rounded-xl p-4 text-sm font-body text-gray-600">
-          <p className="font-semibold mb-1">Datos bancarios para transferencia:</p>
-          <p>{BANK_INFO.bank} | {BANK_INFO.name}</p>
-          <p>{BANK_INFO.accountType}: {BANK_INFO.accountNumber}</p>
+          <p>Transferencia bancaria seleccionada. Los datos bancarios se muestran al confirmar tu pedido.</p>
         </div>
       )}
 

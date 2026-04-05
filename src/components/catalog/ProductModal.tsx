@@ -103,6 +103,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
                     name: product.name,
                     category: product.category,
                     unitPrice: product.price,
+                    image: product.image,
                   });
                 }}
               >

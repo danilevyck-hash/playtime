@@ -76,6 +76,7 @@ export default memo(function ProductCard({ product, onSelect }: ProductCardProps
                     name: product.name,
                     category: product.category,
                     unitPrice: product.price,
+                    image: product.image,
                   })
                 }
               >

@@ -92,6 +92,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                         name: product.name,
                         category: product.category,
                         unitPrice: product.price,
+                        image: product.image,
                       })
                     }
                   >

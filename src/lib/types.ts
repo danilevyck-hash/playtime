@@ -27,6 +27,7 @@ export interface CartItem {
   category: Category;
   unitPrice: number;
   quantity: number;
+  image?: string;
 }
 
 export interface OrderCustomer {
