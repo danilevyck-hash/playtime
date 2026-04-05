@@ -25,17 +25,7 @@ export default function Hero({ content, logoUrl }: HeroProps) {
     <ConfettiBackground className="bg-beige">
       <div className="max-w-6xl mx-auto px-4 py-16 md:py-28 text-center">
         <div className="mb-6">
-          {logoUrl ? (
-            <Image src={logoUrl} alt="PlayTime" width={200} height={80} className="h-20 w-auto object-contain mx-auto" priority />
-          ) : (
-            <>
-              <div className="flex flex-col items-center leading-none">
-                <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none">play</span>
-                <span className="font-heading font-black text-5xl md:text-6xl text-teal tracking-tight leading-none -mt-2">time</span>
-              </div>
-              <span className="font-script text-xl md:text-2xl text-purple">creando momentos.</span>
-            </>
-          )}
+          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={200} height={80} className="h-20 w-auto object-contain mx-auto" priority />
         </div>
 
         <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">

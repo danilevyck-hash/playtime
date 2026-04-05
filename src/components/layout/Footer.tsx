@@ -14,15 +14,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
-            {logoUrl ? (
-              <Image src={logoUrl} alt="PlayTime" width={120} height={40} className="h-10 w-auto object-contain mb-3 brightness-0 invert" />
-            ) : (
-              <div className="flex flex-col leading-none mb-3">
-                <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none">play</span>
-                <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none -mt-1">time</span>
-                <span className="font-script text-xs text-white/70">creando momentos.</span>
-              </div>
-            )}
+            <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={120} height={40} className="h-10 w-auto object-contain mb-3 brightness-0 invert" />
             <p className="text-white/70 text-sm font-body leading-relaxed">
               Hacemos de cada celebraci&oacute;n un momento m&aacute;gico e inolvidable para los m&aacute;s peque&ntilde;os.
             </p>

@@ -13,16 +13,6 @@ const NAV_LINKS = [
   { href: '/catalogo', label: 'Cat\u00e1logo' },
 ];
 
-function TypographicLogo({ className = '' }: { className?: string }) {
-  return (
-    <div className={`flex flex-col leading-none ${className}`}>
-      <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none">play</span>
-      <span className="font-heading font-black text-2xl text-teal tracking-tight leading-none -mt-1">time</span>
-      <span className="font-script text-xs text-purple">creando momentos.</span>
-    </div>
-  );
-}
-
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const logoUrl = useLogoUrl();
@@ -32,11 +22,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/">
-          {logoUrl ? (
-            <Image src={logoUrl} alt="PlayTime" width={120} height={48} className="h-12 w-auto object-contain" priority />
-          ) : (
-            <TypographicLogo />
-          )}
+          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={120} height={48} className="h-12 w-auto object-contain" priority />
         </Link>
 
         {/* Desktop links */}
