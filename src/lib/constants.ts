@@ -491,69 +491,6 @@ export const PRODUCTS: Product[] = [
     maxQuantity: 20,
   },
 
-  // ═══ ADD-ONS (SERVICIOS) ═══
-  {
-    id: 'musica',
-    name: 'Música durante el Cumpleaños',
-    category: 'addons',
-    description: 'Música durante todo el evento. Duración: 3 horas.',
-    price: 90,
-  },
-  {
-    id: 'transporte',
-    name: 'Transporte',
-    category: 'addons',
-    description: 'Montaje y transporte ida y vuelta. Varía según ubicación.',
-    price: 50,
-  },
-  {
-    id: 'teacher-extra',
-    name: 'Teacher Extra',
-    category: 'addons',
-    description: 'Teacher adicional para apoyar en las actividades.',
-    price: 80,
-    maxQuantity: 5,
-  },
-  {
-    id: 'animacion-modelaje',
-    name: 'Animación con Modelaje y Baile',
-    category: 'addons',
-    description: 'Animación con modelaje y baile (extra para planes de belleza).',
-    price: 65,
-  },
-  {
-    id: 'extra-nina-spa',
-    name: 'Extra Niña (Spa)',
-    category: 'addons',
-    description: 'Niña adicional para planes de belleza/spa.',
-    price: 10,
-    maxQuantity: 15,
-  },
-  {
-    id: 'peinado-deluxe',
-    name: 'Peinado Deluxe (Extensiones)',
-    category: 'addons',
-    description: 'Peinado deluxe con extensiones de colores.',
-    price: 25,
-    maxQuantity: 15,
-  },
-  {
-    id: 'maquillaje-deluxe',
-    name: 'Maquillaje Deluxe (Brillantes)',
-    category: 'addons',
-    description: 'Maquillaje deluxe con brillantes.',
-    price: 10,
-    maxQuantity: 15,
-  },
-  {
-    id: 'facial',
-    name: 'Facial',
-    category: 'addons',
-    description: 'Tratamiento facial para niñas.',
-    price: 10,
-    maxQuantity: 15,
-  },
-
   // ═══ CREATIVE STUDIO ═══
   {
     id: 'magic-wand',
