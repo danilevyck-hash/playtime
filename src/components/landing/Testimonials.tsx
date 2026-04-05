@@ -22,6 +22,10 @@ const DEFAULT_TESTIMONIALS = [
 ];
 
 const BORDER_COLORS = ['border-l-teal', 'border-l-orange', 'border-l-pink', 'border-l-purple'];
+const AVATAR_BG = ['bg-teal', 'bg-orange', 'bg-pink', 'bg-purple'];
+function getInitials(name: string) {
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
 
 interface TestimonialItem {
   name: string;
@@ -38,13 +42,13 @@ export default function Testimonials({ testimonials }: TestimonialsProps) {
   const items: TestimonialItem[] = testimonials && testimonials.length > 0 ? testimonials : DEFAULT_TESTIMONIALS;
 
   return (
-    <section className="bg-cream py-16 md:py-24">
+    <section className="bg-cream py-10 md:py-14">
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
             Lo que dicen las mam&aacute;s
           </h2>
-          <p className="font-body text-gray-500 max-w-md mx-auto">
+          <p className="font-body font-normal text-gray-600 max-w-md mx-auto">
             M&aacute;s de 200 familias felices en Panam&aacute;
           </p>
         </div>
@@ -66,7 +70,9 @@ export default function Testimonials({ testimonials }: TestimonialsProps) {
                 &ldquo;{t.text}&rdquo;
               </p>
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{t.avatar}</span>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-heading font-bold text-sm ${AVATAR_BG[i % AVATAR_BG.length]}`}>
+                  {getInitials(t.name)}
+                </div>
                 <span className="font-heading font-bold text-sm text-gray-800">{t.name}</span>
               </div>
             </div>

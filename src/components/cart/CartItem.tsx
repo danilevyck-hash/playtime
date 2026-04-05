@@ -15,11 +15,11 @@ export default function CartItem({ item }: CartItemProps) {
   return (
     <div className="flex items-center gap-3 py-4 border-b border-gray-100">
       {/* Product image */}
-      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+      <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
         {item.image ? (
-          <Image src={item.image} alt={item.name} width={48} height={48} className="w-full h-full object-cover" />
+          <Image src={item.image} alt={item.name} width={80} height={80} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl">
+          <div className="w-full h-full flex items-center justify-center text-2xl md:text-3xl">
             {CATEGORY_ICONS[item.category] || '\uD83C\uDF88'}
           </div>
         )}
@@ -27,7 +27,7 @@ export default function CartItem({ item }: CartItemProps) {
 
       <div className="flex-1 min-w-0">
         <h3 className="font-heading font-semibold text-gray-800 truncate">{item.name}</h3>
-        <p className="text-sm font-body text-gray-400">{formatCurrency(item.unitPrice)} c/u</p>
+        <p className="text-sm font-body font-normal text-gray-500">{formatCurrency(item.unitPrice)} c/u</p>
       </div>
 
       <div className="flex items-center gap-2">

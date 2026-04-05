@@ -8,7 +8,7 @@ interface CTAProps {
 
 export default function CTABanner({ content }: CTAProps) {
   return (
-    <section className="bg-teal py-16 md:py-20">
+    <section className="bg-teal py-10 md:py-14">
       <div className="max-w-3xl mx-auto px-4 text-center">
         <h2 className="font-heading font-bold text-3xl md:text-4xl text-white mb-4">
           {content?.cta_section_title || 'Haz tu reserva hoy'}

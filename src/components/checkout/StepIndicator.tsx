@@ -32,7 +32,7 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
                 i + 1
               )}
             </div>
-            <span className={`text-xs mt-1 font-heading ${i === current ? 'text-purple font-semibold' : 'text-gray-400'}`}>
+            <span className={`text-xs mt-1 font-heading hidden sm:block ${i === current ? 'text-purple font-semibold' : 'text-gray-400'}`}>
               {label}
             </span>
           </div>

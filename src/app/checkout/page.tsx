@@ -161,7 +161,7 @@ export default function CheckoutPage() {
         // Continue without PDF link — order still goes through WhatsApp
       }
 
-      // Build WhatsApp URL and open directly
+      // Build WhatsApp URL for confirmation page
       const message = buildWhatsAppOrderMessage({
         orderNumber,
         customerName: customer.name,
@@ -173,11 +173,8 @@ export default function CheckoutPage() {
       clearCheckoutState();
       clearCart();
 
-      // Open WhatsApp directly
-      window.open(waUrl, '_blank');
-
-      // Redirect to confirmation page
-      router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}`);
+      // Redirect to confirmation page with WhatsApp URL
+      router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}&wa=${encodeURIComponent(waUrl)}`);
     } catch (e) {
       console.error('Checkout error:', e);
       showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos');

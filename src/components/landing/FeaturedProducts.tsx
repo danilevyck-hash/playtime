@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useProducts } from '@/lib/useProducts';
-import { CATEGORY_ICONS, Product } from '@/lib/types';
+import { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import { CATEGORIES } from '@/lib/constants';
+import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 import Button from '@/components/ui/Button';
 import ProductModal from '@/components/catalog/ProductModal';
 
@@ -24,7 +25,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (
-    <section className="bg-white py-16 md:py-24">
+    <section className="bg-white py-10 md:py-14">
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
@@ -54,11 +55,15 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-purple/10">
-                    <span className="text-5xl">{CATEGORY_ICONS[product.category]}</span>
-                  </div>
-                )}
+                ) : (() => {
+                  const Doodle = CATEGORY_DOODLES[product.category];
+                  const catInfo = CATEGORIES.find(c => c.id === product.category);
+                  return (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal/10 to-purple/10">
+                      {Doodle ? <Doodle className="w-16 h-16 opacity-60" /> : <span className="text-5xl">{catInfo?.icon || ''}</span>}
+                    </div>
+                  );
+                })()}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                   <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur rounded-full px-4 py-2 font-heading font-semibold text-sm text-purple shadow-lg">
                     Ver detalles
@@ -77,13 +82,17 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                 >
                   {product.name}
                 </h3>
-                <p className="font-body text-sm text-gray-400 mb-4 leading-relaxed line-clamp-2">
+                <p className="font-body font-normal text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">
                   {product.description}
                 </p>
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200">
-                  <span className="font-heading font-bold text-2xl text-purple">
-                    {formatCurrency(product.price)}
-                  </span>
+                  {product.price === 0 ? (
+                    <span className="font-heading font-semibold text-lg text-gray-400 italic">Consultar precio</span>
+                  ) : (
+                    <span className="font-heading font-bold text-2xl text-purple">
+                      {formatCurrency(product.price)}
+                    </span>
+                  )}
                   <Button
                     size="sm"
                     onClick={() =>

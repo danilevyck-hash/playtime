@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { useLogoUrl } from '@/context/LogoContext';
 import Badge from '@/components/ui/Badge';
@@ -15,6 +16,7 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
   const logoUrl = useLogoUrl();
   const { itemCount, subtotal } = useCart();
 
@@ -28,7 +30,7 @@ export default function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="font-heading font-bold text-gray-600 hover:text-teal transition-colors">
+            <Link key={link.href} href={link.href} className={`font-heading font-bold transition-colors ${pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href)) ? 'text-teal' : 'text-gray-600 hover:text-teal'}`}>
               {link.label}
             </Link>
           ))}

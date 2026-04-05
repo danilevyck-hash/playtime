@@ -140,7 +140,7 @@ export default function CatalogoContent() {
           }`}
         >
           <span>{'\uD83D\uDCE6'} Planes completos</span>
-          <span className={`block text-xs font-body font-normal mt-0.5 ${mode === 'planes' ? 'text-white/80' : 'text-gray-400'}`}>
+          <span className={`block text-xs sm:text-sm font-body font-normal mt-0.5 ${mode === 'planes' ? 'text-white/80' : 'text-gray-400'}`}>
             Paquetes listos con todo incluido
           </span>
         </button>
@@ -153,7 +153,7 @@ export default function CatalogoContent() {
           }`}
         >
           <span>&#10024; Armar mi paquete</span>
-          <span className={`block text-xs font-body font-normal mt-0.5 ${mode === 'custom' ? 'text-white/80' : 'text-gray-400'}`}>
+          <span className={`block text-xs sm:text-sm font-body font-normal mt-0.5 ${mode === 'custom' ? 'text-white/80' : 'text-gray-400'}`}>
             Elige cada servicio por separado
           </span>
         </button>
@@ -198,12 +198,13 @@ export default function CatalogoContent() {
           {filtered.length === 0 ? (
             <div className="text-center py-16">
               <div className="text-5xl mb-4">{'\uD83D\uDD0D'}</div>
-              <p className="font-heading font-bold text-lg text-gray-400 mb-2">No encontramos productos</p>
-              <p className="font-body text-sm text-gray-400">Prueba con otra b&uacute;squeda o categor&iacute;a</p>
+              <p className="font-heading font-bold text-lg text-gray-500 mb-2">No encontramos productos</p>
+              <p className="font-body text-sm text-gray-500 mb-4">Prueba con otra b&uacute;squeda o categor&iacute;a</p>
+              <button onClick={() => { handleCategoryChange('all'); handleSearchChange(''); }} className="bg-purple text-white font-heading font-semibold px-6 py-2.5 rounded-full hover:bg-purple/90 transition-colors text-sm">Ver todos los productos</button>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
                 {visibleProducts.map((product) => (
                   <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
                 ))}

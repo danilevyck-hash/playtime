@@ -58,9 +58,9 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
 
       {/* Separator */}
       <div className="flex items-center gap-3 mt-4 mb-3">
-        <div className="flex-1 h-px bg-gray-200" />
-        <span className="font-body text-xs text-gray-400 shrink-0">Agrega m&aacute;s a tu fiesta</span>
-        <div className="flex-1 h-px bg-gray-200" />
+        <div className="flex-1 h-px bg-gray-300" />
+        <span className="font-heading font-semibold text-xs text-gray-500 shrink-0">{'✨'} Agrega m&aacute;s a tu fiesta</span>
+        <div className="flex-1 h-px bg-gray-300" />
       </div>
 
       {/* Extra categories — small pills */}
