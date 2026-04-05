@@ -39,18 +39,6 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
 
   return (
     <div>
-      {/* "Todos" pill */}
-      <button
-        onClick={() => onSelect('all')}
-        className={`mb-4 px-5 py-2 rounded-full font-heading font-semibold text-sm transition-all ${
-          selected === 'all'
-            ? 'bg-teal text-white shadow-md'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-        }`}
-      >
-        Todos
-      </button>
-
       {/* Main 6 categories */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {mainCats.map((cat) => (

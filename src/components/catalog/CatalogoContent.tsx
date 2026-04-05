@@ -205,16 +205,23 @@ export default function CatalogoContent() {
               Elige exactamente lo que necesitas.
             </p>
           </div>
-          <div className="flex flex-col gap-4 mb-8">
-            <SearchBar value={search} onChange={handleSearchChange} />
+          <div className="mb-6">
             <CategoryFilter selected={category} onSelect={handleCategoryChange} />
           </div>
-          {filtered.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="text-5xl mb-4">{'\uD83D\uDD0D'}</div>
+          {category !== 'all' && (
+            <div className="mb-4">
+              <SearchBar value={search} onChange={handleSearchChange} />
+            </div>
+          )}
+          {category === 'all' ? (
+            <div className="text-center py-8">
+              <p className="font-body text-sm text-gray-400">Selecciona una categor&iacute;a para ver los productos</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12">
               <p className="font-heading font-bold text-lg text-gray-500 mb-2">No encontramos productos</p>
-              <p className="font-body text-sm text-gray-500 mb-4">Prueba con otra b&uacute;squeda o categor&iacute;a</p>
-              <button onClick={() => { handleCategoryChange('all'); handleSearchChange(''); }} className="bg-purple text-white font-heading font-semibold px-6 py-2.5 rounded-full hover:bg-purple/90 transition-colors text-sm">Ver todos los productos</button>
+              <p className="font-body text-sm text-gray-500 mb-4">Prueba con otra b&uacute;squeda</p>
+              <button onClick={() => handleSearchChange('')} className="bg-purple text-white font-heading font-semibold px-6 py-2.5 rounded-full hover:bg-purple/90 transition-colors text-sm">Limpiar b&uacute;squeda</button>
             </div>
           ) : (
             <>
