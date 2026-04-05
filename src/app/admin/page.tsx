@@ -1103,13 +1103,17 @@ function ProductsTab() {
 
       {/* Category filter */}
       <div className={`flex gap-2 flex-wrap ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
-        <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
         {ALL_CATEGORIES.map(c => (
-          <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</button>
+          <button key={c} onClick={() => setFilter(filter === c ? '' : c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</button>
         ))}
       </div>
 
       {/* Product list */}
+      {!filter && !reorderMode && !productSearch ? (
+        <div className="text-center py-6">
+          <p className="font-body text-sm text-gray-400">Selecciona una categor&iacute;a</p>
+        </div>
+      ) : (
       <div className="space-y-2">
         {(reorderMode ? products : filtered).map((product) => {
           const isEditing = editingId === product.id;
@@ -1200,6 +1204,7 @@ function ProductsTab() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
