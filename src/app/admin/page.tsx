@@ -12,22 +12,31 @@ import {
   deleteCustomProduct,
   fetchSetting,
   upsertSetting,
+  fetchProductImages,
+  upsertProductImages,
 } from '@/lib/supabase-data';
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
+import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
 
-type OrderStatus = 'nuevo' | 'confirmado' | 'deposito' | 'realizado';
+type OrderStatus = 'nuevo' | 'aprobada' | 'rechazada' | 'realizado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
   { key: 'nuevo', label: 'Nuevo', color: 'text-gray-600', bg: 'bg-gray-200' },
-  { key: 'confirmado', label: 'Confirmado', color: 'text-teal', bg: 'bg-teal' },
-  { key: 'deposito', label: 'Dep\u00f3sito', color: 'text-orange', bg: 'bg-orange' },
+  { key: 'aprobada', label: 'Aprobada', color: 'text-teal', bg: 'bg-teal' },
+  { key: 'rechazada', label: 'Rechazada', color: 'text-red-500', bg: 'bg-red-500' },
   { key: 'realizado', label: 'Realizado', color: 'text-purple', bg: 'bg-purple' },
 ];
 
 interface OrderItem {
+  id?: number;
   product_name: string;
   quantity: number;
   unit_price: number;
   line_total: number;
+}
+
+interface Deposit {
+  amount: number;
+  date: string;
 }
 
 interface Order {
@@ -50,6 +59,8 @@ interface Order {
   internal_note: string | null;
   status: OrderStatus;
   deposit_amount: number | null;
+  deposits: Deposit[];
+  discount: number;
   transport_cost_confirmed: number | null;
   created_at: string;
   confirmed: boolean;
@@ -57,8 +68,8 @@ interface Order {
 }
 
 function getOrderStatus(order: Order): OrderStatus {
-  if (order.status) return order.status;
-  return order.confirmed ? 'confirmado' : 'nuevo';
+  if (order.status) return order.status as OrderStatus;
+  return order.confirmed ? 'aprobada' : 'nuevo';
 }
 
 // Session token stored after server-side auth validation
@@ -82,7 +93,12 @@ function OrdersTab() {
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [editOrderForm, setEditOrderForm] = useState<Record<string, string>>({});
   const [depositInputs, setDepositInputs] = useState<Record<number, string>>({});
+  const [depositDateInputs, setDepositDateInputs] = useState<Record<number, string>>({});
   const [transportInputs, setTransportInputs] = useState<Record<number, string>>({});
+  const [discountInputs, setDiscountInputs] = useState<Record<number, string>>({});
+  const [editingItems, setEditingItems] = useState<number | null>(null);
+  const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
+  const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
   const [savingAction, setSavingAction] = useState<string | null>(null);
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
@@ -113,7 +129,7 @@ function OrdersTab() {
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
-    const confirmed = newStatus !== 'nuevo';
+    const confirmed = newStatus === 'aprobada' || newStatus === 'realizado';
     const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
     setSavingAction(`status-${orderId}`);
     try {
@@ -186,16 +202,102 @@ function OrdersTab() {
     finally { setSavingAction(null); }
   };
 
-  const saveDeposit = async (orderId: number) => {
+  const addDeposit = async (orderId: number) => {
     const val = Number(depositInputs[orderId]);
-    if (isNaN(val) || val < 0) return;
+    if (isNaN(val) || val <= 0) return;
+    const date = depositDateInputs[orderId] || new Date().toISOString().slice(0, 10);
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const newDeposits = [...(order.deposits || []), { amount: val, date }];
+    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
     setSavingAction(`deposit-${orderId}`);
     try {
-      if (await patchOrder({ orderId, depositAmount: val })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposit_amount: val } : o));
+      if (await patchOrder({ orderId, deposits: newDeposits, depositAmount: totalDep })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposits: newDeposits, deposit_amount: totalDep } : o));
         setDepositInputs(prev => ({ ...prev, [orderId]: '' }));
-        showToast('Dep\u00f3sito guardado');
+        showToast('Dep\u00f3sito agregado');
       } else { showToast('Error al guardar dep\u00f3sito'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const removeDeposit = async (orderId: number, index: number) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const newDeposits = (order.deposits || []).filter((_, i) => i !== index);
+    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
+    setSavingAction(`deposit-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, deposits: newDeposits, depositAmount: totalDep })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposits: newDeposits, deposit_amount: totalDep } : o));
+        showToast('Dep\u00f3sito eliminado');
+      } else { showToast('Error al eliminar dep\u00f3sito'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const saveDiscount = async (orderId: number) => {
+    const val = Number(discountInputs[orderId]);
+    if (isNaN(val) || val < 0) return;
+    setSavingAction(`discount-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, discount: val })) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, discount: val } : o));
+        setDiscountInputs(prev => ({ ...prev, [orderId]: '' }));
+        showToast('Descuento guardado');
+      } else { showToast('Error al guardar descuento'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const startEditItems = (order: Order) => {
+    setEditingItems(order.id);
+    const edits: Record<number, { quantity: string; unit_price: string }> = {};
+    for (const item of order.items) {
+      if (item.id) edits[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
+    }
+    setItemEdits(edits);
+    setNewItemForm({ name: '', qty: '1', price: '' });
+  };
+
+  const saveItemEdits = async (orderId: number) => {
+    const editItems = Object.entries(itemEdits).map(([id, vals]) => ({
+      id: Number(id),
+      quantity: Number(vals.quantity) || 1,
+      unit_price: Number(vals.unit_price) || 0,
+    }));
+    setSavingAction(`items-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, editItems })) {
+        await fetchOrders();
+        setEditingItems(null);
+        showToast('Items actualizados');
+      } else { showToast('Error al guardar items'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const handleAddItem = async (orderId: number) => {
+    if (!newItemForm.name.trim() || !newItemForm.price) return;
+    setSavingAction(`additem-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, addItem: { product_name: newItemForm.name, quantity: Number(newItemForm.qty) || 1, unit_price: Number(newItemForm.price) || 0 } })) {
+        await fetchOrders();
+        setNewItemForm({ name: '', qty: '1', price: '' });
+        showToast('Item agregado');
+      } else { showToast('Error al agregar item'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const handleRemoveItem = async (orderId: number, itemId: number) => {
+    if (!window.confirm('¿Eliminar este item?')) return;
+    setSavingAction(`removeitem-${orderId}`);
+    try {
+      if (await patchOrder({ orderId, removeItem: itemId })) {
+        await fetchOrders();
+        showToast('Item eliminado');
+      } else { showToast('Error al eliminar item'); }
     } catch { showToast('Error de conexi\u00f3n'); }
     finally { setSavingAction(null); }
   };
@@ -261,19 +363,16 @@ function OrdersTab() {
     return groups;
   }, [filteredOrders, sortMode]);
 
-  // Monthly summary
+  // Monthly summary — only confirmed orders (aprobada/realizado)
   const monthlySummary = useMemo(() => {
-    const months: Record<string, { total: number; confirmed: number; count: number; confirmedCount: number }> = {};
-    for (const o of orders) {
+    const confirmedOnly = orders.filter(o => o.confirmed);
+    const months: Record<string, { total: number; count: number }> = {};
+    for (const o of confirmedOnly) {
       const date = new Date(o.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!months[key]) months[key] = { total: 0, confirmed: 0, count: 0, confirmedCount: 0 };
+      if (!months[key]) months[key] = { total: 0, count: 0 };
       months[key].total += o.total;
       months[key].count += 1;
-      if (o.confirmed) {
-        months[key].confirmed += o.total;
-        months[key].confirmedCount += 1;
-      }
     }
     return Object.entries(months)
       .sort(([a], [b]) => b.localeCompare(a))
@@ -294,11 +393,11 @@ function OrdersTab() {
     const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
     const isEditing = editingOrderId === order.id;
     const ef = editOrderForm;
-    const needsTransport = order.event_area === 'Otra \u00e1rea' || order.transport_cost_confirmed === null;
-    const dep = order.deposit_amount ?? 0;
+    const deposits = order.deposits || [];
+    const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
 
     return (
-      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'nuevo' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'deposito' ? 'border-orange/30' : 'border-purple/30'}`}>
+      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'nuevo' ? 'border-gray-100' : st === 'aprobada' ? 'border-teal/30' : st === 'rechazada' ? 'border-red-200' : 'border-purple/30'}`}>
         <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -310,7 +409,7 @@ function OrdersTab() {
                     {order.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta'}
                   </span>
                 </div>
-                <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} \u00b7 {order.event_date}</p>
+                <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} {'·'} {order.event_date}</p>
               </div>
             </div>
             <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
@@ -368,17 +467,97 @@ function OrdersTab() {
               </div>
             )}
 
-            {/* Items */}
+            {/* Items (editable) */}
             {order.items.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between px-3 py-2 text-sm">
-                    <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                    <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                  <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
+                  {editingItems === order.id ? (
+                    <div className="flex gap-1">
+                      <button onClick={() => setEditingItems(null)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
+                      <button onClick={() => saveItemEdits(order.id)} disabled={savingAction === `items-${order.id}`} className="text-xs text-teal font-heading font-semibold hover:text-teal/80 ml-2">{savingAction === `items-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => startEditItems(order)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar factura</button>
+                  )}
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-3 py-2 text-sm gap-2">
+                      {editingItems === order.id && item.id ? (
+                        <>
+                          <span className="flex-1 truncate text-gray-700">{item.product_name}</span>
+                          <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
+                          <span className="text-gray-400 text-xs">x</span>
+                          <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
+                          <button onClick={() => handleRemoveItem(order.id, item.id!)} className="text-gray-400 hover:text-red-500 ml-1">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-gray-700">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                          <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* Add new item */}
+                {editingItems === order.id && (
+                  <div className="border-t border-gray-200 px-3 py-2 bg-gray-50/50 space-y-2">
+                    <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
+                    <div className="flex gap-1">
+                      <input type="text" value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Nombre" className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs font-body" />
+                      <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1 text-center text-xs" min="1" />
+                      <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1 text-right text-xs" min="0" step="0.01" />
+                      <button onClick={() => handleAddItem(order.id)} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === `additem-${order.id}`} className="bg-purple text-white font-heading font-semibold px-2 py-1 rounded text-xs disabled:opacity-40">+</button>
+                    </div>
                   </div>
-                ))}
+                )}
+                {/* Totals */}
+                <div className="border-t border-gray-200 px-3 py-2 space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(order.subtotal)}</span>
+                  </div>
+                  {(order.transport_cost_confirmed ?? 0) > 0 && (
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Transporte</span>
+                      <span>{formatCurrency(order.transport_cost_confirmed!)}</span>
+                    </div>
+                  )}
+                  {order.surcharge > 0 && (
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Recargo tarjeta</span>
+                      <span>{formatCurrency(order.surcharge)}</span>
+                    </div>
+                  )}
+                  {(order.discount ?? 0) > 0 && (
+                    <div className="flex justify-between text-xs text-green-600 font-semibold">
+                      <span>Descuento</span>
+                      <span>-{formatCurrency(order.discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-1">
+                    <span>Total</span>
+                    <span>{formatCurrency(order.total)}</span>
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* Discount */}
+            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-semibold text-sm text-gray-700">{'🏷️'} Descuento</span>
+                {(order.discount ?? 0) > 0 && <span className="font-heading font-bold text-sm text-green-600">-{formatCurrency(order.discount)}</span>}
+              </div>
+              <div className="flex gap-2">
+                <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-green-500 focus:outline-none" />
+                <button onClick={() => saveDiscount(order.id)} disabled={!discountInputs[order.id] || savingAction === `discount-${order.id}`} className="bg-green-600 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-green-700 transition-colors">{savingAction === `discount-${order.id}` ? 'Guardando...' : 'Aplicar'}</button>
+              </div>
+            </div>
 
             {/* Actions */}
             <div className="flex gap-2 flex-wrap">
@@ -399,32 +578,44 @@ function OrdersTab() {
               </div>
             </div>
 
-            {/* Deposit */}
+            {/* Deposits */}
             <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-heading font-semibold text-sm text-gray-700">Dep\u00f3sito recibido</span>
-                {dep > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(dep)}</span>}
+                <span className="font-heading font-semibold text-sm text-gray-700">{'💰'} Dep{'ó'}sitos</span>
+                {totalDeposits > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(totalDeposits)}</span>}
               </div>
-              {dep > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - dep)}</span></p>}
+              {deposits.length > 0 && (
+                <div className="space-y-1">
+                  {deposits.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2 py-1">
+                      <span className="font-body text-gray-600">{d.date}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
+                        <button onClick={() => removeDeposit(order.id, i)} className="text-gray-400 hover:text-red-500 text-xs">{'✕'}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - totalDeposits)}</span></p>}
               <div className="flex gap-2">
+                <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
                 <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                <button onClick={() => saveDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
+                <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+ Agregar'}</button>
               </div>
             </div>
 
-            {/* Transport confirmation */}
-            {needsTransport && (
-              <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-heading font-semibold text-sm text-gray-700">{'\uD83D\uDE9A'} Transporte</span>
-                  {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
-                </div>
-                <div className="flex gap-2">
-                  <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
-                  <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? 'Guardando...' : 'Confirmar'}</button>
-                </div>
+            {/* Transport */}
+            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-semibold text-sm text-gray-700">{'🚚'} Transporte</span>
+                {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
               </div>
-            )}
+              <div className="flex gap-2">
+                <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
+                <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -459,30 +650,24 @@ function OrdersTab() {
       {/* Monthly Summary */}
       {monthlySummary.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6 shadow-sm">
-          <h3 className="font-heading font-bold text-purple mb-3">Resumen por Mes</h3>
+          <h3 className="font-heading font-bold text-purple mb-3">Resumen por Mes (Confirmados)</h3>
           <div className="space-y-2">
             {monthlySummary.map((m) => (
               <div key={m.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <div>
                   <span className="font-heading font-bold text-gray-800">{m.label}</span>
-                  <span className="text-gray-400 text-xs ml-2 font-body">{m.count} pedidos</span>
+                  <span className="text-gray-400 text-xs ml-2 font-body">{m.count} pedido{m.count !== 1 ? 's' : ''}</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">
-                    {m.count > 0 ? `${((m.confirmedCount / m.count) * 100).toFixed(0)}%` : '0%'}
-                  </span>
-                  <div className="text-right">
-                    <p className="font-heading font-bold text-purple">{formatCurrency(m.total)}</p>
-                    <p className="text-xs font-body text-teal">Confirmados: {formatCurrency(m.confirmed)} ({m.confirmedCount})</p>
-                  </div>
+                <div className="text-right">
+                  <p className="font-heading font-bold text-purple">{formatCurrency(m.total)}</p>
                 </div>
               </div>
             ))}
             <div className="flex items-center justify-between pt-3 border-t-2 border-purple/20">
-              <span className="font-heading font-bold text-purple">Total</span>
+              <span className="font-heading font-bold text-purple">Total Confirmados</span>
               <div className="text-right">
-                <p className="font-heading font-bold text-lg text-purple">{formatCurrency(totalRevenue)}</p>
-                <p className="text-xs font-body text-teal">Confirmados: {formatCurrency(confirmedRevenue)}</p>
+                <p className="font-heading font-bold text-lg text-purple">{formatCurrency(confirmedRevenue)}</p>
+                <p className="text-xs font-body text-gray-400">{confirmedOrders} pedido{confirmedOrders !== 1 ? 's' : ''}</p>
               </div>
             </div>
           </div>
@@ -571,6 +756,8 @@ function ProductsTab() {
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
   const [imageKeys, setImageKeys] = useState<Record<string, number>>({});
+  const [imageGalleries, setImageGalleries] = useState<Record<string, string[]>>({});
+  const [reorderMode, setReorderMode] = useState(false);
 
   // ─── LOAD from constants.ts + Supabase overrides ───
   useEffect(() => {
@@ -607,7 +794,28 @@ function ProductsTab() {
           desc: cp.description || '', imgUrl: cp.image_url || '', active: cp.active, custom: true,
         }));
 
-        setProducts([...merged, ...customMapped]);
+        const allProducts = [...merged, ...customMapped];
+
+        // Apply saved order
+        const savedOrder = await fetchSetting<string[]>('product_order');
+        if (savedOrder && savedOrder.length > 0) {
+          const orderMap = new Map(savedOrder.map((id, idx) => [id, idx]));
+          allProducts.sort((a, b) => {
+            const ia = orderMap.get(a.id) ?? Infinity;
+            const ib = orderMap.get(b.id) ?? Infinity;
+            return ia - ib;
+          });
+        }
+
+        setProducts(allProducts);
+
+        // Load gallery images for all products
+        const galleries: Record<string, string[]> = {};
+        await Promise.all(allProducts.map(async (p) => {
+          const imgs = await fetchProductImages(p.id);
+          if (imgs.length > 0) galleries[p.id] = imgs;
+        }));
+        setImageGalleries(galleries);
       } catch {
         setProducts(builtIn);
       }
@@ -616,30 +824,48 @@ function ProductsTab() {
   }, []);
 
   // ─── UPLOAD IMAGE ───
-  const handleUpload = async (productId: string, file: File) => {
+  const handleUpload = async (productId: string, file: File, imageIndex = 0) => {
     if (file.size > 2 * 1024 * 1024) {
       showToast('Foto muy grande. M\u00e1ximo 2MB');
       return;
     }
-    setUploading(productId);
+    setUploading(`${productId}-${imageIndex}`);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('productId', productId);
       formData.append('folder', 'products');
+      formData.append('imageIndex', String(imageIndex));
       const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
-        setProducts(prev => prev.map(p => p.id === productId ? { ...p, imgUrl: newUrl } : p));
-        setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
 
-        const product = products.find(p => p.id === productId);
-        if (product?.custom) {
-          upsertCustomProduct({ id: productId, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: newUrl, active: product.active }).catch((e) => console.error('Save custom product error:', e));
-        } else {
-          upsertProductOverride({ id: productId, image_url: newUrl }).catch((e) => console.error('Save override error:', e));
+        if (imageIndex === 0) {
+          // Primary image — same as before
+          setProducts(prev => prev.map(p => p.id === productId ? { ...p, imgUrl: newUrl } : p));
+          setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
+          const product = products.find(p => p.id === productId);
+          if (product?.custom) {
+            upsertCustomProduct({ id: productId, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: newUrl, active: product.active }).catch((e) => console.error('Save custom product error:', e));
+          } else {
+            upsertProductOverride({ id: productId, image_url: newUrl }).catch((e) => console.error('Save override error:', e));
+          }
         }
+
+        // Update gallery array (all 3 slots)
+        const currentGallery = [...(imageGalleries[productId] || [])];
+        while (currentGallery.length <= imageIndex) currentGallery.push('');
+        currentGallery[imageIndex] = newUrl;
+        // If slot 0 updated, also sync with product main image
+        if (imageIndex === 0) {
+          const product = products.find(p => p.id === productId);
+          currentGallery[0] = product?.imgUrl || newUrl;
+        }
+        setImageGalleries(prev => ({ ...prev, [productId]: currentGallery }));
+        // Save extra images (slots 1+2) to pt_settings
+        upsertProductImages(productId, currentGallery).catch(e => console.error('Save gallery error:', e));
+
         showToast('Foto actualizada');
       } else { showToast('Error al subir foto'); }
     } catch (e) { console.error('Upload error:', e); showToast('Error de conexi\u00f3n'); }
@@ -711,6 +937,19 @@ function ProductsTab() {
     showToast('Producto eliminado');
   };
 
+  const saveOrder = (newProducts: AdminProduct[]) => {
+    upsertSetting('product_order', newProducts.map(p => p.id)).catch(e => console.error('Save order error:', e));
+  };
+
+  const moveProduct = (index: number, direction: 'up' | 'down') => {
+    const swap = direction === 'up' ? index - 1 : index + 1;
+    if (swap < 0 || swap >= products.length) return;
+    const newProducts = [...products];
+    [newProducts[index], newProducts[swap]] = [newProducts[swap], newProducts[index]];
+    setProducts(newProducts);
+    saveOrder(newProducts);
+  };
+
   const [productSearch, setProductSearch] = useState('');
 
   const filtered = products.filter(p => {
@@ -726,13 +965,18 @@ function ProductsTab() {
           <h2 className="font-heading font-bold text-xl text-purple mb-1">Productos</h2>
           <p className="font-body text-gray-500 text-sm">Edita nombre, descripción, precio, categoría y foto</p>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">
-          {showAdd ? 'Cancelar' : '+ Agregar'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-4 py-2 rounded-xl text-sm transition-colors ${reorderMode ? 'bg-teal text-white hover:bg-teal/80' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
+          </button>
+          <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">
+            {showAdd ? 'Cancelar' : '+ Agregar'}
+          </button>
+        </div>
       </div>
 
       {/* Search */}
-      <div className="relative">
+      <div className={`relative ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar producto por nombre..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
         {productSearch && (
@@ -757,7 +1001,7 @@ function ProductsTab() {
       )}
 
       {/* Category filter */}
-      <div className="flex gap-2 flex-wrap">
+      <div className={`flex gap-2 flex-wrap ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
         <button onClick={() => setFilter('')} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${!filter ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
         {ALL_CATEGORIES.map(c => (
           <button key={c} onClick={() => setFilter(c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</button>
@@ -766,29 +1010,50 @@ function ProductsTab() {
 
       {/* Product list */}
       <div className="space-y-2">
-        {filtered.map((product) => {
+        {(reorderMode ? products : filtered).map((product, productIndex) => {
           const isEditing = editingId === product.id;
           const imgSrc = product.imgUrl || `/images/products/${product.id}.png`;
+          const fullIndex = reorderMode ? productIndex : products.indexOf(product);
 
           return (
             <div key={product.id} className={`bg-white rounded-xl border p-3 transition-opacity ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'}`}>
               {/* Collapsed view */}
               <div className="flex items-center gap-3">
-                {/* Toggle */}
-                <button onClick={() => toggleActive(product.id)} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${!product.active ? 'left-1' : 'left-5'}`} />
-                </button>
-
-                {/* Image */}
-                <label className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer relative group">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img key={`${product.id}-${imageKeys[product.id] || 0}`} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                {/* Toggle or reorder arrows */}
+                {reorderMode ? (
+                  <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <button onClick={() => moveProduct(fullIndex, 'up')} disabled={fullIndex === 0} className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-purple/10 text-gray-500 hover:text-purple disabled:opacity-20 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors text-xs font-bold">{'\u2191'}</button>
+                    <button onClick={() => moveProduct(fullIndex, 'down')} disabled={fullIndex === products.length - 1} className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-purple/10 text-gray-500 hover:text-purple disabled:opacity-20 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors text-xs font-bold">{'\u2193'}</button>
                   </div>
-                  <input type="file" accept="image/*" className="hidden" disabled={uploading === product.id} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f); }} />
-                  {uploading === product.id && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-5 h-5 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
-                </label>
+                ) : (
+                  <button onClick={() => toggleActive(product.id)} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${!product.active ? 'left-1' : 'left-5'}`} />
+                  </button>
+                )}
+
+                {/* Image gallery (3 slots) */}
+                <div className="flex gap-1 flex-shrink-0">
+                  {[0, 1, 2].map(idx => {
+                    const gallery = imageGalleries[product.id] || [];
+                    const slotUrl = idx === 0 ? imgSrc : (gallery[idx] || '');
+                    const isUploading = uploading === `${product.id}-${idx}`;
+                    return (
+                      <label key={idx} className={`${idx === 0 ? 'w-12 h-12' : 'w-8 h-8'} bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group`}>
+                        {slotUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={`${product.id}-${idx}-${imageKeys[product.id] || 0}`} src={slotUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`${idx === 0 ? 'w-4 h-4' : 'w-3 h-3'} text-white opacity-0 group-hover:opacity-100 transition-opacity`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" disabled={!!uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f, idx); }} />
+                        {isUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                      </label>
+                    );
+                  })}
+                </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -1016,7 +1281,7 @@ function revalidateSite() {
 
 function WebsiteTab() {
   const { showToast } = useToast();
-  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo' | 'testimonials'>('homepage');
+  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'reels' | 'logo' | 'testimonials' | 'textos'>('homepage');
   const [savingSection, setSavingSection] = useState<string | null>(null);
 
   // ─── A) HOMEPAGE ───
@@ -1182,8 +1447,38 @@ function WebsiteTab() {
     finally { setSavingSection(null); }
   };
 
+  // ─── G) SITE TEXTS ───
+  const [siteTexts, setSiteTexts] = useState<SiteTexts>({ ...DEFAULT_SITE_TEXTS });
+  const [siteTextsLoaded, setSiteTextsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<Partial<SiteTexts>>('site_texts').then(d => {
+      if (d) setSiteTexts(prev => ({ ...prev, ...d }));
+      setSiteTextsLoaded(true);
+    }).catch((e) => { console.error('Load site texts error:', e); setSiteTextsLoaded(true); });
+  }, []);
+
+  const saveSiteTexts = async () => {
+    setSavingSection('textos');
+    try {
+      // Only save non-default values
+      const overrides: Partial<SiteTexts> = {};
+      for (const key of Object.keys(siteTexts) as (keyof SiteTexts)[]) {
+        if (siteTexts[key] && siteTexts[key] !== DEFAULT_SITE_TEXTS[key]) {
+          overrides[key] = siteTexts[key];
+        }
+      }
+      await upsertSetting('site_texts', overrides);
+      clearSiteTextsCache();
+      revalidateSite();
+      showToast('Textos guardados');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
+  };
+
   const SUB_TABS: { key: typeof section; label: string }[] = [
     { key: 'homepage', label: 'Homepage' },
+    { key: 'textos', label: 'Textos' },
     { key: 'logo', label: 'Logo' },
     { key: 'featured', label: 'Destacados' },
     { key: 'areas', label: '\u00c1reas' },
@@ -1272,7 +1567,7 @@ function WebsiteTab() {
                   <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleFeatured(p.id)} className="w-4 h-4 accent-teal" />
                   <div className="flex-1 min-w-0">
                     <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
-                    <span className="font-body text-xs text-gray-400">{p.category} \u00b7 {formatCurrency(p.price)}</span>
+                    <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>
                   </div>
                 </label>
               );
@@ -1344,6 +1639,28 @@ function WebsiteTab() {
             <button onClick={() => setTestimonials(prev => prev.length < 6 ? [...prev, { name: '', text: '', avatar: '\uD83D\uDC69' }] : prev)} disabled={testimonials.length >= 6} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors disabled:opacity-40">+ Agregar testimonio</button>
             <button onClick={saveTestimonials} disabled={savingSection === 'testimonials'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'testimonials' ? 'Guardando...' : 'Guardar Testimonios'}</button>
           </div>
+        </div>
+      )}
+
+      {/* G) Site Texts */}
+      {section === 'textos' && siteTextsLoaded && (
+        <div className="space-y-4">
+          <p className="font-body text-gray-500 text-sm">Edita los textos del carrito, checkout y dem{'á'}s p{'á'}ginas. Deja vac{'í'}o para usar el valor por defecto.</p>
+          {(Object.keys(SITE_TEXT_LABELS) as (keyof SiteTexts)[]).map(key => (
+            <div key={key}>
+              <label className="block font-heading font-semibold text-xs text-gray-500 mb-1">{SITE_TEXT_LABELS[key]}</label>
+              <input
+                value={siteTexts[key] || ''}
+                onChange={e => setSiteTexts(prev => ({ ...prev, [key]: e.target.value }))}
+                placeholder={DEFAULT_SITE_TEXTS[key]}
+                className={WI_CLS}
+              />
+              {siteTexts[key] !== DEFAULT_SITE_TEXTS[key] && siteTexts[key] && (
+                <button onClick={() => setSiteTexts(prev => ({ ...prev, [key]: DEFAULT_SITE_TEXTS[key] }))} className="text-xs text-gray-400 hover:text-gray-600 mt-0.5 font-body">Restaurar valor por defecto</button>
+              )}
+            </div>
+          ))}
+          <button onClick={saveSiteTexts} disabled={savingSection === 'textos'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'textos' ? 'Guardando...' : 'Guardar Textos'}</button>
         </div>
       )}
     </div>

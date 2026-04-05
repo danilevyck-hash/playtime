@@ -25,7 +25,7 @@ export default function Hero({ content, logoUrl }: HeroProps) {
     <ConfettiBackground className="bg-beige">
       <div className="max-w-6xl mx-auto px-4 py-16 md:py-28 text-center">
         <div className="mb-6">
-          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={200} height={80} className="h-20 w-auto object-contain mx-auto" priority />
+          <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={384} height={154} className="w-72 md:w-96 h-auto object-contain mx-auto" priority />
         </div>
 
         <h1 className="font-heading font-black text-4xl md:text-6xl text-purple mb-4 leading-tight">

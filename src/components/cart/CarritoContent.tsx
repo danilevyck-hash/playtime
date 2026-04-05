@@ -1,23 +1,30 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import CartItemComponent from '@/components/cart/CartItem';
 import CartSummary from '@/components/cart/CartSummary';
 import Button from '@/components/ui/Button';
+import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 
 export default function CarritoContent() {
   const { items, clearCart } = useCart();
+  const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
+
+  useEffect(() => {
+    getSiteTexts().then(setTexts);
+  }, []);
 
   if (items.length === 0) {
     return (
       <div className="bg-beige min-h-[60vh]">
         <div className="max-w-6xl mx-auto px-4 py-16 text-center">
           <div className="text-6xl mb-4">{'\uD83D\uDED2'}</div>
-          <h1 className="font-heading font-bold text-2xl text-gray-400 mb-2">{'\u00a1'}Tu fiesta te est&aacute; esperando!</h1>
-          <p className="font-body text-gray-400 mb-6">Explora nuestros servicios y arma algo incre&iacute;ble {'\uD83C\uDF89'}</p>
+          <h1 className="font-heading font-bold text-2xl text-gray-400 mb-2">{texts.cart_empty_title}</h1>
+          <p className="font-body text-gray-400 mb-6">{texts.cart_empty_subtitle}</p>
           <Link href="/catalogo">
-            <Button>{'\u00a1'}Arma tu fiesta! {'\uD83C\uDF89'}</Button>
+            <Button>{texts.catalog_cta}</Button>
           </Link>
         </div>
       </div>
@@ -29,20 +36,20 @@ export default function CarritoContent() {
       {/* Urgency banner */}
       <div className="bg-teal/10 rounded-2xl p-3 mb-6 text-center">
         <p className="font-heading font-semibold text-sm text-teal">
-          {'\u2705'} Reserva tu fecha &mdash; la disponibilidad es limitada
+          {texts.cart_urgency}
         </p>
       </div>
 
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-heading font-bold text-3xl text-purple">Tu fiesta en progreso {'\uD83C\uDF88'}</h1>
+          <h1 className="font-heading font-bold text-3xl text-purple">{texts.cart_title}</h1>
           <p className="font-body text-gray-500">{items.length} {items.length === 1 ? 'producto' : 'productos'}</p>
         </div>
         <button
           onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
           className="text-sm font-heading font-semibold text-gray-400 hover:text-pink transition-colors"
         >
-          Empezar de nuevo
+          {texts.cart_clear_label}
         </button>
       </div>
 
@@ -56,16 +63,16 @@ export default function CarritoContent() {
 
       <div className="bg-gray-50 rounded-xl p-4 mt-4">
         <p className="font-body text-sm text-gray-500">
-          {'\uD83D\uDE9A'} El costo de transporte, montaje y desmontaje se calcula seg&uacute;n tu &aacute;rea y se confirma en el siguiente paso.
+          {texts.cart_transport_message}
         </p>
       </div>
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
         <Link href="/catalogo" className="flex-1">
-          <Button variant="outline" className="w-full">Agregar m&aacute;s diversi&oacute;n</Button>
+          <Button variant="outline" className="w-full">{texts.cart_cta_add_more}</Button>
         </Link>
         <Link href="/checkout" className="flex-1">
-          <Button className="w-full" size="lg">Casi listo &rarr;</Button>
+          <Button className="w-full" size="lg">{texts.cart_cta_checkout} &rarr;</Button>
         </Link>
       </div>
     </div>

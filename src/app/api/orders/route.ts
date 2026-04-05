@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote, status, editFields, depositAmount, transportCostConfirmed } = body;
+    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, editItems, addItem, removeItem } = body;
 
     if (internalNote !== undefined) {
       const { error: noteError } = await db
@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (status !== undefined) {
-      const isConfirmed = status !== 'nuevo';
+      const isConfirmed = status === 'aprobada' || status === 'realizado';
       const updateData: Record<string, unknown> = { confirmed: isConfirmed };
       const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
       if (statusError) {
@@ -163,14 +163,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (depositAmount !== undefined) {
-      const { error: depError } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+    if (deposits !== undefined) {
+      const updateData: Record<string, unknown> = { deposits };
+      if (depositAmount !== undefined) updateData.deposit_amount = depositAmount;
+      const { error: depError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (depError) {
-        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
-        const currentNotes = existing?.notes || '';
-        const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCB0 Dep\u00f3sito: $${depositAmount}` }).eq('id', orderId);
+        // Fallback: update deposit_amount only if deposits column doesn't exist yet
+        if (depositAmount !== undefined) {
+          await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+        }
       }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (depositAmount !== undefined && deposits === undefined) {
+      await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
       return NextResponse.json({ ok: true });
     }
 
@@ -181,6 +188,88 @@ export async function PATCH(request: NextRequest) {
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
         await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${transportCostConfirmed}` }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (discount !== undefined) {
+      const updateData: Record<string, unknown> = { discount };
+      const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
+      if (discError) {
+        // Fallback if discount column doesn't exist yet - store in notes
+        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
+        const currentNotes = existing?.notes || '';
+        const separator = currentNotes ? '\n' : '';
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}Descuento: $${discount}` }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (editItems !== undefined) {
+      // editItems: array of { id, quantity, unit_price }
+      for (const item of editItems) {
+        const lineTotal = item.quantity * item.unit_price;
+        await db.from('pt_order_items').update({
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          line_total: lineTotal,
+        }).eq('id', item.id);
+      }
+      // Recalculate order totals
+      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (updatedItems) {
+        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
+        const transport = orderData?.transport_cost_confirmed ?? 0;
+        const disc = orderData?.discount ?? 0;
+        const subtotalWithTransport = itemsTotal + transport;
+        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+        const total = subtotalWithTransport + surcharge - disc;
+        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (addItem !== undefined) {
+      // addItem: { product_name, quantity, unit_price }
+      const lineTotal = addItem.quantity * addItem.unit_price;
+      await db.from('pt_order_items').insert({
+        order_id: orderId,
+        product_id: `manual-${Date.now()}`,
+        product_name: addItem.product_name,
+        category: 'manual',
+        quantity: addItem.quantity,
+        unit_price: addItem.unit_price,
+        line_total: lineTotal,
+      });
+      // Recalculate totals
+      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (updatedItems) {
+        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
+        const transport = orderData?.transport_cost_confirmed ?? 0;
+        const disc = orderData?.discount ?? 0;
+        const subtotalWithTransport = itemsTotal + transport;
+        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+        const total = subtotalWithTransport + surcharge - disc;
+        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (removeItem !== undefined) {
+      await db.from('pt_order_items').delete().eq('id', removeItem);
+      // Recalculate totals
+      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (updatedItems) {
+        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
+        const transport = orderData?.transport_cost_confirmed ?? 0;
+        const disc = orderData?.discount ?? 0;
+        const subtotalWithTransport = itemsTotal + transport;
+        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
+        const total = subtotalWithTransport + surcharge - disc;
+        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Product, CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
@@ -10,15 +10,29 @@ import Button from '@/components/ui/Button';
 interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
+  extraImages?: string[];
 }
 
-export default function ProductModal({ product, onClose }: ProductModalProps) {
+export default function ProductModal({ product, onClose, extraImages }: ProductModalProps) {
   const { addItem, items } = useCart();
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Build images array: main image + extra images (filtered to non-empty)
+  const allImages = product ? [
+    product.image || '',
+    ...(extraImages || []).slice(1), // skip index 0 since main image is already included
+  ].filter(Boolean) : [];
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [product]);
 
   useEffect(() => {
     if (!product) return;
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && allImages.length > 1) setActiveIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1);
+      if (e.key === 'ArrowRight' && allImages.length > 1) setActiveIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0);
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleEsc);
@@ -26,11 +40,14 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleEsc);
     };
-  }, [product, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, onClose, allImages.length]);
 
   if (!product) return null;
 
   const inCart = items.find((i) => i.productId === product.id);
+  const currentImage = allImages[activeIndex] || '';
+  const hasMultiple = allImages.length > 1;
 
   return (
     <div
@@ -56,11 +73,11 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           </svg>
         </button>
 
-        {/* Image */}
+        {/* Image with carousel */}
         <div className="relative aspect-[4/3] bg-gray-100">
-          {product.image ? (
+          {currentImage ? (
             <Image
-              src={product.image}
+              src={currentImage}
               alt={product.name}
               fill
               className="object-cover"
@@ -70,6 +87,37 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-purple/10">
               <span className="text-8xl">{CATEGORY_ICONS[product.category]}</span>
+            </div>
+          )}
+
+          {/* Navigation arrows */}
+          {hasMultiple && (
+            <>
+              <button
+                onClick={() => setActiveIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
+              >
+                <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <button
+                onClick={() => setActiveIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
+              >
+                <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </>
+          )}
+
+          {/* Dots */}
+          {hasMultiple && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveIndex(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60'}`}
+                />
+              ))}
             </div>
           )}
         </div>

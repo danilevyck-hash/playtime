@@ -158,6 +158,17 @@ export async function fetchLogoUrl(): Promise<string | null> {
   return fetchSetting<string>('site_logo_url');
 }
 
+// ─── Product Image Gallery ───
+
+export async function fetchProductImages(productId: string): Promise<string[]> {
+  const data = await fetchSetting<string[]>(`product_images_${productId}`);
+  return data || [];
+}
+
+export async function upsertProductImages(productId: string, urls: string[]): Promise<boolean> {
+  return upsertSetting(`product_images_${productId}`, urls);
+}
+
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
   const db = supabaseAdmin || supabase;
   if (!db) return false;

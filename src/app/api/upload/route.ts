@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
   // Sanitize path components to prevent traversal
   const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '');
   const safeProductId = productId.replace(/[^a-zA-Z0-9_-]/g, '');
-  const filePath = `${safeFolder}/${safeProductId}.${ext}`;
+  const imageIndex = Number(formData.get('imageIndex') || '0');
+  const suffix = imageIndex === 1 ? '_2' : imageIndex === 2 ? '_3' : '';
+  const filePath = `${safeFolder}/${safeProductId}${suffix}.${ext}`;
 
   // Upload to Supabase Storage (upsert = overwrite if exists)
   const { error } = await supabaseAdmin.storage

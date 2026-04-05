@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product, CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import { CONTACT } from '@/lib/constants';
+import { fetchProductImages } from '@/lib/supabase-data';
 import CategoryFilter from '@/components/catalog/CategoryFilter';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
@@ -68,8 +69,23 @@ export default function CatalogoContent() {
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
   const PAGE_SIZE = 12;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Load product galleries
+  useEffect(() => {
+    if (products.length === 0) return;
+    const load = async () => {
+      const galleries: Record<string, string[]> = {};
+      await Promise.all(products.map(async (p) => {
+        const imgs = await fetchProductImages(p.id);
+        if (imgs.length > 0) galleries[p.id] = imgs;
+      }));
+      setProductGalleries(galleries);
+    };
+    load();
+  }, [products]);
 
   const planes = useMemo(() => products.filter(p => p.category === 'planes'), [products]);
 
@@ -207,7 +223,7 @@ export default function CatalogoContent() {
         </>
       )}
 
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedProduct ? productGalleries[selectedProduct.id] : undefined} />
     </div>
   );
 }

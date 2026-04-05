@@ -17,9 +17,11 @@ interface Props {
   onSubmit: () => void;
   onEditStep?: (step: number) => void;
   loading: boolean;
+  submitLabel?: string;
+  loadingLabel?: string;
 }
 
-export default function OrderReview({ customer, event, paymentMethod, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading }: Props) {
+export default function OrderReview({ customer, event, paymentMethod, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading, submitLabel, loadingLabel }: Props) {
   const isTransportPending = transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : transportCost;
   const subtotalWithTransport = subtotal + effectiveTransport;
@@ -136,7 +138,7 @@ export default function OrderReview({ customer, event, paymentMethod, items, sub
           Atrás
         </Button>
         <Button onClick={onSubmit} className="flex-1" size="lg" disabled={loading}>
-          {loading ? 'Preparando magia... \u2728' : '\u00a1Reservar mi fiesta! \uD83C\uDF88'}
+          {loading ? (loadingLabel || 'Preparando magia... \u2728') : (submitLabel || '\u00a1Reservar mi fiesta! \uD83C\uDF88')}
         </Button>
       </div>
     </div>

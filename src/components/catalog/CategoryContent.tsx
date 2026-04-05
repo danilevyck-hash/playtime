@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { CATEGORIES } from '@/lib/constants';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
+import { fetchProductImages } from '@/lib/supabase-data';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
@@ -17,6 +18,20 @@ export default function CategoryContent() {
   const categoryInfo = CATEGORIES.find((c) => c.id === categoryId);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (products.length === 0) return;
+    const load = async () => {
+      const galleries: Record<string, string[]> = {};
+      await Promise.all(products.filter(p => p.category === categoryId).map(async (p) => {
+        const imgs = await fetchProductImages(p.id);
+        if (imgs.length > 0) galleries[p.id] = imgs;
+      }));
+      setProductGalleries(galleries);
+    };
+    load();
+  }, [products, categoryId]);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
@@ -73,7 +88,7 @@ export default function CategoryContent() {
         </div>
       )}
 
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedProduct ? productGalleries[selectedProduct.id] : undefined} />
     </div>
   );
 }
