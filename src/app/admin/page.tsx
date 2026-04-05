@@ -1145,16 +1145,29 @@ function ProductsTab() {
                   </button>
                 )}
 
-                {/* Single photo */}
-                <label className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img key={`${product.id}-${imageKeys[product.id] || 0}`} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  </div>
-                  <input type="file" accept="image/*" className="hidden" disabled={!!uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f, 0); }} />
-                  {uploading === `${product.id}-0` && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
-                </label>
+                {/* Image gallery (3 slots) */}
+                <div className="flex gap-1 flex-shrink-0">
+                  {[0, 1, 2].map(idx => {
+                    const gallery = imageGalleries[product.id] || [];
+                    const slotUrl = idx === 0 ? imgSrc : (gallery[idx] || '');
+                    const isUploading = uploading === `${product.id}-${idx}`;
+                    return (
+                      <label key={idx} className={`${idx === 0 ? 'w-12 h-12' : 'w-8 h-8'} bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group`}>
+                        {slotUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={`${product.id}-${idx}-${imageKeys[product.id] || 0}`} src={slotUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`${idx === 0 ? 'w-4 h-4' : 'w-3 h-3'} text-white opacity-0 group-hover:opacity-100 transition-opacity`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" disabled={!!uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f, idx); }} />
+                        {isUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                      </label>
+                    );
+                  })}
+                </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
