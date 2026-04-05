@@ -2,11 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useLogoUrl } from '@/context/LogoContext';
 import { CONTACT } from '@/lib/constants';
 
 export default function Footer() {
-  const logoUrl = useLogoUrl();
 
   return (
     <footer className="bg-purple text-white">
@@ -14,7 +12,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
-            <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={120} height={40} className="h-10 w-auto object-contain mb-3 brightness-0 invert" />
+            <Image src="/logo-white.png" alt="PlayTime" width={120} height={40} className="h-10 w-auto object-contain mb-3" />
             <p className="text-white/70 text-sm font-body leading-relaxed">
               Hacemos de cada celebraci&oacute;n un momento m&aacute;gico e inolvidable para los m&aacute;s peque&ntilde;os.
             </p>
