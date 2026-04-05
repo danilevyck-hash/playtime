@@ -6,8 +6,7 @@ import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
-import { CATEGORIES, CONTACT } from '@/lib/constants';
-import Button from '@/components/ui/Button';
+import { CONTACT } from '@/lib/constants';
 
 interface ProductCardProps {
   product: Product;
@@ -18,14 +17,12 @@ export default memo(function ProductCard({ product, onSelect }: ProductCardProps
   const { addItem, items } = useCart();
   const inCart = items.find((i) => i.productId === product.id);
   const isConsultar = product.price === 0;
-  const catLabel = CATEGORIES.find(c => c.id === product.category)?.label || product.category;
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg transition-shadow flex flex-col">
-      {/* Image - clickable to open modal */}
+    <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg transition-shadow flex flex-col">
       <button
         onClick={() => onSelect(product)}
-        className="relative aspect-square bg-gray-100 cursor-pointer group"
+        className="relative aspect-[4/3] bg-gray-100 cursor-pointer group"
       >
         {product.image ? (
           <Image
@@ -37,57 +34,53 @@ export default memo(function ProductCard({ product, onSelect }: ProductCardProps
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-teal/10">
-            <span className="text-4xl">{CATEGORY_ICONS[product.category]}</span>
+            <span className="text-3xl">{CATEGORY_ICONS[product.category]}</span>
           </div>
         )}
         {inCart && (
-          <span className="absolute top-2 right-2 text-xs font-heading font-bold text-white bg-teal px-2 py-0.5 rounded-full">
+          <span className="absolute top-1.5 right-1.5 text-[10px] font-heading font-bold text-white bg-teal px-1.5 py-0.5 rounded-full">
             x{inCart.quantity}
           </span>
         )}
       </button>
-
-      {/* Content */}
-      <div className="p-3 sm:p-4 flex flex-col flex-1">
+      <div className="p-2 sm:p-3 flex flex-col flex-1">
         <h3
-          className="font-heading font-bold text-sm sm:text-base text-gray-800 mb-0.5 line-clamp-2 cursor-pointer hover:text-purple transition-colors"
+          className="font-heading font-bold text-xs sm:text-sm text-gray-800 line-clamp-2 cursor-pointer hover:text-purple transition-colors leading-tight"
           onClick={() => onSelect(product)}
           title={product.name}
         >
           {product.name}
         </h3>
-        <span className="text-[10px] uppercase tracking-wide text-gray-400 font-heading mb-2">{catLabel}</span>
-        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
-          {isConsultar ? (
-            <span className="font-heading font-semibold text-sm text-gray-400 italic">Consultar</span>
-          ) : (
-            <span className="font-heading font-bold text-lg text-purple">
-              {formatCurrency(product.price)}
-            </span>
-          )}
+        <div className="flex items-center justify-between mt-auto pt-1.5">
           {isConsultar ? (
             <a
               href={`https://wa.me/${CONTACT.whatsapp}?text=${encodeURIComponent(`Hola! Me interesa ${product.name}. ¿Me pueden dar más información?`)}`}
               target="_blank"
               rel="noopener noreferrer"
+              className="font-heading font-semibold text-xs text-teal hover:text-teal/80"
             >
-              <Button size="sm" variant="outline">Consultar</Button>
+              Consultar
             </a>
           ) : (
-            <Button
-              size="sm"
-              onClick={() =>
-                addItem({
-                  productId: product.id,
-                  name: product.name,
-                  category: product.category,
-                  unitPrice: product.price,
-                  image: product.image,
-                })
-              }
-            >
-              {inCart ? '+' : '\u00a1Lo quiero!'}
-            </Button>
+            <>
+              <span className="font-heading font-bold text-sm sm:text-base text-purple">
+                {formatCurrency(product.price)}
+              </span>
+              <button
+                onClick={() =>
+                  addItem({
+                    productId: product.id,
+                    name: product.name,
+                    category: product.category,
+                    unitPrice: product.price,
+                    image: product.image,
+                  })
+                }
+                className="w-8 h-8 rounded-full bg-orange text-white flex items-center justify-center text-lg font-bold hover:bg-orange/90 transition-colors shrink-0"
+              >
+                +
+              </button>
+            </>
           )}
         </div>
       </div>
