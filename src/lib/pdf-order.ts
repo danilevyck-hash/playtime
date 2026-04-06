@@ -16,6 +16,7 @@ interface OrderPDFParams {
   total: number;
   paymentMethod: PaymentMethod;
   logoUrl?: string | null;
+  deposits?: { amount: number; date: string }[];
 }
 
 /** Max image size: 2MB */
@@ -284,6 +285,39 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     doc.setFontSize(7);
     doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
     doc.text('*El costo de transporte se confirmar\u00e1 por WhatsApp', m, y);
+    y += 5;
+  } else {
+    y += totBoxH + 4;
+  }
+
+  // ─── 6b. DEPOSITS SECTION ───
+  const deps = params.deposits || [];
+  const totalDeposits = deps.reduce((s, d) => s + d.amount, 0);
+  if (totalDeposits > 0) {
+    const saldo = Math.max(0, params.total - totalDeposits);
+    const depH = 10 + deps.length * 5 + 8;
+    drawSection(m, y, cw, depH, TEAL);
+    doc.setFontSize(7);
+    doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
+    doc.text('PAGOS RECIBIDOS', m + 7, y + 5);
+    doc.setFontSize(8);
+    let dy = y + 10;
+    for (const dep of deps) {
+      doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+      doc.text(dep.date, m + 7, dy);
+      doc.text(formatCurrency(dep.amount), pw - m - 7, dy, { align: 'right' });
+      dy += 5;
+    }
+    // Divider + saldo
+    dy += 1;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(m + 7, dy - 2, pw - m - 7, dy - 2);
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+    doc.text('Saldo pendiente:', m + 7, dy + 2);
+    doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+    doc.text(formatCurrency(saldo), pw - m - 7, dy + 2, { align: 'right' });
+    y += depH + 4;
   }
 
   // ─── 7. FOOTER: beige bg with color dots + contact ───

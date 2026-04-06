@@ -514,7 +514,12 @@ function OrdersTab() {
               <button onClick={async () => {
                 const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
                 const logoUrl = await fetchLogoUrl().catch(() => null);
-                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, transportCost: liveTrans > 0 ? liveTrans : -1, surcharge: liveSurch, total: liveTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl });
+                // Auto-resolve transport: use confirmed value, or area price, or 0
+                const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (EVENT_AREAS.find(a => a.name === order.event_area)?.price ?? 0) : 0);
+                const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
+                const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
+                const pdfTotal = pdfBase + pdfSurch;
+                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
                 showToast('PDF descargado');
               }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
               {/* Overflow menu with delete */}
