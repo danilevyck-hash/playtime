@@ -53,15 +53,6 @@ export default function CarritoContent() {
 
       <CartSummary />
 
-      <div className="mt-8 flex flex-col sm:flex-row gap-3">
-        <Link href="/catalogo" className="flex-1">
-          <Button variant="outline" className="w-full">{texts.cart_cta_add_more}</Button>
-        </Link>
-        <Link href="/checkout" className="flex-1">
-          <Button className="w-full" size="lg">{texts.cart_cta_checkout} &rarr;</Button>
-        </Link>
-      </div>
-
       <div className="mt-6 text-center">
         <button
           onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
@@ -69,6 +60,21 @@ export default function CarritoContent() {
         >
           {texts.cart_clear_label}
         </button>
+      </div>
+
+      {/* Spacer for sticky CTA */}
+      <div className="h-28 sm:h-0" />
+
+      {/* Sticky CTA — fixed on mobile */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 p-4 pb-safe z-40 sm:static sm:bg-transparent sm:border-0 sm:p-0 sm:mt-8 sm:backdrop-blur-none">
+        <div className="flex gap-3 max-w-4xl mx-auto">
+          <Link href="/catalogo" className="flex-1 hidden sm:block">
+            <Button variant="outline" className="w-full">{texts.cart_cta_add_more}</Button>
+          </Link>
+          <Link href="/checkout" className="flex-1">
+            <Button className="w-full" size="lg">{texts.cart_cta_checkout} &rarr;</Button>
+          </Link>
+        </div>
       </div>
     </div>
   );

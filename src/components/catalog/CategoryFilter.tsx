@@ -13,7 +13,7 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
   const categories = useCategories();
 
   return (
-    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 snap-x snap-mandatory">
       <div className="flex gap-2 w-max pb-1">
         {categories.map((cat) => {
           const Doodle = CATEGORY_DOODLES[cat.id];
@@ -22,7 +22,7 @@ export default function CategoryFilter({ selected, onSelect }: CategoryFilterPro
             <button
               key={cat.id}
               onClick={() => onSelect(cat.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-full border whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full border whitespace-nowrap shrink-0 snap-start ${
                 isActive
                   ? 'border-teal bg-teal/5 shadow-sm'
                   : 'border-gray-200 bg-white hover:border-teal/50'

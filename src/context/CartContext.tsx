@@ -134,7 +134,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     items: state.items,
     itemCount,
     subtotal,
-    addItem: (item) => { dispatch({ type: 'ADD_ITEM', payload: item }); showToast('\u2705 Agregado al carrito'); },
+    addItem: (item) => {
+      dispatch({ type: 'ADD_ITEM', payload: item });
+      showToast('\u2705 Agregado al carrito');
+      // Haptic feedback (iPhone)
+      try { navigator?.vibrate?.(10); } catch {}
+      // Subtle pop sound
+      try {
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 900;
+        gain.gain.value = 0.08;
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.05);
+      } catch {}
+    },
     removeItem: (productId) => { dispatch({ type: 'REMOVE_ITEM', payload: { productId } }); showToast('Producto eliminado del carrito'); },
     updateQuantity: (productId, quantity) => dispatch({ type: 'UPDATE_QUANTITY', payload: { productId, quantity } }),
     clearCart: () => dispatch({ type: 'CLEAR_CART' }),

@@ -35,7 +35,7 @@ interface ConfettiBackgroundProps {
 export default function ConfettiBackground({ className = '', children, patternIndex }: ConfettiBackgroundProps) {
   const idx = patternIndex ?? 0;
   // Use fewer blobs for better mobile performance
-  const visibleBlobs = typeof window !== 'undefined' && window.innerWidth < 640 ? BLOBS.slice(0, 8) : BLOBS;
+  const visibleBlobs = typeof window !== 'undefined' && window.innerWidth < 640 ? BLOBS.slice(0, 5) : BLOBS;
 
   return (
     <div className={`relative overflow-hidden ${className}`}>

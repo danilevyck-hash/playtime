@@ -85,7 +85,19 @@ export default function CatalogoContent() {
         <SearchBar value={search} onChange={handleSearchChange} />
       </div>
 
-      {filtered.length === 0 && category !== 'all' ? (
+      {products.length === 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 mt-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl overflow-hidden border border-gray-200">
+              <div className="aspect-[4/3] skeleton" />
+              <div className="p-3 space-y-2">
+                <div className="skeleton h-4 w-3/4" />
+                <div className="skeleton h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 && category !== 'all' ? (
         <div className="text-center py-12">
           <svg className="w-16 h-16 mx-auto text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <p className="font-heading font-bold text-lg text-gray-400 mb-2">No encontramos productos</p>

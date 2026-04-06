@@ -89,9 +89,11 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
             className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
           >
             <option value="">Hora</option>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => (
-              <option key={h} value={String(h)}>{h}</option>
-            ))}
+            {(() => {
+              const isPM = data.time ? parseInt(data.time.split(':')[0]) >= 12 : false;
+              const hours = isPM ? [1,2,3,4,5,6,7,8] : [8,9,10,11,12];
+              return hours.map(h => <option key={h} value={String(h)}>{h}</option>);
+            })()}
           </select>
           <span className="text-xl text-gray-400 font-bold">:</span>
           <select
@@ -152,11 +154,19 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         })()}
       </div>
 
-      {/* Address */}
+      {/* Address — auto-detect area */}
       <Input
-        label="📍 Lugar del evento"
+        label={'\uD83D\uDCCD Lugar del evento'}
         value={data.address}
-        onChange={(e) => onChange({ ...data, address: e.target.value })}
+        onChange={(e) => {
+          const val = e.target.value;
+          onChange({ ...data, address: val });
+          // Auto-detect area from address text
+          if (!data.area && val.length > 3) {
+            const match = areas.find(a => a.name !== 'Otra \u00e1rea' && val.toLowerCase().includes(a.name.toLowerCase()));
+            if (match) onChange({ ...data, address: val, area: match.name });
+          }
+        }}
         placeholder="Edificio, residencia, piso..."
       />
 

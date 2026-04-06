@@ -20,7 +20,7 @@ const chalet = localFont({
 
 
 export const viewport: Viewport = {
-  themeColor: "#580459",
+  themeColor: "#FAF3E8",
   width: "device-width",
   initialScale: 1,
 };

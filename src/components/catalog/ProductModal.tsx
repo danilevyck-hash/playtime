@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Product, ProductVariant } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
+import { useFavorites } from '@/lib/useFavorites';
 import Button from '@/components/ui/Button';
 
 interface ProductModalProps {
@@ -15,8 +16,36 @@ interface ProductModalProps {
 
 export default function ProductModal({ product, onClose, extraImages }: ProductModalProps) {
   const { addItem, items } = useCart();
+  const { toggle: toggleFav, isFavorite } = useFavorites();
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef<number | null>(null);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
+  const isDragging = useRef(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    dragStartY.current = e.touches[0].clientY;
+    isDragging.current = false;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (dragStartY.current === null) return;
+    const delta = e.touches[0].clientY - dragStartY.current;
+    if (delta > 0) {
+      isDragging.current = true;
+      setDragDeltaY(delta);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (dragDeltaY > 100) {
+      onClose();
+    }
+    setDragDeltaY(0);
+    dragStartY.current = null;
+    isDragging.current = false;
+  }, [dragDeltaY, onClose]);
 
   // Build images array: main image + extra images (filtered to non-empty)
   const allImages = product ? [
@@ -58,7 +87,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center sm:justify-center sm:p-4"
       onClick={onClose}
     >
       {/* Backdrop */}
@@ -66,9 +95,32 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-3xl overflow-hidden max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-modal-in"
+        ref={sheetRef}
+        className="relative bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-sheet-up sm:animate-modal-in"
+        style={dragDeltaY > 0 ? { transform: `translateY(${dragDeltaY}px)`, transition: 'none' } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag handle (mobile only) */}
+        <div
+          className="sm:hidden flex justify-center pt-3 pb-1"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+
+        {/* Favorite button */}
+        <button
+          onClick={() => product && toggleFav(product.id)}
+          className="absolute top-4 right-16 z-10 w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-lg hover:bg-white"
+          aria-label={product && isFavorite(product.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" stroke={product && isFavorite(product.id) ? '#F27289' : '#6b7280'} fill={product && isFavorite(product.id) ? '#F27289' : 'none'} strokeWidth={2} />
+          </svg>
+        </button>
+
         {/* Close button */}
         <button
           onClick={onClose}

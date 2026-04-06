@@ -237,6 +237,7 @@ export default function CheckoutPage() {
         </div>
       )}
 
+      <div key={step} className="animate-slide-in">
       {step === 0 && (
         <CustomerInfoForm data={customer} onChange={setCustomer} onNext={() => setStep(1)} />
       )}
@@ -260,6 +261,7 @@ export default function CheckoutPage() {
           loadingLabel={loadingStep || texts.checkout_loading}
         />
       )}
+      </div>
     </div>
   );
 }
