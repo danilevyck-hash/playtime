@@ -550,9 +550,34 @@ function OrdersTab() {
                 {/* Evento */}
                 <div>
                   <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
                     <input type="date" value={ef.event_date || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
-                    <input type="time" value={ef.event_time || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_time: e.target.value }))} className={OI_CLS} />
+                    {(() => {
+                      const raw = ef.event_time || '12:00';
+                      const [hh, mm] = raw.split(':').map(Number);
+                      const ap = hh >= 12 ? 'PM' : 'AM';
+                      const hr12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+                      const buildTime = (h: number, m: number, ampm: string) => {
+                        let h24 = h;
+                        if (ampm === 'AM' && h === 12) h24 = 0;
+                        else if (ampm === 'PM' && h !== 12) h24 = h + 12;
+                        return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                      };
+                      return (
+                        <div className="flex gap-1">
+                          <select value={hr12} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(Number(e.target.value), mm, ap) }))} className="border border-gray-200 rounded-lg py-2 px-2 font-body text-sm focus:border-purple focus:outline-none w-16">
+                            {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                          <select value={mm} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(hr12, Number(e.target.value), ap) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
+                            {[0,15,30,45].map(m => <option key={m} value={m}>:{String(m).padStart(2,'0')}</option>)}
+                          </select>
+                          <select value={ap} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(hr12, mm, e.target.value) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                          </select>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
