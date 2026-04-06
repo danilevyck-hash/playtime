@@ -180,7 +180,7 @@ export const CATEGORY_DOODLES: Record<string, React.FC<{ className?: string }>> 
   snacks: DoodleSnacks,
   softplay: DoodleGymboree,
   bounces: DoodleInflables,
-
+  ballpit: DoodlePiscinas,
   addons: DoodleAlquiler,
   creative: DoodleManualidades,
 };

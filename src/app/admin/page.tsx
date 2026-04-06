@@ -260,8 +260,17 @@ function OrdersTab() {
     if (isNaN(val) || val < 0) return;
     setSavingAction(`discount-${orderId}`);
     try {
-      if (await patchOrder({ orderId, discount: val })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, discount: val } : o));
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        body: JSON.stringify({ orderId, discount: val }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(prev => prev.map(o => o.id === orderId ? {
+          ...o, discount: val,
+          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
+        } : o));
         setDiscountInputs(prev => ({ ...prev, [orderId]: '' }));
         showToast('Descuento guardado');
       } else { showToast('Error al guardar descuento'); }
@@ -336,8 +345,17 @@ function OrdersTab() {
     if (isNaN(val) || val < 0) return;
     setSavingAction(`transport-${orderId}`);
     try {
-      if (await patchOrder({ orderId, transportCostConfirmed: val })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, transport_cost_confirmed: val } : o));
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        body: JSON.stringify({ orderId, transportCostConfirmed: val }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(prev => prev.map(o => o.id === orderId ? {
+          ...o, transport_cost_confirmed: val,
+          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
+        } : o));
         setTransportInputs(prev => ({ ...prev, [orderId]: '' }));
         showToast('Transporte confirmado');
       } else { showToast('Error al confirmar transporte'); }
@@ -651,7 +669,7 @@ function OrdersTab() {
                 <div className="flex items-center gap-3 text-xs">
                   {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">Dep: {formatCurrency(totalDeposits)}</span>}
                   {(order.transport_cost_confirmed ?? 0) > 0 && <span className="text-orange font-heading font-semibold">Trans: {formatCurrency(order.transport_cost_confirmed!)}</span>}
-                  {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(order.total - totalDeposits)}</span>}
+                  {totalDeposits > 0 && (() => { const it = order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0); const d = order.discount || 0; const t = order.transport_cost_confirmed ?? 0; const b = it - d + (t > 0 ? t : 0); const su = order.payment_method === 'credit_card' ? b * 0.05 : 0; const ct = b + su; return <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(ct - totalDeposits)}</span>; })()}
                   <span className="text-gray-400">{openSections[`pay-${order.id}`] ? '▾' : '▸'}</span>
                 </div>
               </button>
@@ -687,7 +705,7 @@ function OrdersTab() {
                         ))}
                       </div>
                     )}
-                    {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(order.total - totalDeposits)}</span></p>}
+                    {totalDeposits > 0 && (() => { const it = order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0); const d = order.discount || 0; const t = order.transport_cost_confirmed ?? 0; const b = it - d + (t > 0 ? t : 0); const su = order.payment_method === 'credit_card' ? b * 0.05 : 0; const ct = b + su; return <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(ct - totalDeposits)}</span></p>; })()}
                     <div className="flex gap-2">
                       <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
                       <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
@@ -844,7 +862,7 @@ function OrdersTab() {
 }
 
 // ─── PRODUCTS TAB ───
-const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'addons', 'creative'];
+const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'ballpit', 'addons', 'creative'];
 const INPUT_CLS = 'w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 interface AdminProduct {
@@ -1416,7 +1434,21 @@ function CatalogTab() {
                         <p>ID: <span className="text-gray-800">{cat.id}</span></p>
                         <p>Descripci&oacute;n:<span className="text-gray-800">{cat.description}</span></p>
                       </div>
-                      <button onClick={() => startEdit(cat)} className="bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => startEdit(cat)} className="bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Editar</button>
+                        {!ALL_CATEGORIES.includes(cat.id) && (
+                          <button onClick={async () => {
+                            if (!window.confirm(`¿Eliminar categoría "${cat.label}"?`)) return;
+                            const existing = await fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories') || [];
+                            await upsertSetting('custom_categories', existing.filter(c => c.id !== cat.id));
+                            const order = categories.filter(c => c.id !== cat.id).map(c => c.id);
+                            await upsertSetting('category_order', order);
+                            setCategories(prev => prev.filter(c => c.id !== cat.id));
+                            setExpandedCatId(null);
+                            showToast('Categoría eliminada');
+                          }} className="bg-red-50 text-red-500 hover:bg-red-100 font-heading font-semibold px-4 py-2 rounded-xl text-sm transition-colors">Eliminar</button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

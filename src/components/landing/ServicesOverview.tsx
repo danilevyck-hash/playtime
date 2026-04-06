@@ -10,7 +10,7 @@ const STARTING_PRICES: Record<Category, string> = {
   snacks: 'Desde $100',
   softplay: 'Desde $160',
   bounces: 'Desde $90',
-
+  ballpit: 'Desde $40',
   addons: 'Desde $2',
   creative: 'Consultar',
 };

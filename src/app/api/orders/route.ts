@@ -242,12 +242,18 @@ export async function PATCH(request: NextRequest) {
       if (isNaN(val) || val < 0) {
         return NextResponse.json({ error: 'Costo de transporte debe ser >= 0' }, { status: 400 });
       }
-      const { error: tcError } = await db.from('pt_orders').update({ transport_cost_confirmed: val }).eq('id', orderId);
-      if (tcError) {
-        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
-        const currentNotes = existing?.notes || '';
-        const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${val}` }).eq('id', orderId);
+      await db.from('pt_orders').update({ transport_cost_confirmed: val }).eq('id', orderId);
+      // Recalculate totals
+      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (updatedItems) {
+        const { data: orderData } = await db.from('pt_orders').select('discount, payment_method').eq('id', orderId).single();
+        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+          transport: val,
+          discount: orderData?.discount ?? 0,
+          paymentMethod: orderData?.payment_method ?? '',
+        });
+        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+        return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
       }
       return NextResponse.json({ ok: true });
     }
@@ -260,11 +266,22 @@ export async function PATCH(request: NextRequest) {
       const updateData: Record<string, unknown> = { discount: val };
       const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (discError) {
-        // Fallback if discount column doesn't exist yet - store in notes
         const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
         await db.from('pt_orders').update({ notes: `${currentNotes}${separator}Descuento: $${val}` }).eq('id', orderId);
+      }
+      // Recalculate totals
+      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (updatedItems) {
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, payment_method').eq('id', orderId).single();
+        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+          transport: orderData?.transport_cost_confirmed ?? 0,
+          discount: val,
+          paymentMethod: orderData?.payment_method ?? '',
+        });
+        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+        return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
       }
       return NextResponse.json({ ok: true });
     }
