@@ -20,11 +20,12 @@ import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
 import { downloadOrderPDF } from '@/lib/pdf-order';
 
-type OrderStatus = 'pendiente' | 'confirmado' | 'realizado';
+type OrderStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
   { key: 'pendiente', label: 'Pendiente', color: 'text-gray-600', bg: 'bg-gray-200' },
   { key: 'confirmado', label: 'Confirmado', color: 'text-white', bg: 'bg-teal' },
   { key: 'realizado', label: 'Realizado', color: 'text-white', bg: 'bg-purple' },
+  { key: 'rechazado', label: 'Rechazado', color: 'text-white', bg: 'bg-red-500' },
 ];
 
 interface OrderItem {
@@ -72,8 +73,9 @@ function getOrderStatus(order: Order): OrderStatus {
   // Map legacy statuses to new pipeline
   const s = order.status as string;
   if (s === 'realizado') return 'realizado';
+  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
   if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
-  if (s === 'pendiente' || s === 'nuevo' || s === 'rechazada') return 'pendiente';
+  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
   if (order.confirmed) return 'confirmado';
   return 'pendiente';
 }
@@ -140,6 +142,9 @@ function OrdersTab() {
 
   const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
     const confirmed = newStatus === 'confirmado' || newStatus === 'realizado';
+    // Skip if already in this status
+    const current = orders.find(o => o.id === orderId);
+    if (current && getOrderStatus(current) === newStatus) return;
     const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
     setSavingAction(`status-${orderId}`);
     try {
@@ -190,6 +195,10 @@ function OrdersTab() {
 
   const saveEditOrder = async (orderId: number) => {
     const f = editOrderForm;
+    // Client-side validation
+    if (!f.customer_name?.trim()) { showToast('Nombre requerido'); return; }
+    const phoneDigits = (f.customer_phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) { showToast('Teléfono inválido (7-15 dígitos)'); return; }
     const editFields = {
       customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email,
       event_date: f.event_date, event_time: f.event_time, event_area: f.event_area, event_address: f.event_address,
@@ -420,7 +429,7 @@ function OrdersTab() {
       : undefined;
 
     return (
-      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : 'border-purple/30'}`}>
+      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'rechazado' ? 'border-red-200' : 'border-purple/30'}`}>
         <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -476,7 +485,7 @@ function OrdersTab() {
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder={"Teléfono"} className={OI_CLS} />
+                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder={"Teléfono"} className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
                 </div>
                 <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email" className={OI_CLS} />
                 <div className="grid grid-cols-2 gap-2">
@@ -833,7 +842,7 @@ function OrdersTab() {
 }
 
 // ─── PRODUCTS TAB ───
-const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'ballpit', 'addons', 'creative'];
+const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'addons', 'creative'];
 const INPUT_CLS = 'w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 interface AdminProduct {

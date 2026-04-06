@@ -56,7 +56,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
     const ccInfo = COUNTRY_CODES.find(c => c.code === countryCode);
     const minDigits = ccInfo?.minDigits ?? 7;
     if (localNumber.length < minDigits) errs.phone = `Ingresa al menos ${minDigits} dígitos`;
-    if (data.email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data.email)) errs.email = 'El formato del email no es válido';
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email)) errs.email = 'El formato del email no es válido';
     setErrors(errs);
     if (Object.keys(errs).length === 0) onNext();
   };

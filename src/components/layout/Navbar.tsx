@@ -11,7 +11,7 @@ import MobileMenu from './MobileMenu';
 
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
-  { href: '/catalogo', label: 'Cat\u00e1logo' },
+  { href: '/catalogo', label: 'Explora la diversi\u00f3n' },
 ];
 
 export default function Navbar() {

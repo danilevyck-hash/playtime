@@ -18,24 +18,42 @@ interface OrderPDFParams {
   logoUrl?: string | null;
 }
 
+/** Max image size: 2MB */
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
 async function loadImageBase64(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`Logo fetch failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
     const blob = await res.blob();
+    if (blob.size > MAX_IMAGE_BYTES) {
+      console.warn(`Logo too large (${(blob.size / 1024).toFixed(0)}KB), skipping`);
+      return null;
+    }
     return new Promise(resolve => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.onerror = () => {
+        console.warn('FileReader error loading logo');
+        resolve(null);
+      };
       reader.readAsDataURL(blob);
     });
-  } catch { return null; }
+  } catch (e) {
+    console.warn('Logo load error:', e);
+    return null;
+  }
 }
 
 function fmtDate(dateStr: string): string {
   try {
-    const d = new Date(dateStr + 'T00:00:00');
+    // Parse as UTC to avoid timezone shifting the day
+    const parts = dateStr.split('-').map(Number);
     const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-    return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+    return `${parts[2]} de ${MESES[parts[1] - 1]} de ${parts[0]}`;
   } catch { return dateStr; }
 }
 
@@ -46,6 +64,11 @@ function fmtTime(timeStr: string): string {
     const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
     return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
   } catch { return timeStr; }
+}
+
+/** Round to 2 decimal places */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 // Brand colors
@@ -67,6 +90,7 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const ph = doc.internal.pageSize.getHeight();
   const m = 18;
   const cw = pw - m * 2;
+  const maxTextWidth = cw - 14; // Max width for wrapped text inside sections
   let y = 0;
 
   // Helper: section with colored left border
@@ -86,7 +110,11 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   // Logo: image if available, text fallback
   const logoData = params.logoUrl ? await loadImageBase64(params.logoUrl) : null;
   if (logoData) {
-    doc.addImage(logoData, 'PNG', m, 4, 24, 24);
+    try {
+      doc.addImage(logoData, 'PNG', m, 4, 24, 24);
+    } catch {
+      // Image format not supported, use text fallback
+    }
     doc.setFontSize(16);
     doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
     doc.text('Pedido confirmado', m + 28, 18);
@@ -112,15 +140,21 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
   doc.text(`#${params.orderNumber}`, m + 16, y + 2, { align: 'center' });
 
-  // Date
+  // Date (use UTC-safe formatting)
   doc.setFontSize(9);
   doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-  doc.text(fmtDate(new Date().toISOString().split('T')[0]), pw - m, y + 2, { align: 'right' });
+  const todayParts = new Date().toISOString().split('T')[0];
+  doc.text(fmtDate(todayParts), pw - m, y + 2, { align: 'right' });
 
   y += 12;
 
   // ─── 3. SECTION: Datos del cliente (teal left border) ───
-  const custLines = [params.customer.name, params.customer.phone];
+  doc.setFontSize(9);
+  const custLines: string[] = [];
+  // Wrap customer name if too long
+  const nameWrapped = doc.splitTextToSize(params.customer.name, maxTextWidth) as string[];
+  custLines.push(...nameWrapped);
+  custLines.push(params.customer.phone);
   if (params.customer.email) custLines.push(params.customer.email);
   const custH = 12 + custLines.length * 5;
   drawSection(m, y, cw, custH, TEAL);
@@ -133,9 +167,13 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   y += custH + 4;
 
   // ─── 4. SECTION: Detalles del evento (orange left border) ───
+  doc.setFontSize(9);
   const evLines: string[] = [];
   evLines.push(`${fmtDate(params.event.date)}  \u00b7  ${fmtTime(params.event.time)}`);
-  evLines.push(`${params.event.area ? params.event.area + ' \u2013 ' : ''}${params.event.address}`);
+  // Wrap address if too long
+  const addressText = `${params.event.area ? params.event.area + ' \u2013 ' : ''}${params.event.address}`;
+  const addressWrapped = doc.splitTextToSize(addressText, maxTextWidth) as string[];
+  evLines.push(...addressWrapped);
   if (params.event.birthdayChildName) {
     let cl = `Cumplea\u00f1ero/a: ${params.event.birthdayChildName}`;
     if (params.event.birthdayChildAge) cl += ` (${params.event.birthdayChildAge} a\u00f1os)`;
@@ -168,7 +206,7 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     item.name,
     String(item.quantity),
     formatCurrency(item.unitPrice),
-    formatCurrency(item.unitPrice * item.quantity),
+    formatCurrency(round2(item.unitPrice * item.quantity)),
   ]);
   tableBody.push([
     'Transporte, montaje y desmontaje',

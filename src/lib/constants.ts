@@ -23,7 +23,7 @@ export const CATEGORIES: { id: Category; label: string; icon: string; descriptio
   { id: 'snacks', label: 'Snack Bar', icon: '\uD83C\uDF7F', description: 'Deliciosos detalles que complementan la experiencia y encantan a grandes y peque\u00f1os.' },
   { id: 'softplay', label: 'Soft Play', icon: '\uD83C\uDFF0', description: 'Espacios dise\u00f1ados cuidadosamente donde los m\u00e1s peque\u00f1os pueden explorar, moverse y jugar con total seguridad.' },
   { id: 'bounces', label: 'Bounces', icon: '\uD83C\uDFAA', description: 'Disponibles en diferentes tama\u00f1os y colores para adaptarse a cada tipo de evento.' },
-  { id: 'ballpit', label: 'Ball Pit & Slides', icon: '\uD83D\uDD35', description: 'Disponibles en una variedad de tama\u00f1os y colores, dise\u00f1ados para brindar diversi\u00f3n, movimiento y exploraci\u00f3n.' },
+
   { id: 'addons', label: 'Add-Ons', icon: '\uD83C\uDF88', description: 'Opciones adicionales que se integran perfectamente para completar tu experiencia.' },
   { id: 'creative', label: 'Creative Studio', icon: '\uD83C\uDFA8', description: 'Una selecci\u00f3n de manualidades dise\u00f1adas por nosotros, con la posibilidad de crear experiencias personalizadas.' },
 ];
@@ -300,71 +300,6 @@ export const PRODUCTS: Product[] = [
     image: '/images/products/inflable-mini-1.png',
   },
 
-  // ═══ BALL PIT & SLIDES ═══
-  {
-    id: 'piscina-cuadrada-blanca',
-    name: 'Piscina Cuadrada Blanca de Foam',
-    category: 'ballpit',
-    description: 'Colores a escoger: blanco, rosado, azul, negro. Dimensiones: 72 x 72 pulgadas.',
-    price: 88,
-    image: '/images/products/piscina-cuadrada-blanca.png',
-  },
-  {
-    id: 'piscina-colores-60',
-    name: 'Piscina con Colores (60")',
-    category: 'ballpit',
-    description: 'Dimensiones: 60 x 60 pulgadas. Varios colores disponibles.',
-    price: 60,
-    image: '/images/products/piscina-colores-60.png',
-  },
-  {
-    id: 'piscina-redonda-grande',
-    name: 'Piscina Redonda Grande',
-    category: 'ballpit',
-    description: '3 metros de diámetro.',
-    price: 100,
-    image: '/images/products/piscina-redonda-grande.png',
-  },
-  {
-    id: 'piscina-redonda-chica',
-    name: 'Piscina Redonda Pequeña',
-    category: 'ballpit',
-    description: '1.5 metros de diámetro.',
-    price: 40,
-    image: '/images/products/piscina-redonda-grande.png',
-  },
-  {
-    id: 'piscina-peces',
-    name: 'Piscina de Peces',
-    category: 'ballpit',
-    description: '1.3 metro de diámetro.',
-    price: 85,
-    image: '/images/products/piscina-peces.png',
-  },
-  {
-    id: 'tunel-grande',
-    name: 'Túnel Grande',
-    category: 'ballpit',
-    description: 'Dimensiones: 215 x 75 x 100 cm.',
-    price: 50,
-    image: '/images/products/tunel-grande.png',
-  },
-  {
-    id: 'tunel-chico',
-    name: 'Túnel Pequeño',
-    category: 'ballpit',
-    description: 'Dimensiones: 1.50 x 0.70 x 0.50 metros.',
-    price: 45,
-    image: '/images/products/tunel-grande.png',
-  },
-  {
-    id: 'tunel-largo',
-    name: 'Túnel Largo',
-    category: 'ballpit',
-    description: 'Disponible en blanco y rosado. Dimensiones: 4.26 metros de largo.',
-    price: 40,
-    image: '/images/products/tunel-grande.png',
-  },
 
   // ═══ ADD-ONS ═══
   {

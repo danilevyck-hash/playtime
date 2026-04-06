@@ -5,7 +5,7 @@ export type Category =
   | 'snacks'
   | 'softplay'
   | 'bounces'
-  | 'ballpit'
+
   | 'addons'
   | 'creative';
 
@@ -83,7 +83,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   snacks: 'Snack Bar',
   softplay: 'Soft Play',
   bounces: 'Bounces',
-  ballpit: 'Ball Pit & Slides',
+
   addons: 'Add-Ons',
   creative: 'Creative Studio',
 };
@@ -95,7 +95,7 @@ export const CATEGORY_ICONS: Record<Category, string> = {
   snacks: '\uD83C\uDF7F',
   softplay: '\uD83C\uDFF0',
   bounces: '\uD83C\uDFAA',
-  ballpit: '\uD83D\uDD35',
+
   addons: '\uD83C\uDF88',
   creative: '\uD83C\uDFA8',
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS as DEFAULT_AREAS } from '@/lib/types';
@@ -24,7 +24,17 @@ const CHECKOUT_STORAGE_KEY = 'playtime-checkout';
 function loadCheckoutState() {
   try {
     const saved = sessionStorage.getItem(CHECKOUT_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    // Validate saved event date is not in the past
+    if (parsed?.event?.date) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (parsed.event.date < todayStr) {
+        parsed.event.date = '';
+      }
+    }
+    return parsed;
   } catch {}
   return null;
 }
@@ -33,14 +43,21 @@ function clearCheckoutState() {
   try { sessionStorage.removeItem(CHECKOUT_STORAGE_KEY); } catch {}
 }
 
+/** Round to 2 decimal places */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCart();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
   const [areasLoaded, setAreasLoaded] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     fetchEventAreas().then(setEventAreas).catch((e) => console.error('Error loading areas:', e)).finally(() => setAreasLoaded(true));
@@ -88,20 +105,30 @@ export default function CheckoutPage() {
   }
 
   const handleSubmit = async () => {
-    const total = subtotal + transportCost + (paymentMethod === 'credit_card' ? (subtotal + transportCost) * CREDIT_CARD_SURCHARGE : 0);
-    if (!window.confirm(`\u00bfConfirmar reserva por $${total.toFixed(2)}?`)) return;
+    // Prevent double submissions
+    if (submittingRef.current) return;
+
+    const effectiveTransport = isTransportPending ? 0 : transportCost;
+    const surcharge = paymentMethod === 'credit_card' ? round2((subtotal + effectiveTransport) * CREDIT_CARD_SURCHARGE) : 0;
+    const total = round2(subtotal + effectiveTransport + surcharge);
+
+    // Show itemized confirm dialog
+    const transportLine = isTransportPending ? '\nTransporte: Se confirma por WhatsApp' : (effectiveTransport > 0 ? `\nTransporte: $${effectiveTransport.toFixed(2)}` : '');
+    const surchargeLine = surcharge > 0 ? `\nRecargo tarjeta (5%): $${surcharge.toFixed(2)}` : '';
+    const pendingNote = isTransportPending ? '\n\n* El costo de transporte se confirma aparte' : '';
+    if (!window.confirm(`¿Confirmar reserva?\n\nSubtotal: $${subtotal.toFixed(2)}${transportLine}${surchargeLine}\nTotal: $${total.toFixed(2)}${isTransportPending ? '*' : ''}${pendingNote}`)) return;
+
+    submittingRef.current = true;
     setLoading(true);
     try {
-      const subtotalWithTransport = subtotal + transportCost;
-      const surcharge = paymentMethod === 'credit_card' ? subtotalWithTransport * CREDIT_CARD_SURCHARGE : 0;
-      const total = subtotalWithTransport + surcharge;
+      setLoadingStep('Guardando pedido...');
 
-      // Try to save to Supabase
-      // Generate unique order number: YYMMDD + 4 random digits (e.g. 260404-7382)
+      // Generate unique order number: YYMMDD + 4 random digits
       const now = new Date();
       const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
       const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
       let orderNumber: string | number = `${datePart}-${randPart}`;
+
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
@@ -111,9 +138,6 @@ export default function CheckoutPage() {
             event,
             paymentMethod,
             items,
-            subtotal: subtotalWithTransport,
-            surcharge,
-            total,
           }),
         });
         if (res.ok) {
@@ -128,14 +152,15 @@ export default function CheckoutPage() {
         showToast('No se pudo guardar el pedido, pero puedes continuar por WhatsApp');
       }
 
-      // Generate PDF and upload to Supabase Storage
+      // Generate PDF
+      setLoadingStep('Generando factura...');
       const pdfLogoUrl = await fetchLogoUrl().catch(() => null) || `${window.location.origin}/logo-white.png`;
       const pdfDoc = await generateOrderPDF({
         orderNumber,
         customer,
         event,
         items,
-        subtotal: subtotalWithTransport,
+        subtotal,
         transportCost: isTransportPending ? -1 : transportCost,
         surcharge,
         total,
@@ -143,6 +168,8 @@ export default function CheckoutPage() {
         logoUrl: pdfLogoUrl,
       });
 
+      // Upload PDF
+      setLoadingStep('Subiendo PDF...');
       let pdfUrl = '';
       try {
         const pdfBlob = pdfDoc.output('blob');
@@ -163,7 +190,7 @@ export default function CheckoutPage() {
         // Continue without PDF link — order still goes through WhatsApp
       }
 
-      // Build WhatsApp URL for confirmation page
+      // Build WhatsApp URL
       const message = buildWhatsAppOrderMessage({
         orderNumber,
         customerName: customer.name,
@@ -175,18 +202,15 @@ export default function CheckoutPage() {
       clearCheckoutState();
       clearCart();
 
-      // Open WhatsApp directly via location (works on mobile without popup blocker)
-      window.location.href = waUrl;
-
-      // After a short delay, redirect to confirmation page
-      setTimeout(() => {
-        router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}`);
-      }, 1000);
+      // Navigate to confirmation page first, then let user tap WhatsApp from there
+      router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}&wa=${encodeURIComponent(waUrl)}`);
     } catch (e) {
       console.error('Checkout error:', e);
       showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos');
     } finally {
       setLoading(false);
+      setLoadingStep('');
+      submittingRef.current = false;
     }
   };
 
@@ -217,7 +241,7 @@ export default function CheckoutPage() {
           onEditStep={(s) => setStep(s)}
           loading={loading}
           submitLabel={texts.checkout_submit}
-          loadingLabel={texts.checkout_loading}
+          loadingLabel={loadingStep || texts.checkout_loading}
         />
       )}
     </div>

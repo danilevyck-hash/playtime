@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
+import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 
 function isAdminAuthorized(request: NextRequest): boolean {
   // Check session token first, then fall back to PIN
@@ -10,10 +11,27 @@ function isAdminAuthorized(request: NextRequest): boolean {
   return pin === process.env.ADMIN_PIN;
 }
 
+/** Round to 2 decimal places to avoid floating-point issues */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Recalculate order totals from items, applying discount before surcharge */
+function recalcTotals(items: { line_total: number }[], opts: { transport: number; discount: number; paymentMethod: string }) {
+  const itemsTotal = round2(items.reduce((s, i) => s + i.line_total, 0));
+  const disc = Math.max(0, opts.discount);
+  const subtotalAfterDiscount = Math.max(0, itemsTotal - disc);
+  const transportVal = Math.max(0, opts.transport);
+  const base = subtotalAfterDiscount + transportVal;
+  const surcharge = opts.paymentMethod === 'credit_card' ? round2(base * CREDIT_CARD_SURCHARGE) : 0;
+  const total = round2(base + surcharge);
+  return { itemsTotal, surcharge, total };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customer, event, paymentMethod, items, subtotal, surcharge, total } = body;
+    const { customer, event, paymentMethod, items } = body;
 
     // Validate required fields
     if (!customer?.name || typeof customer.name !== 'string' || customer.name.trim().length === 0 || customer.name.length > 100) {
@@ -21,6 +39,9 @@ export async function POST(request: NextRequest) {
     }
     if (!customer?.phone || typeof customer.phone !== 'string' || customer.phone.replace(/\D/g, '').length < 7) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Teléfono requerido (mín 7 dígitos)' }, { status: 400 });
+    }
+    if (customer.phone.replace(/\D/g, '').length > 15) {
+      return NextResponse.json({ error: 'Datos inválidos', details: 'Teléfono demasiado largo' }, { status: 400 });
     }
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Se requiere al menos un producto' }, { status: 400 });
@@ -44,6 +65,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o credit_card' }, { status: 400 });
     }
 
+    // Validate each item
+    for (const item of items) {
+      if (!item.name || typeof item.name !== 'string') {
+        return NextResponse.json({ error: 'Datos inválidos', details: 'Cada producto debe tener nombre' }, { status: 400 });
+      }
+      if (typeof item.quantity !== 'number' || item.quantity < 1 || item.quantity > 999) {
+        return NextResponse.json({ error: 'Datos inválidos', details: `Cantidad inválida para ${item.name}` }, { status: 400 });
+      }
+      if (typeof item.unitPrice !== 'number' || item.unitPrice < 0) {
+        return NextResponse.json({ error: 'Datos inválidos', details: `Precio inválido para ${item.name}` }, { status: 400 });
+      }
+    }
+
+    // Recalculate totals server-side (never trust client totals)
+    const serverSubtotal = round2(items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + i.unitPrice * i.quantity, 0));
+    const serverSurcharge = paymentMethod === 'credit_card' ? round2(serverSubtotal * CREDIT_CARD_SURCHARGE) : 0;
+    const serverTotal = round2(serverSubtotal + serverSurcharge);
+
     if (!supabase) {
       // Supabase not configured, return a mock order number
       const now = new Date();
@@ -52,11 +91,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ orderNumber: `${datePart}-${randPart}` });
     }
 
-    // Insert order
+    // Insert order with server-calculated totals
     const { data: order, error: orderError } = await supabase
       .from('pt_orders')
       .insert({
-        customer_name: customer.name,
+        customer_name: customer.name.trim(),
         customer_phone: customer.phone,
         customer_email: customer.email || null,
         event_date: event.date,
@@ -66,9 +105,9 @@ export async function POST(request: NextRequest) {
         birthday_child_name: event.birthdayChildName || null,
         birthday_child_age: event.birthdayChildAge || null,
         payment_method: paymentMethod,
-        subtotal,
-        surcharge,
-        total,
+        subtotal: serverSubtotal,
+        surcharge: serverSurcharge,
+        total: serverTotal,
         notes: event.theme ? `Tema: ${event.theme}` : null,
       })
       .select('id, order_number')
@@ -79,7 +118,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
     }
 
-    // Insert order items
+    // Insert order items with server-calculated line totals
     const orderItems = items.map((item: { productId: string; name: string; category: string; quantity: number; unitPrice: number }) => ({
       order_id: order.id,
       product_id: item.productId,
@@ -87,7 +126,7 @@ export async function POST(request: NextRequest) {
       category: item.category,
       quantity: item.quantity,
       unit_price: item.unitPrice,
-      line_total: item.quantity * item.unitPrice,
+      line_total: round2(item.quantity * item.unitPrice),
     }));
 
     const { error: itemsError } = await supabase
@@ -117,6 +156,10 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, editItems, addItem, removeItem } = body;
 
+    if (!orderId || typeof orderId !== 'number') {
+      return NextResponse.json({ error: 'orderId requerido' }, { status: 400 });
+    }
+
     if (internalNote !== undefined) {
       const { error: noteError } = await db
         .from('pt_orders')
@@ -132,6 +175,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (status !== undefined) {
+      const validStatuses = ['pendiente', 'confirmado', 'realizado', 'rechazado'];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
+      }
       const isConfirmed = status === 'confirmado' || status === 'realizado';
       const updateData: Record<string, unknown> = { confirmed: isConfirmed };
       const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
@@ -143,8 +190,16 @@ export async function PATCH(request: NextRequest) {
 
     if (editFields !== undefined) {
       const mapped: Record<string, unknown> = {};
-      if (editFields.customer_name !== undefined) mapped.customer_name = editFields.customer_name;
-      if (editFields.customer_phone !== undefined) mapped.customer_phone = editFields.customer_phone;
+      if (editFields.customer_name !== undefined) {
+        const name = String(editFields.customer_name).trim();
+        if (!name || name.length > 100) return NextResponse.json({ error: 'Nombre inválido' }, { status: 400 });
+        mapped.customer_name = name;
+      }
+      if (editFields.customer_phone !== undefined) {
+        const digits = String(editFields.customer_phone).replace(/\D/g, '');
+        if (digits.length < 7 || digits.length > 15) return NextResponse.json({ error: 'Teléfono inválido (7-15 dígitos)' }, { status: 400 });
+        mapped.customer_phone = editFields.customer_phone;
+      }
       if (editFields.customer_email !== undefined) mapped.customer_email = editFields.customer_email || null;
       if (editFields.event_date !== undefined) mapped.event_date = editFields.event_date;
       if (editFields.event_time !== undefined) mapped.event_time = editFields.event_time;
@@ -168,6 +223,7 @@ export async function PATCH(request: NextRequest) {
       if (depositAmount !== undefined) updateData.deposit_amount = depositAmount;
       const { error: depError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (depError) {
+        console.error('Deposits update error (deposits column may not exist):', depError);
         // Fallback: update deposit_amount only if deposits column doesn't exist yet
         if (depositAmount !== undefined) {
           await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
@@ -182,93 +238,120 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (transportCostConfirmed !== undefined) {
-      const { error: tcError } = await db.from('pt_orders').update({ transport_cost_confirmed: transportCostConfirmed }).eq('id', orderId);
+      const val = Number(transportCostConfirmed);
+      if (isNaN(val) || val < 0) {
+        return NextResponse.json({ error: 'Costo de transporte debe ser >= 0' }, { status: 400 });
+      }
+      const { error: tcError } = await db.from('pt_orders').update({ transport_cost_confirmed: val }).eq('id', orderId);
       if (tcError) {
         const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${transportCostConfirmed}` }).eq('id', orderId);
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDE9A Transporte confirmado: $${val}` }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (discount !== undefined) {
-      const updateData: Record<string, unknown> = { discount };
+      const val = Number(discount);
+      if (isNaN(val) || val < 0) {
+        return NextResponse.json({ error: 'Descuento debe ser >= 0' }, { status: 400 });
+      }
+      const updateData: Record<string, unknown> = { discount: val };
       const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (discError) {
         // Fallback if discount column doesn't exist yet - store in notes
         const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}Descuento: $${discount}` }).eq('id', orderId);
+        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}Descuento: $${val}` }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (editItems !== undefined) {
+      // Validate items
+      for (const item of editItems) {
+        if (!item.id || typeof item.quantity !== 'number' || item.quantity < 1 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
+          return NextResponse.json({ error: 'Datos de item inválidos' }, { status: 400 });
+        }
+      }
       // editItems: array of { id, quantity, unit_price }
       for (const item of editItems) {
-        const lineTotal = item.quantity * item.unit_price;
+        const lineTotal = round2(item.quantity * item.unit_price);
         await db.from('pt_order_items').update({
           quantity: item.quantity,
           unit_price: item.unit_price,
           line_total: lineTotal,
-        }).eq('id', item.id);
+        }).eq('id', item.id).eq('order_id', orderId); // Validate ownership
       }
-      // Recalculate order totals
+      // Recalculate order totals (discount before surcharge)
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
-        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
-        const transport = orderData?.transport_cost_confirmed ?? 0;
-        const disc = orderData?.discount ?? 0;
-        const subtotalWithTransport = itemsTotal + transport;
-        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
-        const total = subtotalWithTransport + surcharge - disc;
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+          transport: orderData?.transport_cost_confirmed ?? 0,
+          discount: orderData?.discount ?? 0,
+          paymentMethod: orderData?.payment_method ?? '',
+        });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (addItem !== undefined) {
+      // Validate
+      if (!addItem.product_name || typeof addItem.product_name !== 'string' || addItem.product_name.trim().length === 0) {
+        return NextResponse.json({ error: 'Nombre de producto requerido' }, { status: 400 });
+      }
+      if (addItem.product_name.length > 200) {
+        return NextResponse.json({ error: 'Nombre de producto demasiado largo' }, { status: 400 });
+      }
+      const qty = Number(addItem.quantity);
+      const price = Number(addItem.unit_price);
+      if (isNaN(qty) || qty < 1 || qty > 999) {
+        return NextResponse.json({ error: 'Cantidad debe ser entre 1 y 999' }, { status: 400 });
+      }
+      if (isNaN(price) || price < 0 || price > 99999) {
+        return NextResponse.json({ error: 'Precio inválido' }, { status: 400 });
+      }
       // addItem: { product_name, quantity, unit_price }
-      const lineTotal = addItem.quantity * addItem.unit_price;
+      const lineTotal = round2(qty * price);
       await db.from('pt_order_items').insert({
         order_id: orderId,
         product_id: `manual-${Date.now()}`,
-        product_name: addItem.product_name,
+        product_name: addItem.product_name.trim(),
         category: 'manual',
-        quantity: addItem.quantity,
-        unit_price: addItem.unit_price,
+        quantity: qty,
+        unit_price: price,
         line_total: lineTotal,
       });
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
-        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
-        const transport = orderData?.transport_cost_confirmed ?? 0;
-        const disc = orderData?.discount ?? 0;
-        const subtotalWithTransport = itemsTotal + transport;
-        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
-        const total = subtotalWithTransport + surcharge - disc;
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+          transport: orderData?.transport_cost_confirmed ?? 0,
+          discount: orderData?.discount ?? 0,
+          paymentMethod: orderData?.payment_method ?? '',
+        });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
     }
 
     if (removeItem !== undefined) {
-      await db.from('pt_order_items').delete().eq('id', removeItem);
+      // Validate ownership before deleting
+      await db.from('pt_order_items').delete().eq('id', removeItem).eq('order_id', orderId);
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('surcharge, transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
-        const itemsTotal = updatedItems.reduce((s: number, i: { line_total: number }) => s + i.line_total, 0);
-        const transport = orderData?.transport_cost_confirmed ?? 0;
-        const disc = orderData?.discount ?? 0;
-        const subtotalWithTransport = itemsTotal + transport;
-        const surcharge = orderData?.payment_method === 'credit_card' ? subtotalWithTransport * 0.05 : 0;
-        const total = subtotalWithTransport + surcharge - disc;
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+          transport: orderData?.transport_cost_confirmed ?? 0,
+          discount: orderData?.discount ?? 0,
+          paymentMethod: orderData?.payment_method ?? '',
+        });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
       }
       return NextResponse.json({ ok: true });
@@ -301,11 +384,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ orders: [], message: 'Supabase not configured' });
     }
 
+    const url = new URL(request.url);
+    const limit = Math.min(Number(url.searchParams.get('limit')) || 200, 500);
+    const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+
     const { data: orders, error } = await db
       .from('pt_orders')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Orders fetch error:', error);
