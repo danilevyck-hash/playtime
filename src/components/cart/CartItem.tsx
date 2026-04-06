@@ -26,7 +26,10 @@ export default function CartItem({ item }: CartItemProps) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <h3 className="font-heading font-semibold text-gray-800 truncate">{item.name}</h3>
+        <h3 className="font-heading font-semibold text-gray-800 truncate">{item.name.includes(' — ') ? item.name.split(' — ')[0] : item.name}</h3>
+        {item.name.includes(' — ') && (
+          <span className="inline-block text-[10px] font-heading font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mt-0.5">{item.name.split(' — ')[1]}</span>
+        )}
         <p className="text-sm font-body font-normal text-gray-500">{formatCurrency(item.unitPrice)} c/u</p>
       </div>
 

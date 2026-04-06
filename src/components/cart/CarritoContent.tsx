@@ -40,17 +40,9 @@ export default function CarritoContent() {
         </p>
       </div>
 
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="font-heading font-bold text-3xl text-purple">{texts.cart_title}</h1>
-          <p className="font-body text-gray-500">{items.length} {items.length === 1 ? 'producto' : 'productos'}</p>
-        </div>
-        <button
-          onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
-          className="text-sm font-heading font-semibold text-gray-400 hover:text-pink transition-colors"
-        >
-          {texts.cart_clear_label}
-        </button>
+      <div className="mb-8">
+        <h1 className="font-heading font-bold text-3xl text-purple">{texts.cart_title}</h1>
+        <p className="font-body text-gray-500">{items.length} {items.length === 1 ? 'producto' : 'productos'}</p>
       </div>
 
       <div className="mb-8">
@@ -74,6 +66,15 @@ export default function CarritoContent() {
         <Link href="/checkout" className="flex-1">
           <Button className="w-full" size="lg">{texts.cart_cta_checkout} &rarr;</Button>
         </Link>
+      </div>
+
+      <div className="mt-6 text-center">
+        <button
+          onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
+          className="text-xs font-body text-gray-400 hover:text-pink transition-colors"
+        >
+          {texts.cart_clear_label}
+        </button>
       </div>
     </div>
   );

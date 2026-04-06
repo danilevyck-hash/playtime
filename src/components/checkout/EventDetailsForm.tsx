@@ -104,9 +104,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
           >
             <option value="">Min</option>
             <option value="00">00</option>
-            <option value="15">15</option>
             <option value="30">30</option>
-            <option value="45">45</option>
           </select>
           <select
             value={data.time ? (parseInt(data.time.split(':')[0]) >= 12 ? 'PM' : 'AM') : ''}
@@ -162,20 +160,15 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         placeholder="Edificio, residencia, piso..."
       />
 
-      {/* Birthday child - collapsible, closed by default */}
-      <details className="group">
-        <summary className="font-heading font-semibold text-sm text-gray-400 cursor-pointer hover:text-purple transition-colors list-none flex items-center gap-2">
-          <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-          {'\uD83C\uDF82'} Datos del cumpleañero/a (opcional)
-        </summary>
-        <div className="space-y-3 mt-3">
-          <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
-            <Input label="Temática" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
-          </div>
+      {/* Birthday child — always visible, optional */}
+      <div className="space-y-3 pt-2">
+        <p className="font-heading font-semibold text-sm text-gray-400">{'\uD83C\uDF82'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
+        <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumplea\u00f1ero/a" />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
+          <Input label="Tem{'á'}tica" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
         </div>
-      </details>
+      </div>
 
       <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>

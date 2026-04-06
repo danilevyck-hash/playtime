@@ -12,7 +12,7 @@ import { useToast } from '@/context/ToastContext';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
 import EventDetailsForm from '@/components/checkout/EventDetailsForm';
-import PaymentMethodForm from '@/components/checkout/PaymentMethodForm';
+
 import OrderReview from '@/components/checkout/OrderReview';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
@@ -226,17 +226,15 @@ export default function CheckoutPage() {
         <EventDetailsForm data={event} onChange={setEvent} onNext={() => setStep(2)} onBack={() => setStep(0)} areasLoaded={areasLoaded} eventAreas={eventAreas} />
       )}
       {step === 2 && (
-        <PaymentMethodForm selected={paymentMethod} onChange={setPaymentMethod} onNext={() => setStep(3)} onBack={() => setStep(1)} />
-      )}
-      {step === 3 && (
         <OrderReview
           customer={customer}
           event={event}
           paymentMethod={paymentMethod}
+          onPaymentMethodChange={setPaymentMethod}
           items={items}
           subtotal={subtotal}
           transportCost={isTransportPending ? -1 : transportCost}
-          onBack={() => setStep(2)}
+          onBack={() => setStep(1)}
           onSubmit={handleSubmit}
           onEditStep={(s) => setStep(s)}
           loading={loading}

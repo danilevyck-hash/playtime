@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
 import { fetchProductImages } from '@/lib/supabase-data';
@@ -12,11 +12,20 @@ import ProductModal from '@/components/catalog/ProductModal';
 export default function CatalogoContent() {
   const products = useProducts();
   const [category, setCategory] = useState<Category | 'all'>('all');
+  const [initialSet, setInitialSet] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
   const PAGE_SIZE = 12;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Auto-select first category when products load
+  useEffect(() => {
+    if (!initialSet && products.length > 0) {
+      const firstCat = products[0]?.category;
+      if (firstCat) { setCategory(firstCat); setInitialSet(true); }
+    }
+  }, [products, initialSet]);
 
   useEffect(() => {
     if (products.length === 0) return;
@@ -44,6 +53,19 @@ export default function CatalogoContent() {
 
   const visibleProducts = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setVisibleCount(prev => prev + PAGE_SIZE);
+    }, { rootMargin: '200px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, filtered.length]);
 
   const handleCategoryChange = useCallback((cat: Category | 'all') => {
     setCategory(cat);
@@ -70,20 +92,15 @@ export default function CatalogoContent() {
         <CategoryFilter selected={category} onSelect={handleCategoryChange} />
       </div>
 
-      {category !== 'all' && (
-        <div className="mb-4">
-          <SearchBar value={search} onChange={handleSearchChange} />
-        </div>
-      )}
+      <div className="mb-4">
+        <SearchBar value={search} onChange={handleSearchChange} />
+      </div>
 
-      {category === 'all' ? (
-        <div className="text-center py-8">
-          <p className="font-body text-sm text-gray-400">Selecciona una categor&iacute;a para ver los productos</p>
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 && category !== 'all' ? (
         <div className="text-center py-12">
-          <p className="font-heading font-bold text-lg text-gray-500 mb-2">No encontramos productos</p>
-          <p className="font-body text-sm text-gray-500 mb-4">Prueba con otra b&uacute;squeda</p>
+          <svg className="w-16 h-16 mx-auto text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <p className="font-heading font-bold text-lg text-gray-400 mb-2">No encontramos productos</p>
+          <p className="font-body text-sm text-gray-400 mb-4">Prueba con otra b&uacute;squeda</p>
           <button onClick={() => handleSearchChange('')} className="bg-purple text-white font-heading font-semibold px-6 py-2.5 rounded-full hover:bg-purple/90 transition-colors text-sm">Limpiar b&uacute;squeda</button>
         </div>
       ) : (
@@ -93,16 +110,7 @@ export default function CatalogoContent() {
               <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
             ))}
           </div>
-          {hasMore && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
-                className="bg-purple/10 text-purple font-heading font-bold px-8 py-3 rounded-2xl hover:bg-purple/20 transition-colors"
-              >
-                Ver m&aacute;s ({filtered.length - visibleCount})
-              </button>
-            </div>
-          )}
+          {hasMore && <div ref={loadMoreRef} className="h-8" />}
         </>
       )}
 

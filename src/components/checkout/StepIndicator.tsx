@@ -1,6 +1,6 @@
 'use client';
 
-const STEPS = ['Datos', 'Evento', 'Pago', 'Confirmar'];
+const STEPS = ['Datos', 'Evento', 'Confirmar'];
 
 interface StepIndicatorProps {
   current: number;

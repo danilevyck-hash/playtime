@@ -23,6 +23,14 @@ function ConfirmacionContent() {
     fetchLogoUrl().then(u => { if (u) setLogoUrl(u); else setLogoUrl('/logo.png'); }).catch(() => setLogoUrl('/logo.png'));
   }, []);
 
+  // Auto-open WhatsApp after a brief delay
+  useEffect(() => {
+    if (waParam) {
+      const timer = setTimeout(() => { window.open(waParam, '_blank'); }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [waParam]);
+
   const copyBank = () => {
     navigator.clipboard.writeText(`${BANK_INFO.bank} | ${BANK_INFO.name} | ${BANK_INFO.accountType}: ${BANK_INFO.accountNumber}`);
     setCopied(true);
