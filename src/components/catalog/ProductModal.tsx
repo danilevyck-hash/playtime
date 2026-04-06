@@ -134,7 +134,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
 
         {/* Image with carousel — hidden if no images */}
         {allImages.length > 0 ? (
-        <div className="relative aspect-[16/9] bg-gray-100">
+        <div className="relative aspect-[4/3] sm:aspect-[16/9] bg-gray-100">
           <Image
             src={currentImage}
             alt={product.name}

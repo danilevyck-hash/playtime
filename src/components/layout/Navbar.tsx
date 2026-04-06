@@ -17,7 +17,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
-  const pageTitle = pathname === '/catalogo' || pathname.startsWith('/catalogo/') ? 'Cat\u00e1logo'
+  const pageTitle = pathname === '/catalogo' || pathname.startsWith('/catalogo/') ? 'Experiencias'
     : pathname === '/carrito' ? 'Carrito'
     : pathname === '/checkout' ? 'Checkout'
     : null;

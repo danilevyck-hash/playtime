@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
@@ -17,6 +17,8 @@ interface ProductCardProps {
 export default memo(function ProductCard({ product, onSelect, index = 0 }: ProductCardProps & { index?: number }) {
   const { addItem, items } = useCart();
   const { toggle, isFavorite } = useFavorites();
+  const [imgLoaded, setImgLoaded] = useState(false);
+  useEffect(() => { setImgLoaded(false); }, [product.image]);
   const inCart = items.find((i) => i.productId === product.id);
   const isConsultar = product.price === 0;
   const fav = isFavorite(product.id);
@@ -29,12 +31,14 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
       >
         {product.image ? (
           <Image
+            key={product.image}
             src={product.image}
             alt={product.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            className={`object-cover group-hover:scale-105 transition-all duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             loading="lazy"
+            onLoad={() => setImgLoaded(true)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-teal/10">
@@ -92,9 +96,9 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
                     image: product.image,
                   })
                 }
-                className="w-8 h-8 rounded-full bg-orange text-white flex items-center justify-center text-lg font-bold hover:bg-orange/90 transition-colors shrink-0"
+                className="rounded-full bg-orange text-white px-3 py-1.5 font-heading font-semibold text-[10px] sm:text-xs hover:bg-orange/90 transition-colors shrink-0"
               >
-                +
+                Lo quiero
               </button>
             </>
           )}
