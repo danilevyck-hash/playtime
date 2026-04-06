@@ -17,6 +17,7 @@ import OrderReview from '@/components/checkout/OrderReview';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { formatCurrency } from '@/lib/format';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 
 const CHECKOUT_STORAGE_KEY = 'playtime-checkout';
@@ -199,6 +200,15 @@ export default function CheckoutPage() {
       });
 
       const waUrl = getWhatsAppUrl(message);
+      try {
+        sessionStorage.setItem('playtime-order-summary', JSON.stringify({
+          items: items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+          total,
+          date: event.date,
+          time: event.time,
+        }));
+      } catch {}
+
       clearCheckoutState();
       clearCart();
 
@@ -218,6 +228,14 @@ export default function CheckoutPage() {
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
       <h1 className="font-heading font-bold text-3xl text-purple mb-6 text-center">{texts.checkout_title}</h1>
       <StepIndicator current={step} />
+
+      {/* Mini order summary — visible on steps 0-1 */}
+      {step < 2 && items.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-3 mb-6 flex items-center justify-between text-sm">
+          <span className="font-body text-gray-500">{items.reduce((s, i) => s + i.quantity, 0)} art{'\u00ed'}culos</span>
+          <span className="font-heading font-bold text-purple">{formatCurrency(subtotal)}</span>
+        </div>
+      )}
 
       {step === 0 && (
         <CustomerInfoForm data={customer} onChange={setCustomer} onNext={() => setStep(1)} />

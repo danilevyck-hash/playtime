@@ -7,8 +7,9 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export default function Input({ label, error, className = '', required, ...props }: InputProps) {
+export default function Input({ label, error, className = '', required, value, ...props }: InputProps) {
   const ref = useRef<HTMLInputElement>(null);
+  const hasValue = value !== undefined && value !== '';
 
   useEffect(() => {
     if (ref.current) {
@@ -27,15 +28,23 @@ export default function Input({ label, error, className = '', required, ...props
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-sm font-heading font-semibold text-gray-700">
-        {label}
-      </label>
-      <input
-        ref={ref}
-        required={required}
-        className={`w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white font-body text-gray-800 placeholder:text-gray-400 focus:border-teal focus:outline-none transition-colors ${error ? 'border-pink' : ''} ${className}`}
-        {...props}
-      />
+      <div className="relative">
+        <input
+          ref={ref}
+          required={required}
+          value={value}
+          placeholder=" "
+          className={`peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-gray-200 bg-white font-body text-gray-800 focus:border-teal focus:outline-none transition-colors ${error ? 'border-pink' : ''} ${className}`}
+          {...props}
+        />
+        <label className={`absolute left-4 transition-all pointer-events-none font-heading font-semibold ${
+          hasValue
+            ? 'top-1.5 text-[10px] text-teal'
+            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400 peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[10px] peer-focus:text-teal peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-teal'
+        }`}>
+          {label}
+        </label>
+      </div>
       {error && (
         <span className="text-xs text-pink font-body flex items-center gap-1">
           <span className="text-pink">*</span> {error}

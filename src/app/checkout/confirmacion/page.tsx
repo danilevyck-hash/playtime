@@ -9,6 +9,13 @@ import { BANK_INFO, CONTACT } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
 
+interface OrderSummaryData {
+  items: { name: string; quantity: number; unitPrice: number }[];
+  total: number;
+  date: string;
+  time?: string;
+}
+
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const pedido = searchParams.get('pedido');
@@ -18,9 +25,14 @@ function ConfirmacionContent() {
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [orderSummary, setOrderSummary] = useState<OrderSummaryData | null>(null);
 
   useEffect(() => {
     fetchLogoUrl().then(u => { if (u) setLogoUrl(u); else setLogoUrl('/logo.png'); }).catch(() => setLogoUrl('/logo.png'));
+    try {
+      const raw = sessionStorage.getItem('playtime-order-summary');
+      if (raw) setOrderSummary(JSON.parse(raw));
+    } catch {}
   }, []);
 
   // Auto-open WhatsApp after a brief delay
@@ -69,6 +81,31 @@ function ConfirmacionContent() {
           </p>
         </div>
 
+        {orderSummary && (
+          <details className="bg-white rounded-xl border border-gray-100 text-left max-w-sm mx-auto">
+            <summary className="font-heading font-bold text-sm text-purple cursor-pointer p-4">
+              Ver resumen de tu pedido
+            </summary>
+            <div className="px-4 pb-4 space-y-2">
+              {orderSummary.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between font-body text-sm text-gray-600">
+                  <span>{item.name} &times; {item.quantity}</span>
+                  <span>${(item.quantity * item.unitPrice).toFixed(2)}</span>
+                </div>
+              ))}
+              {orderSummary.date && (
+                <p className="font-body text-sm text-gray-500 pt-2 border-t border-gray-100">
+                  Fecha del evento: {orderSummary.date}
+                </p>
+              )}
+              <div className="flex justify-between font-heading font-bold text-sm text-purple pt-2 border-t border-gray-100">
+                <span>Total</span>
+                <span>${orderSummary.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </details>
+        )}
+
         {showBankInfo && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-2 shadow-sm">
             <p className="font-heading font-bold text-sm text-gray-800">Para confirmar tu reserva, env&iacute;a el dep&oacute;sito a:</p>
@@ -96,6 +133,39 @@ function ConfirmacionContent() {
           <Link href="/">
             <Button variant="ghost" size="md" className="w-full">Volver al inicio</Button>
           </Link>
+          <button
+            type="button"
+            className="text-sm text-gray-500 hover:text-purple transition-colors font-body underline"
+            onClick={() => {
+              const eventDate = orderSummary?.date || '';
+              const eventTime = orderSummary?.time || '12:00';
+              const [hours, minutes] = eventTime.split(':').map(Number);
+              const dateStr = eventDate.replace(/-/g, '');
+              const timeStr = `${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
+              const dtStart = dateStr ? `${dateStr}T${timeStr}` : new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
+              const icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'BEGIN:VEVENT',
+                `DTSTART:${dtStart}`,
+                `SUMMARY:PlayTime Fiesta #${pedido || ''}`,
+                'DESCRIPTION:Pedido PlayTime',
+                'END:VEVENT',
+                'END:VCALENDAR',
+              ].join('\r\n');
+              const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `playtime-fiesta-${pedido || 'evento'}.ics`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Agregar al calendario
+          </button>
         </div>
 
         <p className="font-body text-sm text-gray-500">

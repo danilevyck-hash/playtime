@@ -13,13 +13,13 @@ interface ProductCardProps {
   onSelect: (product: Product) => void;
 }
 
-export default memo(function ProductCard({ product, onSelect }: ProductCardProps) {
+export default memo(function ProductCard({ product, onSelect, index = 0 }: ProductCardProps & { index?: number }) {
   const { addItem, items } = useCart();
   const inCart = items.find((i) => i.productId === product.id);
   const isConsultar = product.price === 0;
 
   return (
-    <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg transition-shadow flex flex-col">
+    <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg transition-all active:scale-[0.98] flex flex-col animate-slide-up" style={{ animationDelay: `${Math.min(index * 50, 400)}ms`, animationFillMode: 'both' }}>
       <button
         onClick={() => onSelect(product)}
         className="relative aspect-[4/3] bg-gray-100 cursor-pointer group"

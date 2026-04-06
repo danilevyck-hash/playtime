@@ -13,7 +13,7 @@ export default function CartItem({ item }: CartItemProps) {
   const { updateQuantity, removeItem } = useCart();
 
   return (
-    <div className="flex items-center gap-3 py-4 border-b border-gray-100">
+    <div className="flex items-center gap-3 py-3 bg-white rounded-xl px-3">
       {/* Product image */}
       <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
         {item.image ? (

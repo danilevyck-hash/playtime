@@ -45,19 +45,13 @@ export default function CarritoContent() {
         <p className="font-body text-gray-500">{items.length} {items.length === 1 ? 'producto' : 'productos'}</p>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-8 space-y-2">
         {items.map((item) => (
           <CartItemComponent key={item.productId} item={item} />
         ))}
       </div>
 
       <CartSummary />
-
-      <div className="bg-gray-50 rounded-xl p-4 mt-4">
-        <p className="font-body text-sm text-gray-500">
-          {texts.cart_transport_message}
-        </p>
-      </div>
 
       <div className="mt-8 flex flex-col sm:flex-row gap-3">
         <Link href="/catalogo" className="flex-1">

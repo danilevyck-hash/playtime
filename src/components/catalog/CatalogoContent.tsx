@@ -95,8 +95,8 @@ export default function CatalogoContent() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-            {visibleProducts.map((product) => (
-              <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} />
+            {visibleProducts.map((product, i) => (
+              <ProductCard key={product.id} product={product} onSelect={setSelectedProduct} index={i} />
             ))}
           </div>
           {hasMore && <div ref={loadMoreRef} className="h-8" />}

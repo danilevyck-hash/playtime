@@ -5,7 +5,7 @@ import { CONTACT } from '@/lib/constants';
 
 export default function Footer() {
   return (
-    <footer className="bg-purple text-white">
+    <footer className="bg-purple text-white pb-safe">
       <div className="max-w-6xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
