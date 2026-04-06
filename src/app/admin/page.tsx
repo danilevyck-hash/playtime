@@ -95,7 +95,7 @@ function OrdersTab() {
   const [error, setError] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
   const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
   const [noteInputs, setNoteInputs] = useState<Record<number, string>>({});
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -364,7 +364,8 @@ function OrdersTab() {
   const filteredOrders = useMemo(() => {
     let result = orders;
     if (statusFilter === 'confirmed') result = result.filter(o => o.confirmed);
-    else if (statusFilter === 'pending') result = result.filter(o => !o.confirmed);
+    else if (statusFilter === 'pending') result = result.filter(o => !o.confirmed && getOrderStatus(o) !== 'rechazado');
+    else if (statusFilter === 'rejected') result = result.filter(o => getOrderStatus(o) === 'rechazado');
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter(o =>
@@ -414,6 +415,7 @@ function OrdersTab() {
 
   const totalOrders = orders.length;
   const confirmedOrders = orders.filter(o => o.confirmed).length;
+  const rejectedOrders = orders.filter(o => getOrderStatus(o) === 'rechazado').length;
   const confirmedRevenue = orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0);
 
   const renderOrderCard = (order: Order) => {
@@ -768,7 +770,7 @@ function OrdersTab() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${totalOrders - confirmedOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`]] as const).map(([key, label]) => (
+        {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${totalOrders - confirmedOrders - rejectedOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setStatusFilter(key)} className={`px-3 py-1 rounded-full font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {label}
           </button>
