@@ -86,7 +86,15 @@ let _adminToken = '';
 let _adminPin = '';
 
 // ─── ORDERS TAB ───
-const OI_CLS = 'w-full border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none';
+const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
+
+function fmtTime12h(t: string) {
+  try {
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'PM' : 'AM';
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')} ${ap}`;
+  } catch { return t; }
+}
 
 function OrdersTab() {
   const { showToast } = useToast();
@@ -112,6 +120,7 @@ function OrdersTab() {
   const [savingAction, setSavingAction] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -443,302 +452,304 @@ function OrdersTab() {
     const ef = editOrderForm;
     const deposits = order.deposits || [];
     const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
-    // Auto-suggest transport cost from area price if not yet confirmed
     const areaSuggestion = order.transport_cost_confirmed === null && order.event_area
       ? EVENT_AREAS.find(a => a.name === order.event_area)?.price
       : undefined;
 
+    // Live-calculated totals (single source of truth)
+    const liveItemsTotal = order.items.reduce((s, i) => {
+      if (editingItems === order.id && i.id && itemEdits[i.id]) {
+        return s + (Number(itemEdits[i.id].unit_price) || 0) * (Number(itemEdits[i.id].quantity) || 1);
+      }
+      return s + i.unit_price * i.quantity;
+    }, 0);
+    const liveDisc = order.discount || 0;
+    const liveTrans = order.transport_cost_confirmed ?? 0;
+    const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
+    const liveSurch = order.payment_method === 'credit_card' ? liveBase * 0.05 : 0;
+    const liveTotal = liveBase + liveSurch;
+    const payMethodLabel = order.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
+
     return (
       <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'rechazado' ? 'border-red-200' : 'border-purple/30'}`}>
-        <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+        {/* ─── HEADER (collapsed card) ─── */}
+        <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); setShowMoreMenu(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full text-white ${stInfo.bg}`}>{stInfo.label}</span>
               <div>
-                <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+                  {totalDeposits > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-teal/10 text-teal font-semibold">{'💰'}</span>}
+                  {liveDisc > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-600 font-semibold">{'🏷️'}</span>}
+                  {order.transport_cost_confirmed === null && <span className="text-[9px] px-1 py-0.5 rounded bg-orange/10 text-orange font-semibold">{'🚚?'}</span>}
+                </div>
                 <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} {'·'} {order.event_date}</p>
               </div>
             </div>
-            <span className="font-heading font-bold text-lg text-purple">{formatCurrency(order.total)}</span>
+            <span className="font-heading font-bold text-lg text-purple">{formatCurrency(liveTotal)}</span>
           </div>
         </button>
+
         {expandedOrder === order.id && (
           <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
-            {/* 1. Pipeline + Quick Actions — always first */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1 flex-1">
-                {ORDER_STATUSES.map(s => (
-                  <button key={s.key} onClick={() => setOrderStatus(order.id, s.key)}
-                    disabled={savingAction === `status-${order.id}`}
-                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                  >{s.label}</button>
-                ))}
-              </div>
+            {/* ─── 1. PIPELINE ─── */}
+            <div className="flex gap-1">
+              {ORDER_STATUSES.map(s => (
+                <button key={s.key} onClick={() => setOrderStatus(order.id, s.key)}
+                  disabled={savingAction === `status-${order.id}`}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >{s.label}</button>
+              ))}
             </div>
 
-            {/* 2. Quick action bar */}
-            <div className="flex gap-2 flex-wrap">
-              <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-[#25D366] text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-xs">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            {/* ─── 2. ACTIONS (neutral colors, delete in overflow) ─── */}
+            <div className="flex gap-2 items-center">
+              <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 WhatsApp
               </a>
-              {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-purple/10 text-purple hover:bg-purple/20 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Editar</button>}
+              {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Editar</button>}
+              {isEditing && <button onClick={() => setEditingOrderId(null)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>}
               <button onClick={async () => {
                 const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
                 const logoUrl = await fetchLogoUrl().catch(() => null);
-                const recalcSubtotal = order.items.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
-                const recalcDiscount = order.discount || 0;
-                const recalcTransport = order.transport_cost_confirmed ?? -1;
-                const recalcBase = recalcSubtotal - recalcDiscount + (recalcTransport > 0 ? recalcTransport : 0);
-                const recalcSurcharge = order.payment_method === 'credit_card' ? recalcBase * 0.05 : 0;
-                const recalcTotal = recalcBase + recalcSurcharge;
-                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: recalcSubtotal, discount: recalcDiscount, transportCost: recalcTransport, surcharge: recalcSurcharge, total: recalcTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl });
+                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, transportCost: liveTrans > 0 ? liveTrans : -1, surcharge: liveSurch, total: liveTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl });
                 showToast('PDF descargado');
-              }} className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
-              <button onClick={() => deleteOrder(order.id, order.order_number)} disabled={savingAction === `delete-${order.id}`} className="ml-auto inline-flex items-center gap-1 text-gray-400 hover:text-red-500 font-heading font-semibold px-2 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-50">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+              }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
+              {/* Overflow menu with delete */}
+              <div className="relative ml-auto">
+                <button onClick={() => setShowMoreMenu(showMoreMenu === order.id ? null : order.id)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
+                </button>
+                {showMoreMenu === order.id && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
+                    <button onClick={() => { setShowMoreMenu(null); deleteOrder(order.id, order.order_number); }} disabled={savingAction === `delete-${order.id}`} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">Eliminar pedido</button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 3. Details or edit form */}
+            {/* ─── 3. DETAILS (edit form or read-only) ─── */}
             {isEditing ? (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder={"Teléfono"} className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+                {/* Cliente */}
+                <div>
+                  <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Cliente</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
+                    <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
+                  </div>
+                  <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={`${OI_CLS} mt-2`} />
                 </div>
-                <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email" className={OI_CLS} />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="date" value={ef.event_date || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
-                  <input type="time" value={ef.event_time || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_time: e.target.value }))} className={OI_CLS} />
+                {/* Evento */}
+                <div>
+                  <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" value={ef.event_date || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
+                    <input type="time" value={ef.event_time || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_time: e.target.value }))} className={OI_CLS} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
+                      <option value="">{'Á'}rea</option>
+                      {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                    </select>
+                    <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
+                    <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
+                    <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
-                    <option value="">&Aacute;rea</option>
-                    {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
-                  </select>
-                  <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder={"Dirección"} className={OI_CLS} />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder={"Cumpleañero"} className={OI_CLS} />
-                  <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
-                  <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setEditingOrderId(null)} disabled={savingAction === `edit-${order.id}`} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
-                  <button onClick={() => saveEditOrder(order.id)} disabled={savingAction === `edit-${order.id}`} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{savingAction === `edit-${order.id}` ? 'Guardando...' : 'Guardar cambios'}</button>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setEditingOrderId(null)} disabled={savingAction === `edit-${order.id}`} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
+                  <button onClick={() => saveEditOrder(order.id)} disabled={savingAction === `edit-${order.id}`} className="flex-1 bg-purple text-white font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">{savingAction === `edit-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-400 font-heading text-xs uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal">{order.customer_phone}</a></div>
-                <div><span className="text-gray-400 font-heading text-xs uppercase">Hora</span><br/>{order.event_time}</div>
-                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase">&Aacute;rea</span><br/>{order.event_area}</div>}
-                <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Lugar</span><br/>{order.event_address}</div>
-                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Cumplea&ntilde;ero/a</span><br/>{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</div>}
-                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase">Notas</span><br/>{order.notes}</div>}
+              <div className="bg-white rounded-xl border border-gray-100 p-3">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
+                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
+                  {order.event_area && <div><span className="text-gray-400 font-heading text-[10px] uppercase">{'Á'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
+                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
+                  <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
+                  {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Cumplea{'ñ'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
+                  {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
+                </div>
               </div>
             )}
 
-            {/* Items (editable) */}
-            {order.items.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
-                  <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
-                  {editingItems === order.id ? (
-                    <div className="flex gap-1">
-                      <button onClick={() => setEditingItems(null)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
-                      <button onClick={() => saveItemEdits(order.id)} disabled={savingAction === `items-${order.id}`} className="text-xs text-teal font-heading font-semibold hover:text-teal/80 ml-2">{savingAction === `items-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
+            {/* ─── 4. FACTURA UNIFICADA (items + descuento + transporte + total) ─── */}
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
+                {editingItems === order.id ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingItems(null)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
+                    <button onClick={() => saveItemEdits(order.id)} disabled={savingAction === `items-${order.id}`} className="text-xs text-purple font-heading font-semibold hover:text-purple/80">{savingAction === `items-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
+                  </div>
+                ) : (
+                  <button onClick={() => startEditItems(order)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>
+                )}
+              </div>
+              {/* Items */}
+              <div className="divide-y divide-gray-100">
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2.5 text-sm gap-2">
+                    {editingItems === order.id && item.id ? (
+                      <>
+                        <span className="flex-1 truncate text-gray-700 text-xs">{item.product_name}</span>
+                        <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
+                        <span className="text-gray-400 text-xs">x</span>
+                        <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
+                        <span className="text-xs text-gray-400 w-16 text-right">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
+                        <button onClick={() => handleRemoveItem(order.id, item.id!)} className="text-gray-300 hover:text-red-500 ml-1"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                        <span className="font-heading font-semibold">{formatCurrency(item.line_total)}</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Add item (when editing) */}
+              {editingItems === order.id && (
+                <div className="border-t border-gray-200 px-3 py-2.5 bg-gray-50/50 space-y-2">
+                  <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
+                  <div className="flex gap-1">
+                    <div className="flex-1 relative">
+                      <input type="text" value={newItemForm.name}
+                        onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
+                        onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        placeholder="Buscar producto..." className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs font-body" />
+                      {showSuggestions && productSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-48 overflow-y-auto">
+                          {productSuggestions.map(p => (
+                            <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2 min-h-[44px] items-center">
+                              <span className="truncate text-gray-700">{p.name}</span>
+                              <span className="text-purple font-heading font-semibold shrink-0">${p.price}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1.5 text-center text-xs" min="1" />
+                    <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1.5 text-right text-xs" min="0" step="0.01" />
+                    <button onClick={() => handleAddItem(order.id)} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === `additem-${order.id}`} className="bg-purple text-white font-heading font-semibold px-2.5 py-1.5 rounded text-xs disabled:opacity-40">+</button>
+                  </div>
+                </div>
+              )}
+              {/* ─── TOTALS + INLINE DISCOUNT/TRANSPORT ─── */}
+              <div className="border-t border-gray-200 px-3 py-3 space-y-1.5">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Subtotal</span>
+                  <span className="font-heading">{formatCurrency(liveItemsTotal)}</span>
+                </div>
+                {/* Discount (inline editable) */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Descuento</span>
+                  {liveDisc > 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}</span>
+                      <button onClick={() => { setDiscountInputs(prev => ({ ...prev, [order.id]: '0' })); setTimeout(() => saveDiscount(order.id), 50); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
                   ) : (
-                    <button onClick={() => startEditItems(order)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar factura</button>
+                    <div className="flex items-center gap-1">
+                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0" min="0" step="0.01" className="w-20 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
+                      {discountInputs[order.id] && <button onClick={() => saveDiscount(order.id)} disabled={savingAction === `discount-${order.id}`} className="text-[10px] font-heading font-semibold text-purple hover:underline disabled:opacity-50">{savingAction === `discount-${order.id}` ? '...' : 'Aplicar'}</button>}
+                    </div>
                   )}
                 </div>
-                <div className="divide-y divide-gray-100">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between px-3 py-2 text-sm gap-2">
-                      {editingItems === order.id && item.id ? (
-                        <>
-                          <span className="flex-1 truncate text-gray-700">{item.product_name}</span>
-                          <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
-                          <span className="text-gray-400 text-xs">x</span>
-                          <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
-                          <button onClick={() => handleRemoveItem(order.id, item.id!)} className="text-gray-400 hover:text-red-500 ml-1">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-gray-700">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                          <span className="font-semibold">{formatCurrency(item.line_total)}</span>
-                        </>
-                      )}
+                {/* Transport (inline editable) */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Transporte</span>
+                  {liveTrans > 0 ? (
+                    <span className="font-heading font-semibold text-gray-700">{formatCurrency(liveTrans)}</span>
+                  ) : order.transport_cost_confirmed !== null && liveTrans === 0 ? (
+                    <span className="font-heading text-gray-400">$0 (gratis)</span>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input type="number" value={transportInputs[order.id] || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
+                      <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === `transport-${order.id}` ? '...' : 'Confirmar'}</button>
                     </div>
-                  ))}
+                  )}
                 </div>
-                {/* Add new item with autocomplete */}
-                {editingItems === order.id && (
-                  <div className="border-t border-gray-200 px-3 py-2 bg-gray-50/50 space-y-2">
-                    <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
-                    <div className="flex gap-1">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          value={newItemForm.name}
-                          onChange={e => {
-                            const q = e.target.value;
-                            setNewItemForm(p => ({ ...p, name: q }));
-                            if (q.trim().length >= 2) {
-                              setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6));
-                              setShowSuggestions(true);
-                            } else { setShowSuggestions(false); }
-                          }}
-                          onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
-                          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                          placeholder="Nombre"
-                          className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-body"
-                        />
-                        {showSuggestions && productSuggestions.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-40 overflow-y-auto">
-                            {productSuggestions.map(p => (
-                              <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-2 py-1.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2">
-                                <span className="truncate text-gray-700">{p.name}</span>
-                                <span className="text-gray-400 shrink-0">${p.price}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1 text-center text-xs" min="1" />
-                      <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1 text-right text-xs" min="0" step="0.01" />
-                      <button onClick={() => handleAddItem(order.id)} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === `additem-${order.id}`} className="bg-purple text-white font-heading font-semibold px-2 py-1 rounded text-xs disabled:opacity-40">+</button>
-                    </div>
+                {/* Surcharge */}
+                {liveSurch > 0 && (
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Recargo tarjeta (5%)</span>
+                    <span className="font-heading">{formatCurrency(liveSurch)}</span>
                   </div>
                 )}
-                {/* Totals — live recalculated (reflects pending edits) */}
-                {(() => {
-                  const itemsTotal = order.items.reduce((s, i) => {
-                    if (editingItems === order.id && i.id && itemEdits[i.id]) {
-                      return s + (Number(itemEdits[i.id].unit_price) || 0) * (Number(itemEdits[i.id].quantity) || 1);
-                    }
-                    return s + i.unit_price * i.quantity;
-                  }, 0);
-                  const disc = order.discount || 0;
-                  const trans = order.transport_cost_confirmed ?? 0;
-                  const base = itemsTotal - disc + (trans > 0 ? trans : 0);
-                  const surch = order.payment_method === 'credit_card' ? base * 0.05 : 0;
-                  const calcTotal = base + surch;
-                  return (
-                    <div className="border-t border-gray-200 px-3 py-2 space-y-1">
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Subtotal</span>
-                        <span>{formatCurrency(itemsTotal)}</span>
-                      </div>
-                      {disc > 0 && (
-                        <div className="flex justify-between text-xs text-green-600 font-semibold">
-                          <span>Descuento</span>
-                          <span>-{formatCurrency(disc)}</span>
-                        </div>
-                      )}
-                      {trans > 0 && (
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Transporte</span>
-                          <span>{formatCurrency(trans)}</span>
-                        </div>
-                      )}
-                      {surch > 0 && (
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Recargo tarjeta</span>
-                          <span>{formatCurrency(surch)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-1">
-                        <span>Total</span>
-                        <span>{formatCurrency(calcTotal)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                {/* Payment method */}
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>M{'é'}todo</span>
+                  <span className="font-heading">{payMethodLabel}</span>
+                </div>
+                {/* Total */}
+                <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-2 mt-1">
+                  <span>Total</span>
+                  <span>{formatCurrency(liveTotal)}</span>
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* 💰 Pagos y Depósitos — closed by default, summary always visible */}
+            {/* ─── 5. DEPÓSITOS (simplified, with progress bar) ─── */}
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <button onClick={() => toggleSection(`pay-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <span className="font-heading font-semibold text-xs text-gray-500">{'💰'} Pagos</span>
+              <button onClick={() => toggleSection(`dep-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <span className="font-heading font-semibold text-xs text-gray-500">{'💰'} Dep{'ó'}sitos</span>
                 <div className="flex items-center gap-3 text-xs">
-                  {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">Dep: {formatCurrency(totalDeposits)}</span>}
-                  {(order.transport_cost_confirmed ?? 0) > 0 && <span className="text-orange font-heading font-semibold">Trans: {formatCurrency(order.transport_cost_confirmed!)}</span>}
-                  {totalDeposits > 0 && (() => { const it = order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0); const d = order.discount || 0; const t = order.transport_cost_confirmed ?? 0; const b = it - d + (t > 0 ? t : 0); const su = order.payment_method === 'credit_card' ? b * 0.05 : 0; const ct = b + su; return <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(ct - totalDeposits)}</span>; })()}
-                  <span className="text-gray-400">{openSections[`pay-${order.id}`] ? '▾' : '▸'}</span>
+                  {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">{formatCurrency(totalDeposits)}</span>}
+                  {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span>}
+                  <span className="text-gray-400">{openSections[`dep-${order.id}`] ? '▾' : '▸'}</span>
                 </div>
               </button>
-              {openSections[`pay-${order.id}`] && (
-                <div className="p-3 space-y-3">
-                  {/* Discount */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-heading font-semibold text-sm text-gray-700">{'🏷️'} Descuento</span>
-                      {(order.discount ?? 0) > 0 && <span className="font-heading font-bold text-sm text-green-600">-{formatCurrency(order.discount)}</span>}
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-green-500 focus:outline-none" />
-                      <button onClick={() => saveDiscount(order.id)} disabled={!discountInputs[order.id] || savingAction === `discount-${order.id}`} className="bg-green-600 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-green-700 transition-colors">{savingAction === `discount-${order.id}` ? 'Guardando...' : 'Aplicar'}</button>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-heading font-semibold text-sm text-gray-700">{'💰'} Dep{'ó'}sitos</span>
-                      {totalDeposits > 0 && <span className="font-heading font-bold text-sm text-teal">{formatCurrency(totalDeposits)}</span>}
-                    </div>
-                    {deposits.length > 0 && (
-                      <div className="space-y-1">
-                        {deposits.map((d, i) => (
-                          <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2 py-1">
-                            <span className="font-body text-gray-600">{d.date}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                              <button onClick={() => removeDeposit(order.id, i)} className="text-gray-400 hover:text-red-500 text-xs">{'✕'}</button>
-                            </div>
+              {/* Progress bar (always visible if deposits exist) */}
+              {totalDeposits > 0 && (
+                <div className="px-3 pt-1 pb-0"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
+              )}
+              {openSections[`dep-${order.id}`] && (
+                <div className="p-3 space-y-2">
+                  {deposits.length > 0 && (
+                    <div className="space-y-1">
+                      {deposits.map((d, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2.5 py-1.5">
+                          <span className="font-body text-gray-600">{d.date}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
+                            <button onClick={() => removeDeposit(order.id, i)} className="text-gray-300 hover:text-red-500 text-xs">{'✕'}</button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {totalDeposits > 0 && (() => { const it = order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0); const d = order.discount || 0; const t = order.transport_cost_confirmed ?? 0; const b = it - d + (t > 0 ? t : 0); const su = order.payment_method === 'credit_card' ? b * 0.05 : 0; const ct = b + su; return <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(ct - totalDeposits)}</span></p>; })()}
-                    <div className="flex gap-2">
-                      <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
-                      <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                      <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+'}</button>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-heading font-semibold text-sm text-gray-700">{'🚚'} Transporte</span>
-                      {order.transport_cost_confirmed !== null && <span className="font-heading font-bold text-sm text-orange">{formatCurrency(order.transport_cost_confirmed)}</span>}
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="number" value={transportInputs[order.id] || (order.transport_cost_confirmed !== null ? String(order.transport_cost_confirmed) : areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0.00" min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-orange focus:outline-none" />
-                      <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="bg-orange text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-orange/80 transition-colors">{savingAction === `transport-${order.id}` ? '...' : 'Guardar'}</button>
-                    </div>
+                  )}
+                  {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span></p>}
+                  <div className="flex gap-2">
+                    <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
+                    <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={liveTotal > 0 ? formatCurrency(liveTotal) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
+                    <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+'}</button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* 📝 Nota interna — collapsible, closed by default */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl overflow-hidden">
-              <button onClick={() => toggleSection(`note-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-yellow-100/50 transition-colors">
-                <span className="font-heading font-semibold text-xs text-gray-600">{'📝'} Nota interna {order.internal_note ? '(1)' : ''}</span>
+            {/* ─── 6. NOTA INTERNA ─── */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <button onClick={() => toggleSection(`note-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors">
+                <span className="font-heading font-semibold text-xs text-gray-500">{'📝'} Nota interna {order.internal_note ? '(1)' : ''}</span>
                 <span className="text-gray-400 text-xs">{openSections[`note-${order.id}`] ? '▾' : '▸'}</span>
               </button>
               {openSections[`note-${order.id}`] && (
                 <div className="px-3 pb-3 space-y-2">
-                  {order.internal_note && <p className="font-body text-sm text-gray-700">{order.internal_note}</p>}
+                  {order.internal_note && <p className="font-body text-sm text-gray-700 bg-gray-50 rounded-lg px-2.5 py-2">{order.internal_note}</p>}
                   <div className="flex gap-2">
-                    <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-yellow-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-yellow-400 focus:outline-none bg-white" />
-                    <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-yellow-400 text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-yellow-500 transition-colors">{savingAction === `note-${order.id}` ? '...' : 'Guardar'}</button>
+                    <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+                    <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-purple text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-purple/80 transition-colors">{savingAction === `note-${order.id}` ? '...' : 'Guardar'}</button>
                   </div>
                 </div>
               )}
