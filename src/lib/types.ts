@@ -9,6 +9,12 @@ export type Category =
   | 'addons'
   | 'creative';
 
+export interface ProductVariant {
+  id: string;
+  label: string;
+  price?: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -18,6 +24,8 @@ export interface Product {
   image?: string;
   maxQuantity?: number;
   featured?: boolean;
+  variants?: ProductVariant[];
+  variantLabel?: string;
 }
 
 export interface CartItem {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Product, CATEGORY_ICONS } from '@/lib/types';
+import { Product, ProductVariant, CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import Button from '@/components/ui/Button';
@@ -16,6 +16,7 @@ interface ProductModalProps {
 export default function ProductModal({ product, onClose, extraImages }: ProductModalProps) {
   const { addItem, items } = useCart();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   // Build images array: main image + extra images (filtered to non-empty)
   const allImages = product ? [
@@ -25,6 +26,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
 
   useEffect(() => {
     setActiveIndex(0);
+    setSelectedVariant(null);
   }, [product]);
 
   useEffect(() => {
@@ -45,7 +47,12 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
 
   if (!product) return null;
 
-  const inCart = items.find((i) => i.productId === product.id);
+  const hasVariants = product.variants && product.variants.length > 0;
+  const activePrice = selectedVariant?.price ?? product.price;
+  const cartId = hasVariants && selectedVariant ? `${product.id}--${selectedVariant.id}` : product.id;
+  const cartName = hasVariants && selectedVariant ? `${product.name} — ${selectedVariant.label}` : product.name;
+  const inCart = items.find((i) => i.productId === cartId);
+  const needsVariant = hasVariants && !selectedVariant;
   const currentImage = allImages[activeIndex] || '';
   const hasMultiple = allImages.length > 1;
 
@@ -65,7 +72,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+          className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-lg hover:bg-white"
           aria-label="Cerrar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -96,14 +103,14 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
               <button
                 onClick={() => setActiveIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1)}
                 aria-label="Imagen anterior"
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white"
               >
                 <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button
                 onClick={() => setActiveIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0)}
                 aria-label="Imagen siguiente"
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center shadow-md hover:bg-white"
               >
                 <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -117,7 +124,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
                 <button
                   key={i}
                   onClick={() => setActiveIndex(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60'}`}
+                  className={`w-2 h-2 rounded-full ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60'}`}
                 />
               ))}
             </div>
@@ -136,9 +143,31 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
             {product.description}
           </p>
 
+          {/* Variant selector */}
+          {hasVariants && (
+            <div className="mb-6">
+              <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2.5">{product.variantLabel}</p>
+              <div className="flex flex-wrap gap-2">
+                {product.variants!.map(v => (
+                  <button
+                    key={v.id}
+                    onClick={() => setSelectedVariant(selectedVariant?.id === v.id ? null : v)}
+                    className={`px-4 py-2 rounded-full text-sm font-heading font-semibold ${
+                      selectedVariant?.id === v.id
+                        ? 'bg-purple text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {v.label}{v.price !== undefined ? ` · ${formatCurrency(v.price)}` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <span className="font-heading font-bold text-3xl text-purple">
-              {formatCurrency(product.price)}
+              {formatCurrency(activePrice)}
             </span>
             <div className="flex items-center gap-3">
               {inCart && (
@@ -146,19 +175,25 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
                   {inCart.quantity} en carrito
                 </span>
               )}
-              <Button
-                onClick={() => {
-                  addItem({
-                    productId: product.id,
-                    name: product.name,
-                    category: product.category,
-                    unitPrice: product.price,
-                    image: product.image,
-                  });
-                }}
-              >
-                {inCart ? 'Agregar otro' : 'Agregar al carrito'}
-              </Button>
+              {needsVariant ? (
+                <Button disabled>
+                  Selecciona {product.variantLabel?.toLowerCase()}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    addItem({
+                      productId: cartId,
+                      name: cartName,
+                      category: product.category,
+                      unitPrice: activePrice,
+                      image: product.image,
+                    });
+                  }}
+                >
+                  {inCart ? 'Agregar otro' : 'Agregar al carrito'}
+                </Button>
+              )}
             </div>
           </div>
         </div>
