@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Product, ProductVariant, CATEGORY_ICONS } from '@/lib/types';
+import { Product, ProductVariant } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import Button from '@/components/ui/Button';
@@ -80,22 +80,17 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
           </svg>
         </button>
 
-        {/* Image with carousel */}
-        <div className="relative aspect-[4/3] bg-gray-100">
-          {currentImage ? (
-            <Image
-              src={currentImage}
-              alt={product.name}
-              fill
-              className="object-cover"
-              sizes="(max-width: 640px) 100vw, 640px"
-              priority
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-purple/10">
-              <span className="text-8xl">{CATEGORY_ICONS[product.category]}</span>
-            </div>
-          )}
+        {/* Image with carousel — hidden if no images */}
+        {allImages.length > 0 ? (
+        <div className="relative aspect-[16/9] bg-gray-100">
+          <Image
+            src={currentImage}
+            alt={product.name}
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, 640px"
+            priority
+          />
 
           {/* Navigation arrows */}
           {hasMultiple && (
@@ -130,6 +125,7 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
             </div>
           )}
         </div>
+        ) : null}
 
         {/* Content */}
         <div className="p-6 md:p-8">
@@ -165,16 +161,11 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <span className="font-heading font-bold text-3xl text-purple">
-              {formatCurrency(activePrice)}
-            </span>
-            <div className="flex items-center gap-3">
-              {inCart && (
-                <span className="text-sm font-heading font-semibold text-teal bg-teal/10 px-3 py-1.5 rounded-full">
-                  {inCart.quantity} en carrito
-                </span>
-              )}
+          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 py-4 flex items-center justify-between">
+            <div>
+              <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(activePrice)}</span>
+              {inCart && <span className="text-xs font-heading font-semibold text-teal ml-2">{inCart.quantity} en carrito</span>}
+            </div>
               {needsVariant ? (
                 <Button disabled>
                   Selecciona {product.variantLabel?.toLowerCase()}
@@ -194,7 +185,6 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
                   {inCart ? 'Agregar otro' : 'Agregar al carrito'}
                 </Button>
               )}
-            </div>
           </div>
         </div>
       </div>

@@ -79,20 +79,9 @@ export default function CatalogoContent() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
-      <div className="mb-6 text-center">
-        <h1 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-2">
-          Nuestros Servicios
-        </h1>
-        <p className="font-body text-gray-500 text-sm">
-          Elige una categor&iacute;a para explorar
-        </p>
-      </div>
 
-      <div className="mb-6">
+      <div className="sticky top-16 z-30 bg-beige/95 backdrop-blur-sm -mx-4 px-4 pt-4 pb-3 space-y-3">
         <CategoryFilter selected={category} onSelect={handleCategoryChange} />
-      </div>
-
-      <div className="mb-4">
         <SearchBar value={search} onChange={handleSearchChange} />
       </div>
 

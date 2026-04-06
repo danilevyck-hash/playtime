@@ -10,12 +10,13 @@ interface CartSummaryProps {
 }
 
 export default function CartSummary({ showSurcharge, paymentMethod }: CartSummaryProps) {
-  const { subtotal } = useCart();
+  const { subtotal, itemCount } = useCart();
   const surcharge = paymentMethod === 'credit_card' ? subtotal * CREDIT_CARD_SURCHARGE : 0;
   const total = subtotal + surcharge;
 
   return (
     <div className="bg-cream rounded-2xl p-6">
+      <p className="font-body text-xs text-gray-400 mb-3">{itemCount} {itemCount === 1 ? 'art\u00edculo' : 'art\u00edculos'}</p>
       <div className="flex justify-between items-center mb-3">
         <span className="font-body text-gray-600">Subtotal</span>
         <span className="font-heading font-semibold text-gray-800">{formatCurrency(subtotal)}</span>

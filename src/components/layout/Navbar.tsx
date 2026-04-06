@@ -17,12 +17,16 @@ const NAV_LINKS = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const pageTitle = pathname === '/catalogo' || pathname.startsWith('/catalogo/') ? 'Cat\u00e1logo'
+    : pathname === '/carrito' ? 'Carrito'
+    : pathname === '/checkout' ? 'Checkout'
+    : null;
   const logoUrl = useLogoUrl();
   const { itemCount } = useCart();
 
   return (
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between relative">
         <Link href="/">
           <Image src={logoUrl || "/logo.png"} alt="PlayTime" width={120} height={48} className="h-12 w-auto object-contain" priority />
         </Link>
@@ -41,6 +45,9 @@ export default function Navbar() {
             <Badge count={itemCount} />
           </Link>
         </div>
+
+        {/* Mobile: page title centered */}
+        {pageTitle && <span className="md:hidden font-heading font-bold text-sm text-purple absolute left-1/2 -translate-x-1/2">{pageTitle}</span>}
 
         {/* Mobile: cart + hamburger */}
         <div className="flex md:hidden items-center gap-3">

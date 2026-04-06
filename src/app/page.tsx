@@ -48,9 +48,13 @@ export default async function Home() {
   return (
     <>
       <Hero content={content || undefined} logoUrl={logoUrl} />
-      <ServicesOverview content={content || undefined} />
+      <div className="bg-white">
+        <ServicesOverview content={content || undefined} />
+      </div>
       <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
-      <Testimonials testimonials={testimonials || undefined} />
+      <div className="bg-white">
+        <Testimonials testimonials={testimonials || undefined} />
+      </div>
       <InstagramFeed />
       <CTABanner content={content || undefined} />
     </>

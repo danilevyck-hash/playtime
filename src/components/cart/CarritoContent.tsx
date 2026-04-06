@@ -6,6 +6,7 @@ import { useCart } from '@/context/CartContext';
 import CartItemComponent from '@/components/cart/CartItem';
 import CartSummary from '@/components/cart/CartSummary';
 import Button from '@/components/ui/Button';
+import EmptyState from '@/components/ui/EmptyState';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 
 export default function CarritoContent() {
@@ -19,13 +20,12 @@ export default function CarritoContent() {
   if (items.length === 0) {
     return (
       <div className="bg-beige min-h-[60vh]">
-        <div className="max-w-6xl mx-auto px-4 py-16 text-center">
-          <div className="text-6xl mb-4">{'\uD83D\uDED2'}</div>
-          <h1 className="font-heading font-bold text-2xl text-gray-400 mb-2">{texts.cart_empty_title}</h1>
-          <p className="font-body text-gray-400 mb-6">{texts.cart_empty_subtitle}</p>
-          <Link href="/catalogo">
-            <Button>{texts.catalog_cta}</Button>
-          </Link>
+        <div className="max-w-6xl mx-auto px-4">
+          <EmptyState icon="cart" title={texts.cart_empty_title} subtitle={texts.cart_empty_subtitle}>
+            <Link href="/catalogo">
+              <Button>{texts.catalog_cta}</Button>
+            </Link>
+          </EmptyState>
         </div>
       </div>
     );

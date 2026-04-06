@@ -34,7 +34,7 @@ interface ServicesProps {
 
 export default function ServicesOverview({ content }: ServicesProps) {
   return (
-    <section className="max-w-6xl mx-auto px-4 py-10 md:py-14">
+    <section className="max-w-6xl mx-auto px-4 py-16 md:py-24">
       <div className="text-center mb-12">
         <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
           {content?.services_title || 'Nuestros Servicios'}
