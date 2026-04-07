@@ -12,9 +12,10 @@ interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
   extraImages?: string[];
+  variantImages?: Record<string, string>;
 }
 
-export default function ProductModal({ product, onClose, extraImages }: ProductModalProps) {
+export default function ProductModal({ product, onClose, extraImages, variantImages }: ProductModalProps) {
   const { addItem, items } = useCart();
   const { toggle: toggleFav, isFavorite } = useFavorites();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -85,8 +86,9 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
   const cartName = hasVariants && selectedVariant ? `${product.name} — ${selectedVariant.label}` : product.name;
   const inCart = items.find((i) => i.productId === cartId);
   const needsVariant = hasVariants && !selectedVariant;
-  const currentImage = allImages[activeIndex] || '';
-  const hasMultiple = allImages.length > 1;
+  const variantImage = selectedVariant && variantImages?.[selectedVariant.id];
+  const currentImage = variantImage || allImages[activeIndex] || '';
+  const hasMultiple = !variantImage && allImages.length > 1;
 
   return (
     <div

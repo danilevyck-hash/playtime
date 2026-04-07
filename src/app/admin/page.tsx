@@ -14,6 +14,8 @@ import {
   upsertSetting,
   fetchProductImages,
   upsertProductImages,
+  fetchVariantImages,
+  upsertVariantImages,
   fetchLogoUrl,
 } from '@/lib/supabase-data';
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
@@ -1017,6 +1019,8 @@ function ProductsTab() {
   const [reorderMode, setReorderMode] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [variantImages, setVariantImages] = useState<Record<string, Record<string, string>>>({});
+  const [uploadingVariant, setUploadingVariant] = useState('');
 
   // ─── LOAD from constants.ts + Supabase overrides ───
   useEffect(() => {
@@ -1075,6 +1079,15 @@ function ProductsTab() {
           if (imgs.length > 0) galleries[p.id] = imgs;
         }));
         setImageGalleries(galleries);
+
+        // Load variant images for products with variants
+        const productsWithVariants = PRODUCTS.filter(p => p.variants && p.variants.length > 0);
+        const varImgs: Record<string, Record<string, string>> = {};
+        await Promise.all(productsWithVariants.map(async (p) => {
+          const imgs = await fetchVariantImages(p.id);
+          if (Object.keys(imgs).length > 0) varImgs[p.id] = imgs;
+        }));
+        setVariantImages(varImgs);
       } catch {
         setProducts(builtIn);
       }
@@ -1129,6 +1142,34 @@ function ProductsTab() {
       } else { showToast('Error al subir foto'); }
     } catch (e) { console.error('Upload error:', e); showToast('Error de conexi\u00f3n'); }
     finally { setUploading(''); }
+  };
+
+  // ─── UPLOAD VARIANT IMAGE ───
+  const handleVariantUpload = async (productId: string, variantId: string, file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Foto muy grande. Máximo 2MB');
+      return;
+    }
+    const key = `${productId}-${variantId}`;
+    setUploadingVariant(key);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', `${productId}_variant_${variantId}`);
+      formData.append('folder', 'variants');
+      formData.append('imageIndex', '0');
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        const newUrl = data.path + '?t=' + Date.now();
+        const current = { ...(variantImages[productId] || {}) };
+        current[variantId] = newUrl;
+        setVariantImages(prev => ({ ...prev, [productId]: current }));
+        upsertVariantImages(productId, current).catch(e => console.error('Save variant image error:', e));
+        showToast('Foto de variante actualizada');
+      } else { showToast('Error al subir foto'); }
+    } catch (e) { console.error('Variant upload error:', e); showToast('Error de conexión'); }
+    finally { setUploadingVariant(''); }
   };
 
   // ─── TOGGLE ACTIVE ───
@@ -1361,6 +1402,41 @@ function ProductsTab() {
                     <button onClick={() => setEditingId(null)} className="flex-1 border-2 border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
                     <button onClick={() => saveEdit(product.id)} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm">Guardar</button>
                   </div>
+
+                  {/* Variant images */}
+                  {(() => {
+                    const productVariants = PRODUCTS.find(p => p.id === product.id)?.variants;
+                    if (!productVariants || productVariants.length === 0) return null;
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Fotos por variante</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {productVariants.map(v => {
+                            const varUrl = variantImages[product.id]?.[v.id] || '';
+                            const isVarUploading = uploadingVariant === `${product.id}-${v.id}`;
+                            return (
+                              <label key={v.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 cursor-pointer group">
+                                <div className="w-10 h-10 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative">
+                                  {varUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={varUrl} alt={v.label} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  </div>
+                                  {isVarUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                                </div>
+                                <span className="font-heading text-xs text-gray-600 truncate">{v.label}</span>
+                                <input type="file" accept="image/*" className="hidden" disabled={!!uploadingVariant} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVariantUpload(product.id, v.id, f); }} />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

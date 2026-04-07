@@ -169,6 +169,17 @@ export async function upsertProductImages(productId: string, urls: string[]): Pr
   return upsertSetting(`product_images_${productId}`, urls);
 }
 
+// ─── Variant Images ───
+
+export async function fetchVariantImages(productId: string): Promise<Record<string, string>> {
+  const data = await fetchSetting<Record<string, string>>(`variant_images_${productId}`);
+  return data || {};
+}
+
+export async function upsertVariantImages(productId: string, images: Record<string, string>): Promise<boolean> {
+  return upsertSetting(`variant_images_${productId}`, images);
+}
+
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
   const db = supabaseAdmin || supabase;
   if (!db) return false;
