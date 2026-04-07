@@ -63,6 +63,7 @@ interface Order {
   deposit_amount: number | null;
   deposits: Deposit[];
   discount: number;
+  discount_type: 'fixed' | 'percent';
   transport_cost_confirmed: number | null;
   created_at: string;
   confirmed: boolean;
@@ -84,6 +85,8 @@ function getOrderStatus(order: Order): OrderStatus {
 let _adminToken = '';
 // Keep PIN for backward compat with API headers
 let _adminPin = '';
+
+function round2(n: number) { return Math.round(n * 100) / 100; }
 
 // ─── ORDERS TAB ───
 const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
@@ -112,6 +115,7 @@ function OrdersTab() {
   const [depositDateInputs, setDepositDateInputs] = useState<Record<number, string>>({});
   const [transportInputs, setTransportInputs] = useState<Record<number, string>>({});
   const [discountInputs, setDiscountInputs] = useState<Record<number, string>>({});
+  const [discountTypeInputs, setDiscountTypeInputs] = useState<Record<number, 'fixed' | 'percent'>>({});
   const [editingItems, setEditingItems] = useState<number | null>(null);
   const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
   const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
@@ -267,17 +271,19 @@ function OrdersTab() {
   const saveDiscount = async (orderId: number) => {
     const val = Number(discountInputs[orderId]);
     if (isNaN(val) || val < 0) return;
+    const dtype = discountTypeInputs[orderId] || 'fixed';
+    if (dtype === 'percent' && val > 100) return;
     setSavingAction(`discount-${orderId}`);
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
-        body: JSON.stringify({ orderId, discount: val }),
+        body: JSON.stringify({ orderId, discount: val, discountType: dtype }),
       });
       if (res.ok) {
         const data = await res.json();
         setOrders(prev => prev.map(o => o.id === orderId ? {
-          ...o, discount: val,
+          ...o, discount: val, discount_type: dtype,
           ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
         } : o));
         setDiscountInputs(prev => ({ ...prev, [orderId]: '' }));
@@ -463,7 +469,8 @@ function OrdersTab() {
       }
       return s + i.unit_price * i.quantity;
     }, 0);
-    const liveDisc = order.discount || 0;
+    const liveDiscRaw = order.discount || 0;
+    const liveDisc = order.discount_type === 'percent' ? round2(liveItemsTotal * liveDiscRaw / 100) : liveDiscRaw;
     const liveTrans = order.transport_cost_confirmed ?? 0;
     const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
     const liveSurch = order.payment_method === 'credit_card' ? liveBase * 0.05 : 0;
@@ -519,7 +526,7 @@ function OrdersTab() {
                 const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
                 const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
                 const pdfTotal = pdfBase + pdfSurch;
-                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
+                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
                 showToast('PDF descargado');
               }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
               {/* Overflow menu with delete */}
@@ -685,12 +692,16 @@ function OrdersTab() {
                   <span className="text-gray-500">Descuento</span>
                   {liveDisc > 0 ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}</span>
-                      <button onClick={() => { setDiscountInputs(prev => ({ ...prev, [order.id]: '0' })); setTimeout(() => saveDiscount(order.id), 50); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
+                      <button onClick={() => { setDiscountInputs(prev => ({ ...prev, [order.id]: '0' })); setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'fixed' })); setTimeout(() => saveDiscount(order.id), 50); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="$0" min="0" step="0.01" className="w-20 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
+                      <div className="flex border border-gray-200 rounded overflow-hidden">
+                        <button onClick={() => setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'fixed' }))} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${(discountTypeInputs[order.id] || 'fixed') === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
+                        <button onClick={() => setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'percent' }))} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountTypeInputs[order.id] === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
+                      </div>
+                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={discountTypeInputs[order.id] === 'percent' ? '10' : '$0'} min="0" max={discountTypeInputs[order.id] === 'percent' ? '100' : undefined} step={discountTypeInputs[order.id] === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
                       {discountInputs[order.id] && <button onClick={() => saveDiscount(order.id)} disabled={savingAction === `discount-${order.id}`} className="text-[10px] font-heading font-semibold text-purple hover:underline disabled:opacity-50">{savingAction === `discount-${order.id}` ? '...' : 'Aplicar'}</button>}
                     </div>
                   )}

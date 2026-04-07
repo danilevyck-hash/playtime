@@ -10,6 +10,9 @@ ALTER TABLE pt_orders ADD COLUMN IF NOT EXISTS deposits JSONB DEFAULT '[]';
 -- 2. Add discount column for admin-applied discounts
 ALTER TABLE pt_orders ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
 
+-- 2b. Add discount_type column ('fixed' or 'percent')
+ALTER TABLE pt_orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'fixed';
+
 -- 3. Migrate existing deposit_amount data to deposits array
 UPDATE pt_orders
 SET deposits = json_build_array(

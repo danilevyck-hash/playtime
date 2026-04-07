@@ -11,6 +11,7 @@ interface OrderPDFParams {
   items: CartItem[];
   subtotal: number;
   discount?: number;
+  discountType?: 'fixed' | 'percent';
   transportCost: number; // -1 = pending
   surcharge: number;
   total: number;
@@ -237,7 +238,10 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const lines: { label: string; value: string; isDiscount?: boolean }[] = [
     { label: 'Subtotal', value: formatCurrency(params.subtotal) },
   ];
-  if (discountAmount > 0) lines.push({ label: 'Descuento', value: `-${formatCurrency(discountAmount)}`, isDiscount: true });
+  if (discountAmount > 0) {
+    const discLabel = params.discountType === 'percent' && params.discount ? `Descuento (${params.discount}%)` : 'Descuento';
+    lines.push({ label: discLabel, value: `-${formatCurrency(discountAmount)}`, isDiscount: true });
+  }
   if (effectiveTransport > 0) lines.push({ label: 'Transporte', value: formatCurrency(effectiveTransport) });
   if (isTransportPending) lines.push({ label: 'Transporte', value: 'Por confirmar' });
   if (params.surcharge > 0) lines.push({ label: 'Recargo tarjeta (5%)', value: formatCurrency(params.surcharge) });

@@ -17,9 +17,10 @@ function round2(n: number): number {
 }
 
 /** Recalculate order totals from items, applying discount before surcharge */
-function recalcTotals(items: { line_total: number }[], opts: { transport: number; discount: number; paymentMethod: string }) {
+function recalcTotals(items: { line_total: number }[], opts: { transport: number; discount: number; discountType?: string; paymentMethod: string }) {
   const itemsTotal = round2(items.reduce((s, i) => s + i.line_total, 0));
-  const disc = Math.max(0, opts.discount);
+  const discRaw = Math.max(0, opts.discount);
+  const disc = opts.discountType === 'percent' ? round2(itemsTotal * discRaw / 100) : discRaw;
   const subtotalAfterDiscount = Math.max(0, itemsTotal - disc);
   const transportVal = Math.max(0, opts.transport);
   const base = subtotalAfterDiscount + transportVal;
@@ -154,7 +155,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, editItems, addItem, removeItem } = body;
+    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem } = body;
 
     if (!orderId || typeof orderId !== 'number') {
       return NextResponse.json({ error: 'orderId requerido' }, { status: 400 });
@@ -246,10 +247,11 @@ export async function PATCH(request: NextRequest) {
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('discount, payment_method').eq('id', orderId).single();
+        const { data: orderData } = await db.from('pt_orders').select('discount, discount_type, payment_method').eq('id', orderId).single();
         const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
           transport: val,
           discount: orderData?.discount ?? 0,
+          discountType: orderData?.discount_type ?? 'fixed',
           paymentMethod: orderData?.payment_method ?? '',
         });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
@@ -260,24 +262,28 @@ export async function PATCH(request: NextRequest) {
 
     if (discount !== undefined) {
       const val = Number(discount);
+      const dtype = discountType === 'percent' ? 'percent' : 'fixed';
       if (isNaN(val) || val < 0) {
         return NextResponse.json({ error: 'Descuento debe ser >= 0' }, { status: 400 });
       }
-      const updateData: Record<string, unknown> = { discount: val };
+      if (dtype === 'percent' && val > 100) {
+        return NextResponse.json({ error: 'Porcentaje debe ser <= 100' }, { status: 400 });
+      }
+      const updateData: Record<string, unknown> = { discount: val, discount_type: dtype };
       const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (discError) {
-        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
-        const currentNotes = existing?.notes || '';
-        const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}Descuento: $${val}` }).eq('id', orderId);
+        // Fallback: try without discount_type column (not migrated yet)
+        await db.from('pt_orders').update({ discount: val }).eq('id', orderId);
       }
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
         const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, payment_method').eq('id', orderId).single();
-        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+        const itemsTotal = round2(updatedItems.reduce((s, i) => s + i.line_total, 0));
+        const discountAmount = dtype === 'percent' ? round2(itemsTotal * val / 100) : val;
+        const { surcharge, total } = recalcTotals(updatedItems, {
           transport: orderData?.transport_cost_confirmed ?? 0,
-          discount: val,
+          discount: discountAmount,
           paymentMethod: orderData?.payment_method ?? '',
         });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
@@ -305,10 +311,11 @@ export async function PATCH(request: NextRequest) {
       // Recalculate order totals (discount before surcharge)
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
         const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
           transport: orderData?.transport_cost_confirmed ?? 0,
           discount: orderData?.discount ?? 0,
+          discountType: orderData?.discount_type ?? 'fixed',
           paymentMethod: orderData?.payment_method ?? '',
         });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
@@ -346,10 +353,11 @@ export async function PATCH(request: NextRequest) {
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
         const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
           transport: orderData?.transport_cost_confirmed ?? 0,
           discount: orderData?.discount ?? 0,
+          discountType: orderData?.discount_type ?? 'fixed',
           paymentMethod: orderData?.payment_method ?? '',
         });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
@@ -363,10 +371,11 @@ export async function PATCH(request: NextRequest) {
       // Recalculate totals
       const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, payment_method').eq('id', orderId).single();
+        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
         const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
           transport: orderData?.transport_cost_confirmed ?? 0,
           discount: orderData?.discount ?? 0,
+          discountType: orderData?.discount_type ?? 'fixed',
           paymentMethod: orderData?.payment_method ?? '',
         });
         await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
