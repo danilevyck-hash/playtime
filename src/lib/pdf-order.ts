@@ -52,7 +52,13 @@ async function loadImageBase64(url: string): Promise<string | null> {
 
 function fmtDate(dateStr: string): string {
   try {
-    // Parse as UTC to avoid timezone shifting the day
+    const parts = dateStr.split('-').map(Number);
+    return `${String(parts[2]).padStart(2, '0')}/${String(parts[1]).padStart(2, '0')}/${parts[0]}`;
+  } catch { return dateStr; }
+}
+
+function fmtDateLong(dateStr: string): string {
+  try {
     const parts = dateStr.split('-').map(Number);
     const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
     return `${parts[2]} de ${MESES[parts[1] - 1]} de ${parts[0]}`;
@@ -68,6 +74,13 @@ function fmtTime(timeStr: string): string {
   } catch { return timeStr; }
 }
 
+function addDays(dateStr: string, days: number): string {
+  const parts = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  d.setUTCDate(d.getUTCDate() + days);
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+}
+
 /** Round to 2 decimal places */
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -76,133 +89,148 @@ function round2(n: number): number {
 // Brand colors
 const PURPLE: [number, number, number] = [88, 4, 89];
 const TEAL: [number, number, number] = [132, 217, 208];
-const ORANGE: [number, number, number] = [242, 116, 5];
-const PINK: [number, number, number] = [242, 114, 137];
-const YELLOW: [number, number, number] = [242, 200, 75];
-const TEAL2: [number, number, number] = [73, 179, 191];
-const BEIGE: [number, number, number] = [250, 243, 232];
+const PURPLE_LIGHT: [number, number, number] = [245, 240, 245];
 const WHITE: [number, number, number] = [255, 255, 255];
-const GRAY: [number, number, number] = [100, 100, 100];
-const GRAY_LIGHT: [number, number, number] = [150, 150, 150];
-const GRAY_DARK: [number, number, number] = [60, 60, 60];
+const GRAY: [number, number, number] = [120, 120, 120];
+const GRAY_DARK: [number, number, number] = [50, 50, 50];
+const GRAY_LIGHT: [number, number, number] = [180, 180, 180];
+const CREAM: [number, number, number] = [250, 248, 244];
 
 export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const doc = new jsPDF();
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
-  const m = 18;
+  const m = 20; // margin
   const cw = pw - m * 2;
-  const maxTextWidth = cw - 14; // Max width for wrapped text inside sections
   let y = 0;
 
-  // Helper: section with colored left border
-  const drawSection = (sx: number, sy: number, sw: number, sh: number, borderColor: [number, number, number]) => {
-    doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.setDrawColor(230, 230, 230);
-    doc.roundedRect(sx, sy, sw, sh, 1.5, 1.5, 'FD');
-    doc.setFillColor(borderColor[0], borderColor[1], borderColor[2]);
-    doc.rect(sx, sy + 1.5, 3, sh - 3, 'F');
-  };
+  // ─── 1. HEADER: Company info left, logo right ───
+  y = 18;
 
-  // ─── 1. HEADER: purple banner with logo ───
-  const headerH = 32;
-  doc.setFillColor(PURPLE[0], PURPLE[1], PURPLE[2]);
-  doc.rect(0, 0, pw, headerH, 'F');
+  // Company info (left)
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.text('Playtime S.A', m, y);
 
-  // Logo: image if available, text fallback
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+  doc.text(CONTACT.phone, m, y + 6);
+  doc.text(CONTACT.email, m, y + 11);
+  doc.text(`Instagram: ${CONTACT.instagram}`, m, y + 16);
+
+  // Logo (right)
   const logoData = params.logoUrl ? await loadImageBase64(params.logoUrl) : null;
   if (logoData) {
     try {
-      doc.addImage(logoData, 'PNG', m, 4, 24, 24);
-    } catch {
-      // Image format not supported, use text fallback
-    }
-    doc.setFontSize(16);
-    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.text('Pedido confirmado', m + 28, 18);
-  } else {
-    doc.setFontSize(20);
-    doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
-    doc.text('play time', m, 15);
-    doc.setFontSize(9);
-    doc.setTextColor(200, 180, 200);
-    doc.text('creando momentos.', m, 21);
-    doc.setFontSize(16);
-    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.text('Pedido confirmado', pw - m, 18, { align: 'right' });
+      doc.addImage(logoData, 'PNG', pw - m - 30, y - 8, 30, 30);
+    } catch { /* fallback: no logo */ }
   }
 
-  y = headerH + 6;
+  y += 24;
 
-  // ─── 2. BADGE: order # in orange + date ───
-  // Orange badge
-  doc.setFillColor(ORANGE[0], ORANGE[1], ORANGE[2]);
-  doc.roundedRect(m, y - 3, 32, 8, 2, 2, 'F');
-  doc.setFontSize(9);
-  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(`#${params.orderNumber}`, m + 16, y + 2, { align: 'center' });
+  // Purple separator line
+  doc.setDrawColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.setLineWidth(0.8);
+  doc.line(m, y, pw - m, y);
 
-  // Date (use UTC-safe formatting)
-  doc.setFontSize(9);
-  doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-  const todayParts = new Date().toISOString().split('T')[0];
-  doc.text(fmtDate(todayParts), pw - m, y + 2, { align: 'right' });
+  y += 10;
 
-  y += 12;
+  // ─── 2. TITLE: COTIZACIÓN ───
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.text('COTIZACIÓN', m, y);
 
-  // ─── 3. SECTION: Datos del cliente (teal left border) ───
-  doc.setFontSize(9);
-  const custLines: string[] = [];
-  // Wrap customer name if too long
-  const nameWrapped = doc.splitTextToSize(params.customer.name, maxTextWidth) as string[];
-  custLines.push(...nameWrapped);
-  custLines.push(params.customer.phone);
-  if (params.customer.email) custLines.push(params.customer.email);
-  const custH = 12 + custLines.length * 5;
-  drawSection(m, y, cw, custH, TEAL);
+  y += 10;
+
+  // ─── 3. TWO-COLUMN: Client info (left) + Document info (right) ───
+  const colMid = pw / 2;
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Left column: Cliente
   doc.setFontSize(7);
-  doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
-  doc.text('DATOS DEL CLIENTE', m + 7, y + 5);
-  doc.setFontSize(9);
-  doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
-  custLines.forEach((l, i) => doc.text(l, m + 7, y + 10 + i * 5));
-  y += custH + 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+  doc.text('CLIENTE', m, y);
 
-  // ─── 4. SECTION: Detalles del evento (orange left border) ───
-  doc.setFontSize(9);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+  const nameLines = doc.splitTextToSize(params.customer.name, colMid - m - 10) as string[];
+  nameLines.forEach((line: string, i: number) => {
+    doc.text(line, m, y + 5 + i * 5);
+  });
+
+  let cy = y + 5 + nameLines.length * 5;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+  doc.text(params.customer.phone, m, cy);
+  cy += 4;
+  if (params.customer.email) {
+    doc.text(params.customer.email, m, cy);
+    cy += 4;
+  }
+
+  // Right column: Document metadata
+  const rightX = colMid + 10;
+  const valX = pw - m;
+  let ry = y;
+
+  const metaRows: [string, string][] = [
+    ['N.º DE COTIZACIÓN', String(params.orderNumber)],
+    ['FECHA', fmtDate(todayStr)],
+    ['CONDICIONES', 'Pago en 30 días'],
+    ['FECHA DE VENCIMIENTO', addDays(todayStr, 30)],
+  ];
+
+  doc.setFontSize(7);
+  for (const [label, value] of metaRows) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+    doc.text(label, rightX, ry);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+    doc.text(value, valX, ry, { align: 'right' });
+    ry += 5;
+  }
+
+  y = Math.max(cy, ry) + 8;
+
+  // ─── 4. EVENT DETAILS ───
+  doc.setFillColor(CREAM[0], CREAM[1], CREAM[2]);
   const evLines: string[] = [];
-  evLines.push(`${fmtDate(params.event.date)}  \u00b7  ${fmtTime(params.event.time)}`);
-  // Wrap address if too long
-  const addressText = `${params.event.area ? params.event.area + ' \u2013 ' : ''}${params.event.address}`;
-  const addressWrapped = doc.splitTextToSize(addressText, maxTextWidth) as string[];
+  evLines.push(`${fmtDateLong(params.event.date)}  ·  ${fmtTime(params.event.time)}`);
+  const addressText = `${params.event.area ? params.event.area + ' – ' : ''}${params.event.address}`;
+  const addressWrapped = doc.splitTextToSize(addressText, cw - 14) as string[];
   evLines.push(...addressWrapped);
   if (params.event.birthdayChildName) {
-    let cl = `Cumplea\u00f1ero/a: ${params.event.birthdayChildName}`;
-    if (params.event.birthdayChildAge) cl += ` (${params.event.birthdayChildAge} a\u00f1os)`;
+    let cl = `Cumpleañero/a: ${params.event.birthdayChildName}`;
+    if (params.event.birthdayChildAge) cl += ` (${params.event.birthdayChildAge} años)`;
     evLines.push(cl);
   }
   if (params.event.theme) evLines.push(`Tema: ${params.event.theme}`);
-  const evH = 12 + evLines.length * 5;
-  drawSection(m, y, cw, evH, ORANGE);
-  doc.setFontSize(7);
-  doc.setTextColor(ORANGE[0], ORANGE[1], ORANGE[2]);
-  doc.text('DETALLES DEL EVENTO', m + 7, y + 5);
-  doc.setFontSize(9);
-  doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
-  evLines.forEach((l, i) => doc.text(l, m + 7, y + 10 + i * 5));
-  y += evH + 5;
 
-  // ─── 5. TABLE: Productos (teal header, pink left accent) ───
+  const evH = 10 + evLines.length * 5;
+  doc.roundedRect(m, y, cw, evH, 1.5, 1.5, 'F');
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.text('DETALLES DEL EVENTO', m + 6, y + 5);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+  evLines.forEach((l, i) => doc.text(l, m + 6, y + 10 + i * 5));
+
+  y += evH + 8;
+
+  // ─── 5. ITEMS TABLE (no transport row) ───
   const isTransportPending = params.transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : params.transportCost;
-
-  // Pink accent bar
-  doc.setFillColor(PINK[0], PINK[1], PINK[2]);
-  doc.rect(m, y, 3, 4, 'F');
-  doc.setFontSize(7);
-  doc.setTextColor(PINK[0], PINK[1], PINK[2]);
-  doc.text('PRODUCTOS', m + 7, y + 3);
-  y += 6;
 
   const tableBody = params.items.map((item) => [
     item.name,
@@ -210,143 +238,172 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     formatCurrency(item.unitPrice),
     formatCurrency(round2(item.unitPrice * item.quantity)),
   ]);
-  tableBody.push([
-    'Transporte, montaje y desmontaje',
-    '1',
-    isTransportPending ? 'Por confirmar' : formatCurrency(effectiveTransport),
-    isTransportPending ? 'Por confirmar' : formatCurrency(effectiveTransport),
-  ]);
 
   autoTable(doc, {
     startY: y,
-    head: [['Producto', 'Cant.', 'P. Unit.', 'Total']],
+    head: [['Producto', 'Cant.', 'P. Unitario', 'Total']],
     body: tableBody,
     margin: { left: m, right: m },
-    headStyles: { fillColor: TEAL, textColor: PURPLE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8, textColor: GRAY_DARK },
-    alternateRowStyles: { fillColor: BEIGE },
-    columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'center', cellWidth: 18 }, 2: { halign: 'right', cellWidth: 28 }, 3: { halign: 'right', cellWidth: 28 } },
-    styles: { cellPadding: 2.5 },
+    headStyles: {
+      fillColor: PURPLE,
+      textColor: WHITE,
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: GRAY_DARK,
+    },
+    alternateRowStyles: { fillColor: PURPLE_LIGHT },
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { halign: 'center', cellWidth: 20 },
+      2: { halign: 'right', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 28 },
+    },
+    styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.2 },
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = (doc as any).lastAutoTable.finalY + 6;
+  y = (doc as any).lastAutoTable.finalY + 8;
 
-  // ─── 6. TOTAL BOX: purple bg, white text ───
-  const payLabel = params.paymentMethod === 'bank_transfer' ? 'Transferencia Bancaria' : 'Tarjeta de Cr\u00e9dito (+5%)';
+  // ─── 6. TOTALS (right-aligned, clean) ───
   const discountAmount = params.discount || 0;
-  const lines: { label: string; value: string; isDiscount?: boolean }[] = [
+  const totLines: { label: string; value: string; bold?: boolean; color?: [number, number, number] }[] = [
     { label: 'Subtotal', value: formatCurrency(params.subtotal) },
   ];
   if (discountAmount > 0) {
     const discLabel = params.discountType === 'percent' && params.discount ? `Descuento (${params.discount}%)` : 'Descuento';
-    lines.push({ label: discLabel, value: `-${formatCurrency(discountAmount)}`, isDiscount: true });
+    totLines.push({ label: discLabel, value: `-${formatCurrency(discountAmount)}`, color: TEAL });
   }
-  if (effectiveTransport > 0) lines.push({ label: 'Transporte', value: formatCurrency(effectiveTransport) });
-  if (isTransportPending) lines.push({ label: 'Transporte', value: 'Por confirmar' });
-  if (params.surcharge > 0) lines.push({ label: 'Recargo tarjeta (5%)', value: formatCurrency(params.surcharge) });
+  if (effectiveTransport > 0) {
+    totLines.push({ label: 'Transporte', value: formatCurrency(effectiveTransport) });
+  }
+  if (isTransportPending) {
+    totLines.push({ label: 'Transporte', value: 'Por confirmar' });
+  }
+  if (params.surcharge > 0) {
+    totLines.push({ label: 'Recargo tarjeta (5%)', value: formatCurrency(params.surcharge) });
+  }
 
-  const totBoxH = 16 + lines.length * 6 + (params.paymentMethod === 'bank_transfer' ? 14 : 6);
-  doc.setFillColor(PURPLE[0], PURPLE[1], PURPLE[2]);
-  doc.roundedRect(m, y, cw, totBoxH, 2, 2, 'F');
+  const totX = pw - m; // right edge
+  const totLabelX = pw - m - 80; // label column
 
-  let ty = y + 5;
-  doc.setFontSize(8);
-  for (const line of lines) {
-    doc.setTextColor(200, 180, 200);
-    doc.text(line.label, m + 5, ty);
-    if (line.isDiscount) {
-      doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
+  doc.setFontSize(9);
+  for (const line of totLines) {
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+    doc.text(line.label, totLabelX, y);
+    if (line.color) {
+      doc.setTextColor(line.color[0], line.color[1], line.color[2]);
     } else {
-      doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+      doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
     }
-    doc.text(line.value, pw - m - 5, ty, { align: 'right' });
-    ty += 6;
+    doc.text(line.value, totX, y, { align: 'right' });
+    y += 6;
   }
-  // Divider
-  doc.setDrawColor(120, 60, 120);
-  doc.line(m + 5, ty - 1, pw - m - 5, ty - 1);
-  ty += 4;
-  // Total
-  doc.setFontSize(14);
-  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text('TOTAL', m + 5, ty);
+
+  // Divider line
+  y += 1;
+  doc.setDrawColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.setLineWidth(0.5);
+  doc.line(totLabelX, y, totX, y);
+  y += 7;
+
+  // TOTAL
   const totalStr = isTransportPending ? `${formatCurrency(params.total)}*` : formatCurrency(params.total);
-  doc.text(totalStr, pw - m - 5, ty, { align: 'right' });
-  ty += 6;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+  doc.text('TOTAL', totLabelX, y);
+  doc.text(totalStr, totX, y, { align: 'right' });
+  y += 5;
+
   // Payment method
-  doc.setFontSize(8);
-  doc.setTextColor(200, 180, 200);
-  doc.text(`M\u00e9todo: ${payLabel}`, m + 5, ty);
-  ty += 4;
-  if (params.paymentMethod === 'bank_transfer') {
-    doc.setFontSize(7);
-    doc.text(`${BANK_INFO.bank} | ${BANK_INFO.name} | ${BANK_INFO.accountType}: ${BANK_INFO.accountNumber}`, m + 5, ty);
-  }
+  const payLabel = params.paymentMethod === 'bank_transfer' ? 'Transferencia Bancaria' : 'Tarjeta de Crédito (+5%)';
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
+  doc.text(`Método de pago: ${payLabel}`, totLabelX, y);
+  y += 6;
 
   if (isTransportPending) {
-    y += totBoxH + 3;
     doc.setFontSize(7);
     doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
-    doc.text('*El costo de transporte se confirmar\u00e1 por WhatsApp', m, y);
-    y += 5;
-  } else {
-    y += totBoxH + 4;
+    doc.text('*El costo de transporte se confirmará por WhatsApp', totLabelX, y);
+    y += 6;
   }
 
-  // ─── 6b. DEPOSITS SECTION ───
+  y += 4;
+
+  // ─── 7. DEPOSITS (only if there are deposits) ───
   const deps = params.deposits || [];
   const totalDeposits = deps.reduce((s, d) => s + d.amount, 0);
   if (totalDeposits > 0) {
     const saldo = Math.max(0, params.total - totalDeposits);
-    const depH = 10 + deps.length * 5 + 8;
-    drawSection(m, y, cw, depH, TEAL);
+
+    doc.setFillColor(CREAM[0], CREAM[1], CREAM[2]);
+    const depH = 10 + deps.length * 5 + 10;
+    doc.roundedRect(m, y, cw, depH, 1.5, 1.5, 'F');
+
     doc.setFontSize(7);
-    doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
-    doc.text('PAGOS RECIBIDOS', m + 7, y + 5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
+    doc.text('PAGOS RECIBIDOS', m + 6, y + 5);
+
     doc.setFontSize(8);
-    let dy = y + 10;
+    doc.setFont('helvetica', 'normal');
+    let dy = y + 11;
     for (const dep of deps) {
       doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
-      doc.text(dep.date, m + 7, dy);
-      doc.text(formatCurrency(dep.amount), pw - m - 7, dy, { align: 'right' });
+      doc.text(dep.date, m + 6, dy);
+      doc.text(formatCurrency(dep.amount), pw - m - 6, dy, { align: 'right' });
       dy += 5;
     }
+
     // Divider + saldo
     dy += 1;
     doc.setDrawColor(200, 200, 200);
-    doc.line(m + 7, dy - 2, pw - m - 7, dy - 2);
-    doc.setFontSize(8);
+    doc.line(m + 6, dy - 2, pw - m - 6, dy - 2);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
     doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
-    doc.text('Saldo pendiente:', m + 7, dy + 2);
+    doc.text('Saldo pendiente', m + 6, dy + 2);
     doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
-    doc.text(formatCurrency(saldo), pw - m - 7, dy + 2, { align: 'right' });
-    y += depH + 4;
+    doc.text(formatCurrency(saldo), pw - m - 6, dy + 2, { align: 'right' });
+
+    y += depH + 6;
   }
 
-  // ─── 7. FOOTER: beige bg with color dots + contact ───
-  const footerH = 18;
-  const footerY = ph - footerH;
-  doc.setFillColor(BEIGE[0], BEIGE[1], BEIGE[2]);
-  doc.rect(0, footerY, pw, footerH, 'F');
+  // ─── 8. BANK INFO (only if bank transfer) ───
+  if (params.paymentMethod === 'bank_transfer') {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+    doc.text('DATOS BANCARIOS', m, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
+    doc.text(`${BANK_INFO.bank}  ·  ${BANK_INFO.name}  ·  ${BANK_INFO.accountType}: ${BANK_INFO.accountNumber}`, m, y);
+    y += 8;
+  }
 
-  // Decorative dots
-  const dotColors = [ORANGE, PINK, TEAL, YELLOW, TEAL2];
-  const dotStartX = pw / 2 - 15;
-  dotColors.forEach((c, i) => {
-    doc.setFillColor(c[0], c[1], c[2]);
-    doc.circle(dotStartX + i * 7, footerY + 5, 1.5, 'F');
-  });
+  // ─── 9. FOOTER ───
+  const footerY = ph - 14;
+  doc.setDrawColor(230, 230, 230);
+  doc.setLineWidth(0.3);
+  doc.line(m, footerY - 4, pw - m, footerY - 4);
 
-  // Contact
   doc.setFontSize(7);
-  doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-  doc.text(`PlayTime \u2013 Creando Momentos  |  ${CONTACT.phone}  |  ${CONTACT.email}  |  Instagram: ${CONTACT.instagram}`, pw / 2, footerY + 12, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
+  doc.text(`PlayTime – Creando Momentos  |  ${CONTACT.phone}  |  ${CONTACT.email}  |  Instagram: ${CONTACT.instagram}`, pw / 2, footerY, { align: 'center' });
 
   return doc;
 }
 
 export async function downloadOrderPDF(params: OrderPDFParams): Promise<void> {
   const doc = await generateOrderPDF(params);
-  doc.save(`PlayTime-Pedido-${params.orderNumber}.pdf`);
+  doc.save(`PlayTime-Cotizacion-${params.orderNumber}.pdf`);
 }
