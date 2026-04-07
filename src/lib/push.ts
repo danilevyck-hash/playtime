@@ -13,15 +13,19 @@ webpush.setVapidDetails(
 );
 
 export async function sendPushNotification(title: string, body: string, url?: string) {
-  if (!supabase || !supabaseAdmin) return;
+  console.log('[Push] sendPushNotification called:', title);
+  if (!supabase || !supabaseAdmin) { console.warn('[Push] No supabase client'); return; }
 
-  const { data } = await supabase
+  const { data, error: fetchErr } = await supabase
     .from('pt_settings')
     .select('value')
     .eq('key', 'push_subscriptions')
     .single();
 
+  if (fetchErr) console.error('[Push] Fetch subscriptions error:', fetchErr);
+
   const subscriptions: webpush.PushSubscription[] = data?.value || [];
+  console.log('[Push] Subscriptions count:', subscriptions.length);
   if (subscriptions.length === 0) return;
 
   const expired: number[] = [];
