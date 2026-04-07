@@ -12,6 +12,7 @@ import MobileMenu from './MobileMenu';
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
   { href: '/catalogo', label: 'Explora la diversi\u00f3n' },
+  { href: '/admin', label: 'Acceso' },
 ];
 
 export default function Navbar() {

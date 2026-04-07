@@ -33,7 +33,6 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: '#ffffff' }}
       aria-modal="true"
     >
-      {/* Close button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px' }}>
         <button
           ref={closeRef}
@@ -46,26 +45,17 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
           </svg>
         </button>
       </div>
-
-      {/* Links centered */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 140px)' }}>
         {links.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             onClick={onClose}
-            className="font-heading font-bold text-2xl text-gray-800 active:text-teal transition-colors py-4"
+            className={`font-heading font-bold text-2xl active:text-teal transition-colors py-4 ${link.href === '/admin' ? 'text-gray-300 text-sm' : 'text-gray-800'}`}
           >
             {link.label}
           </Link>
         ))}
-      </div>
-
-      {/* Acceso at bottom */}
-      <div style={{ position: 'absolute', bottom: '40px', width: '100%', textAlign: 'center' }}>
-        <Link href="/admin" onClick={onClose} className="font-body text-xs text-gray-300 active:text-gray-400">
-          Acceso
-        </Link>
       </div>
     </div>
   );
