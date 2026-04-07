@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { PRODUCTS } from './constants';
 import { Product, Category } from './types';
-import { fetchProductOverrides, fetchCustomProducts, ProductOverride, CustomProduct } from './supabase-data';
+import { fetchProductOverrides, fetchCustomProducts, fetchSetting, ProductOverride, CustomProduct } from './supabase-data';
 
 /**
  * Hook that returns products merged with admin overrides.
@@ -12,6 +12,7 @@ import { fetchProductOverrides, fetchCustomProducts, ProductOverride, CustomProd
 export function useProducts(): Product[] {
   const [overrides, setOverrides] = useState<ProductOverride[]>([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  const [productOrder, setProductOrder] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -19,13 +20,15 @@ export function useProducts(): Product[] {
 
     async function load() {
       try {
-        const [ov, cp] = await Promise.all([
+        const [ov, cp, order] = await Promise.all([
           fetchProductOverrides(),
           fetchCustomProducts(),
+          fetchSetting<string[]>('product_order'),
         ]);
         if (!cancelled) {
           setOverrides(ov);
           setCustomProducts(cp);
+          if (order) setProductOrder(order);
           setLoaded(true);
         }
       } catch (e) {
@@ -74,8 +77,20 @@ export function useProducts(): Product[] {
       image: cp.image_url || undefined,
     }));
 
-    return [...builtIn, ...custom];
-  }, [loaded, overrides, customProducts]);
+    const result = [...builtIn, ...custom];
+
+    // Apply saved order from admin drag-and-drop
+    if (productOrder.length > 0) {
+      const orderMap = new Map(productOrder.map((id, idx) => [id, idx]));
+      result.sort((a, b) => {
+        const ia = orderMap.get(a.id) ?? Infinity;
+        const ib = orderMap.get(b.id) ?? Infinity;
+        return ia - ib;
+      });
+    }
+
+    return result;
+  }, [loaded, overrides, customProducts, productOrder]);
 
   return products;
 }
