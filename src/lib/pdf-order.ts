@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { CartItem, PaymentMethod } from './types';
 import { BANK_INFO, CONTACT } from './constants';
 import { formatCurrency } from './format';
+import { CHALET_FONT_BASE64 } from './chalet-font';
 
 interface OrderPDFParams {
   orderNumber: string | number;
@@ -98,6 +99,12 @@ const CREAM: [number, number, number] = [250, 248, 244];
 
 export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const doc = new jsPDF();
+
+  // Register Chalet brand font
+  doc.addFileToVFS('Chalet.ttf', CHALET_FONT_BASE64);
+  doc.addFont('Chalet.ttf', 'Chalet', 'normal');
+  doc.addFont('Chalet.ttf', 'Chalet', 'bold');
+
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
   const m = 20; // margin
@@ -108,13 +115,13 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   y = 18;
 
   // Company info (left)
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.text('Playtime S.A', m, y);
 
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setFont('Chalet', 'normal');
   doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
   doc.text(CONTACT.phone, m, y + 6);
   doc.text(CONTACT.email, m, y + 11);
@@ -138,8 +145,8 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   y += 10;
 
   // ─── 2. TITLE: COTIZACIÓN ───
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.text('COTIZACIÓN', m, y);
 
@@ -150,13 +157,13 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Left column: Cliente
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
   doc.text('CLIENTE', m, y);
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
   const nameLines = doc.splitTextToSize(params.customer.name, colMid - m - 10) as string[];
   nameLines.forEach((line: string, i: number) => {
@@ -164,8 +171,8 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   });
 
   let cy = y + 5 + nameLines.length * 5;
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setFont('Chalet', 'normal');
   doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
   doc.text(params.customer.phone, m, cy);
   cy += 4;
@@ -186,15 +193,15 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     ['FECHA DE VENCIMIENTO', addDays(todayStr, 30)],
   ];
 
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   for (const [label, value] of metaRows) {
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Chalet', 'bold');
     doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
     doc.text(label, rightX, ry);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Chalet', 'normal');
     doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
     doc.text(value, valX, ry, { align: 'right' });
-    ry += 5;
+    ry += 6;
   }
 
   y = Math.max(cy, ry) + 8;
@@ -213,18 +220,18 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   }
   if (params.event.theme) evLines.push(`Tema: ${params.event.theme}`);
 
-  const evH = 10 + evLines.length * 5;
+  const evH = 10 + evLines.length * 6;
   doc.roundedRect(m, y, cw, evH, 1.5, 1.5, 'F');
 
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.text('DETALLES DEL EVENTO', m + 6, y + 5);
 
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setFont('Chalet', 'normal');
   doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
-  evLines.forEach((l, i) => doc.text(l, m + 6, y + 10 + i * 5));
+  evLines.forEach((l, i) => doc.text(l, m + 6, y + 10 + i * 6));
 
   y += evH + 8;
 
@@ -248,10 +255,10 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
       fillColor: PURPLE,
       textColor: WHITE,
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 9,
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 9,
       textColor: GRAY_DARK,
     },
     alternateRowStyles: { fillColor: PURPLE_LIGHT },
@@ -261,7 +268,7 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
       2: { halign: 'right', cellWidth: 28 },
       3: { halign: 'right', cellWidth: 28 },
     },
-    styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.2 },
+    styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.2, font: 'Chalet' },
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -289,9 +296,9 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   const totX = pw - m; // right edge
   const totLabelX = pw - m - 80; // label column
 
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   for (const line of totLines) {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Chalet', 'normal');
     doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
     doc.text(line.label, totLabelX, y);
     if (line.color) {
@@ -300,7 +307,7 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
       doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
     }
     doc.text(line.value, totX, y, { align: 'right' });
-    y += 6;
+    y += 7;
   }
 
   // Divider line
@@ -312,8 +319,8 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
 
   // TOTAL
   const totalStr = isTransportPending ? `${formatCurrency(params.total)}*` : formatCurrency(params.total);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setFont('Chalet', 'bold');
   doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
   doc.text('TOTAL', totLabelX, y);
   doc.text(totalStr, totX, y, { align: 'right' });
@@ -321,14 +328,14 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
 
   // Payment method
   const payLabel = params.paymentMethod === 'bank_transfer' ? 'Transferencia Bancaria' : 'Tarjeta de Crédito (+5%)';
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setFont('Chalet', 'normal');
   doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
   doc.text(`Método de pago: ${payLabel}`, totLabelX, y);
   y += 6;
 
   if (isTransportPending) {
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
     doc.text('*El costo de transporte se confirmará por WhatsApp', totLabelX, y);
     y += 6;
@@ -346,13 +353,13 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     const depH = 10 + deps.length * 5 + 10;
     doc.roundedRect(m, y, cw, depH, 1.5, 1.5, 'F');
 
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setFont('Chalet', 'bold');
     doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
     doc.text('PAGOS RECIBIDOS', m + 6, y + 5);
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setFont('Chalet', 'normal');
     let dy = y + 11;
     for (const dep of deps) {
       doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
@@ -365,8 +372,8 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
     dy += 1;
     doc.setDrawColor(200, 200, 200);
     doc.line(m + 6, dy - 2, pw - m - 6, dy - 2);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFont('Chalet', 'bold');
+    doc.setFontSize(10);
     doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
     doc.text('Saldo pendiente', m + 6, dy + 2);
     doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2]);
@@ -377,13 +384,13 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
 
   // ─── 8. BANK INFO (only if bank transfer) ───
   if (params.paymentMethod === 'bank_transfer') {
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setFont('Chalet', 'bold');
     doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
     doc.text('DATOS BANCARIOS', m, y);
     y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFont('Chalet', 'normal');
+    doc.setFontSize(9);
     doc.setTextColor(GRAY_DARK[0], GRAY_DARK[1], GRAY_DARK[2]);
     doc.text(`${BANK_INFO.bank}  ·  ${BANK_INFO.name}  ·  ${BANK_INFO.accountType}: ${BANK_INFO.accountNumber}`, m, y);
     y += 8;
@@ -395,8 +402,8 @@ export async function generateOrderPDF(params: OrderPDFParams): Promise<jsPDF> {
   doc.setLineWidth(0.3);
   doc.line(m, footerY - 4, pw - m, footerY - 4);
 
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setFont('Chalet', 'normal');
   doc.setTextColor(GRAY_LIGHT[0], GRAY_LIGHT[1], GRAY_LIGHT[2]);
   doc.text(`PlayTime – Creando Momentos  |  ${CONTACT.phone}  |  ${CONTACT.email}  |  Instagram: ${CONTACT.instagram}`, pw / 2, footerY, { align: 'center' });
 
