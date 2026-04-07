@@ -52,10 +52,11 @@ export default function CatalogoContent() {
   }, [products]);
 
   const filtered = useMemo(() => {
+    const isSearching = search.trim() !== '';
     return products.filter((p) => {
-      const matchCategory = category === 'all' || p.category === category;
+      const matchCategory = isSearching || category === 'all' || p.category === category;
       const matchSearch =
-        search === '' ||
+        !isSearching ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.description.toLowerCase().includes(search.toLowerCase());
       return matchCategory && matchSearch;
