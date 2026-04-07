@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import { CONTACT } from '@/lib/constants';
 
 export default function Footer() {
