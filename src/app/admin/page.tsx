@@ -2073,6 +2073,42 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo'>('pedidos');
+  const [pushEnabled, setPushEnabled] = useState(false);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          setPushEnabled(!!sub);
+        });
+      });
+    }
+  }, []);
+
+  const togglePush = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (pushEnabled) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/push', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+          await sub.unsubscribe();
+        }
+        setPushEnabled(false);
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        });
+        await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+        setPushEnabled(true);
+      }
+    } catch (err) {
+      console.error('Push toggle error:', err);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2134,7 +2170,16 @@ export default function AdminPage() {
       {/* Minimal header */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-heading font-bold text-2xl text-purple">PlayTime</h1>
-        <span className="text-xs font-body text-gray-400">{_adminRole === 'vendedora' ? 'Vendedora' : 'Admin'}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={togglePush}
+            className="text-gray-400 hover:text-purple transition-colors text-lg"
+            title={pushEnabled ? 'Notificaciones activadas' : 'Activar notificaciones'}
+          >
+            {pushEnabled ? '\u{1F514}' : '\u{1F515}'}
+          </button>
+          <span className="text-xs font-body text-gray-400">{_adminRole === 'vendedora' ? 'Vendedora' : 'Admin'}</span>
+        </div>
       </div>
 
       {/* Clean tab bar — vendedora only sees Pedidos */}

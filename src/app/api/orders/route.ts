@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { sendOrderNotification } from '@/lib/email';
+import { sendPushNotification } from '@/lib/push';
 
 function isAdminAuthorized(request: NextRequest): boolean {
   // Check session token first (works for both admin and vendedora), then fall back to PIN
@@ -161,6 +162,13 @@ export async function POST(request: NextRequest) {
       total: serverTotal,
       paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
     }).catch(err => console.error('Email notification error:', err));
+
+    // Send push notification (non-blocking)
+    sendPushNotification(
+      `Nuevo Pedido #${order.order_number}`,
+      `${customer.name.trim()} — $${serverTotal.toFixed(2)}`,
+      '/admin'
+    ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
   } catch (error) {
