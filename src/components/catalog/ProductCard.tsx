@@ -7,7 +7,7 @@ import { CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import { useFavorites } from '@/lib/useFavorites';
-import { CONTACT } from '@/lib/constants';
+
 
 interface ProductCardProps {
   product: Product;
@@ -20,7 +20,6 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
   const [imgLoaded, setImgLoaded] = useState(false);
   useEffect(() => { setImgLoaded(false); }, [product.image]);
   const inCart = items.find((i) => i.productId === product.id);
-  const isConsultar = product.price === 0;
   const fav = isFavorite(product.id);
 
   return (
@@ -72,36 +71,23 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
           {product.name}
         </h3>
         <div className="flex items-center justify-between mt-auto pt-1.5">
-          {isConsultar ? (
-            <a
-              href={`https://wa.me/${CONTACT.whatsapp}?text=${encodeURIComponent(`Hola! Me interesa ${product.name}. ¿Me pueden dar más información?`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-heading font-semibold text-xs text-teal hover:text-teal/80"
-            >
-              Consultar
-            </a>
-          ) : (
-            <>
-              <span className="font-heading font-bold text-sm sm:text-base text-purple">
-                {formatCurrency(product.price)}
-              </span>
-              <button
-                onClick={() =>
-                  addItem({
-                    productId: product.id,
-                    name: product.name,
-                    category: product.category,
-                    unitPrice: product.price,
-                    image: product.image,
-                  })
-                }
-                className="rounded-full bg-orange text-white px-3 py-1.5 font-heading font-semibold text-[10px] sm:text-xs hover:bg-orange/90 transition-colors shrink-0"
-              >
-                Lo quiero
-              </button>
-            </>
-          )}
+          <span className="font-heading font-bold text-sm sm:text-base text-purple">
+            {formatCurrency(product.price)}
+          </span>
+          <button
+            onClick={() =>
+              addItem({
+                productId: product.id,
+                name: product.name,
+                category: product.category,
+                unitPrice: product.price,
+                image: product.image,
+              })
+            }
+            className="rounded-full bg-orange text-white px-3 py-1.5 font-heading font-semibold text-[10px] sm:text-xs hover:bg-orange/90 transition-colors shrink-0"
+          >
+            Lo quiero
+          </button>
         </div>
       </div>
     </div>

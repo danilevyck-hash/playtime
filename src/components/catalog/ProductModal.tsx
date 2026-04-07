@@ -53,9 +53,12 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
     ...(extraImages || []).slice(1), // skip index 0 since main image is already included
   ].filter(Boolean) : [];
 
+  const [quantity, setQuantity] = useState(1);
+
   useEffect(() => {
     setActiveIndex(0);
     setSelectedVariant(null);
+    setQuantity(1);
   }, [product]);
 
   useEffect(() => {
@@ -213,11 +216,31 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
             </div>
           )}
 
-          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 py-4 flex items-center justify-between">
-            <div>
+          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 py-4 flex items-center justify-between gap-3">
+            <div className="shrink-0">
               <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(activePrice)}</span>
               {inCart && <span className="text-xs font-heading font-semibold text-teal ml-2">{inCart.quantity} en carrito</span>}
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Quantity stepper */}
+              <div className="flex items-center bg-gray-100 rounded-full">
+                <button
+                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                  className="min-h-[44px] w-10 flex items-center justify-center rounded-l-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors disabled:opacity-30"
+                  disabled={quantity <= 1}
+                  aria-label="Reducir cantidad"
+                >
+                  −
+                </button>
+                <span className="min-w-[28px] text-center font-heading font-bold text-base text-purple select-none">{quantity}</span>
+                <button
+                  onClick={() => setQuantity(q => q + 1)}
+                  className="min-h-[44px] w-10 flex items-center justify-center rounded-r-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors"
+                  aria-label="Aumentar cantidad"
+                >
+                  +
+                </button>
+              </div>
               {needsVariant ? (
                 <Button disabled>
                   Selecciona {product.variantLabel?.toLowerCase()}
@@ -231,12 +254,15 @@ export default function ProductModal({ product, onClose, extraImages }: ProductM
                       category: product.category,
                       unitPrice: activePrice,
                       image: product.image,
+                      quantity,
                     });
+                    setQuantity(1);
                   }}
                 >
                   {inCart ? 'Agregar otro' : 'Agregar al carrito'}
                 </Button>
               )}
+            </div>
           </div>
         </div>
       </div>
