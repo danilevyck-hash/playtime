@@ -53,7 +53,8 @@ export default function Footer() {
         <div className="mt-8 pt-6 border-t border-white/20 text-center">
           <p className="text-white/50 text-xs font-body">
             &copy; {new Date().getFullYear()} PlayTime. Todos los derechos reservados.
-            <Link href="/admin" className="text-white/0 hover:text-white/30 ml-1 transition-colors"> · </Link>
+            {' · '}
+            <Link href="/admin" className="text-white/20 active:text-white/50">Acceso</Link>
           </p>
         </div>
       </div>
