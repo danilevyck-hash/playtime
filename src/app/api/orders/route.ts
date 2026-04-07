@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { sendOrderNotification } from '@/lib/email';
 
 function isAdminAuthorized(request: NextRequest): boolean {
   // Check session token first (works for both admin and vendedora), then fall back to PIN
@@ -137,6 +138,29 @@ export async function POST(request: NextRequest) {
     if (itemsError) {
       console.error('Order items insert error:', itemsError);
     }
+
+    // Send email notifications (non-blocking)
+    sendOrderNotification({
+      orderNumber: order.order_number,
+      customerName: customer.name.trim(),
+      customerPhone: customer.phone,
+      customerEmail: customer.email || undefined,
+      eventDate: event.date,
+      eventTime: event.time || '',
+      eventArea: event.area || undefined,
+      eventAddress: event.address || '',
+      birthdayChildName: event.birthdayChildName || undefined,
+      theme: event.theme || undefined,
+      items: items.map((i: { name: string; quantity: number; unitPrice: number }) => ({
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
+      subtotal: serverSubtotal,
+      surcharge: serverSurcharge,
+      total: serverTotal,
+      paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
+    }).catch(err => console.error('Email notification error:', err));
 
     return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
   } catch (error) {
