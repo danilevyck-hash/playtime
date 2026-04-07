@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { CONTACT } from '@/lib/constants';
 
 export default function Footer() {
@@ -52,6 +53,7 @@ export default function Footer() {
         <div className="mt-8 pt-6 border-t border-white/20 text-center">
           <p className="text-white/50 text-xs font-body">
             &copy; {new Date().getFullYear()} PlayTime. Todos los derechos reservados.
+            <Link href="/admin" className="text-white/0 hover:text-white/30 ml-1 transition-colors"> · </Link>
           </p>
         </div>
       </div>

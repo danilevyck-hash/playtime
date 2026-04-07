@@ -85,6 +85,8 @@ function getOrderStatus(order: Order): OrderStatus {
 let _adminToken = '';
 // Keep PIN for backward compat with API headers
 let _adminPin = '';
+// Role: 'admin' has full access, 'vendedora' sees only Pedidos (no stats)
+let _adminRole: 'admin' | 'vendedora' = 'admin';
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
 
@@ -109,9 +111,10 @@ interface OrderCardProps {
   onDeleteOrder: (orderId: number, orderNumber: number) => void;
   onSetStatus: (orderId: number, status: OrderStatus) => void;
   onUpdateOrder: (orderId: number, updates: Partial<Order>) => void;
+  allProducts: { id: string; name: string; price: number }[];
 }
 
-const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, patchOrder, fetchOrders, onDeleteOrder, onSetStatus, onUpdateOrder }: OrderCardProps) {
+const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, patchOrder, fetchOrders, onDeleteOrder, onSetStatus, onUpdateOrder, allProducts }: OrderCardProps) {
   const { showToast } = useToast();
 
   // Local state (previously in OrdersTab, keyed by orderId)
@@ -123,6 +126,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
   const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [transportInput, setTransportInput] = useState('');
+  const [isEditingTransport, setIsEditingTransport] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [depositInput, setDepositInput] = useState('');
@@ -542,7 +546,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                 <div className="flex gap-1">
                   <div className="flex-1 relative">
                     <input type="text" value={newItemForm.name}
-                      onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
+                      onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8) as typeof PRODUCTS); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
                       onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                       placeholder="Buscar producto..." className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs font-body" />
@@ -591,14 +595,16 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               {/* Transport (inline editable) */}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-500">Transporte</span>
-                {liveTrans > 0 ? (
-                  <span className="font-heading font-semibold text-gray-700">{formatCurrency(liveTrans)}</span>
-                ) : order.transport_cost_confirmed !== null && liveTrans === 0 ? (
-                  <span className="font-heading text-gray-400">$0 (gratis)</span>
+                {order.transport_cost_confirmed !== null && !isEditingTransport ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-heading font-semibold ${liveTrans > 0 ? 'text-gray-700' : 'text-gray-400'}`}>{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
+                    <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-300 hover:text-orange"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1">
                     <input type="number" value={transportInput || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInput(e.target.value)} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
-                    <button onClick={() => saveTransport()} disabled={!transportInput || savingAction === 'transport'} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === 'transport' ? '...' : 'Confirmar'}</button>
+                    <button onClick={() => { saveTransport(); setIsEditingTransport(false); }} disabled={!transportInput || savingAction === 'transport'} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === 'transport' ? '...' : 'Confirmar'}</button>
+                    {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-300 hover:text-gray-500"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
                   </div>
                 )}
               </div>
@@ -691,6 +697,9 @@ function OrdersTab() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
   const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
+  const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
+    PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
+  );
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -718,6 +727,22 @@ function OrdersTab() {
   }, []);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  useEffect(() => {
+    async function loadAllProducts() {
+      try {
+        const [overrides, custom] = await Promise.all([fetchProductOverrides(), fetchAllCustomProducts()]);
+        const ovMap = new Map(overrides.map(o => [o.id, o]));
+        const merged = PRODUCTS.map(p => {
+          const ov = ovMap.get(p.id);
+          return { id: p.id, name: ov?.name_override || p.name, price: ov?.price_override ?? p.price };
+        });
+        const customMapped = custom.map(cp => ({ id: cp.id, name: cp.name, price: cp.price }));
+        setAllProducts([...merged, ...customMapped]);
+      } catch { /* fallback: keep PRODUCTS */ }
+    }
+    loadAllProducts();
+  }, []);
 
   const setOrderStatus = useCallback(async (orderId: number, newStatus: OrderStatus) => {
     const confirmed = newStatus === 'confirmado' || newStatus === 'realizado';
@@ -827,25 +852,27 @@ function OrdersTab() {
 
   return (
     <div>
-      {/* Compact dashboard */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="font-heading font-bold text-xl text-purple">{totalOrders}</span>
-            <span className="text-gray-400 text-xs font-body ml-1">pedidos</span>
-            <span className="mx-2 text-gray-200">|</span>
-            <span className="font-heading font-bold text-xl text-teal">{confirmedOrders}</span>
-            <span className="text-gray-400 text-xs font-body ml-1">confirmados</span>
-          </div>
-          <div className="text-right">
-            <p className="font-heading font-bold text-lg text-purple">{formatCurrency(confirmedRevenue)}</p>
-            <p className="text-[10px] font-body text-gray-400">ingresos confirmados</p>
+      {/* Compact dashboard — hidden for vendedora */}
+      {_adminRole === 'admin' && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="font-heading font-bold text-xl text-purple">{totalOrders}</span>
+              <span className="text-gray-400 text-xs font-body ml-1">pedidos</span>
+              <span className="mx-2 text-gray-200">|</span>
+              <span className="font-heading font-bold text-xl text-teal">{confirmedOrders}</span>
+              <span className="text-gray-400 text-xs font-body ml-1">confirmados</span>
+            </div>
+            <div className="text-right">
+              <p className="font-heading font-bold text-lg text-purple">{formatCurrency(confirmedRevenue)}</p>
+              <p className="text-[10px] font-body text-gray-400">ingresos confirmados</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Monthly Summary — compact collapsible */}
-      {monthlySummary.length > 0 && (
+      {/* Monthly Summary — compact collapsible, hidden for vendedora */}
+      {_adminRole === 'admin' && monthlySummary.length > 0 && (
         <details className="bg-white rounded-2xl border border-gray-100 mb-5 group">
           <summary className="flex items-center justify-between p-4 cursor-pointer select-none">
             <span className="font-heading font-bold text-sm text-purple">Resumen mensual</span>
@@ -938,6 +965,7 @@ function OrdersTab() {
                 onDeleteOrder={deleteOrder}
                 onSetStatus={setOrderStatus}
                 onUpdateOrder={updateOrder}
+                allProducts={allProducts}
               />
             ))}</div>
           </div>
@@ -954,6 +982,7 @@ function OrdersTab() {
             onDeleteOrder={deleteOrder}
             onSetStatus={setOrderStatus}
             onUpdateOrder={updateOrder}
+            allProducts={allProducts}
           />
         ))}</div>
       ) : null}
@@ -1981,6 +2010,7 @@ export default function AdminPage() {
       if (data.ok) {
         _adminPin = pin;
         _adminToken = data.token || '';
+        _adminRole = data.role || 'admin';
         setAuthenticated(true);
       } else {
         setError(data.error || 'PIN incorrecto');
@@ -2028,27 +2058,29 @@ export default function AdminPage() {
       {/* Minimal header */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-heading font-bold text-2xl text-purple">PlayTime</h1>
-        <span className="text-xs font-body text-gray-400">Admin</span>
+        <span className="text-xs font-body text-gray-400">{_adminRole === 'vendedora' ? 'Vendedora' : 'Admin'}</span>
       </div>
 
-      {/* Clean tab bar */}
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-        {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['website', 'Sitio']] as const).map(([t, label]) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-lg font-heading font-semibold text-xs transition-all ${
-              tab === t ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Clean tab bar — vendedora only sees Pedidos */}
+      {_adminRole === 'admin' && (
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
+          {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['website', 'Sitio']] as const).map(([t, label]) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg font-heading font-semibold text-xs transition-all ${
+                tab === t ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === 'pedidos' && <OrdersTab />}
-      {tab === 'catalogo' && <CatalogoAdminTab />}
-      {tab === 'website' && <WebsiteTab />}
+      {_adminRole === 'admin' && tab === 'catalogo' && <CatalogoAdminTab />}
+      {_adminRole === 'admin' && tab === 'website' && <WebsiteTab />}
     </div>
   );
 }
