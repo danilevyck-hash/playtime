@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
@@ -99,6 +99,589 @@ function fmtTime12h(t: string) {
   } catch { return t; }
 }
 
+
+interface OrderCardProps {
+  order: Order;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  patchOrder: (body: Record<string, unknown>) => Promise<boolean>;
+  fetchOrders: () => Promise<void>;
+  onDeleteOrder: (orderId: number, orderNumber: number) => void;
+  onSetStatus: (orderId: number, status: OrderStatus) => void;
+  onUpdateOrder: (orderId: number, updates: Partial<Order>) => void;
+}
+
+const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, patchOrder, fetchOrders, onDeleteOrder, onSetStatus, onUpdateOrder }: OrderCardProps) {
+  const { showToast } = useToast();
+
+  // Local state (previously in OrdersTab, keyed by orderId)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [isEditingItems, setIsEditingItems] = useState(false);
+  const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
+  const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
+  const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [transportInput, setTransportInput] = useState('');
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+  const [depositInput, setDepositInput] = useState('');
+  const [depositDate, setDepositDate] = useState('');
+  const [noteInput, setNoteInput] = useState('');
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [savingAction, setSavingAction] = useState<string | null>(null);
+
+  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Reset local edit state when card collapses
+  useEffect(() => {
+    if (!isExpanded) {
+      setIsEditing(false);
+      setIsEditingItems(false);
+      setShowMoreMenu(false);
+    }
+  }, [isExpanded]);
+
+  // ─── Handlers ───
+
+  const saveNote = async () => {
+    const text = noteInput.trim();
+    if (!text) return;
+    setSavingAction('note');
+    try {
+      if (await patchOrder({ orderId: order.id, internalNote: text })) {
+        onUpdateOrder(order.id, { internal_note: text });
+        setNoteInput('');
+        showToast('Nota guardada');
+      } else { showToast('Error al guardar nota'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const startEditOrder = () => {
+    setIsEditing(true);
+    setEditForm({
+      customer_name: order.customer_name, customer_phone: order.customer_phone, customer_email: order.customer_email || '',
+      event_date: order.event_date, event_time: order.event_time, event_area: order.event_area || '', event_address: order.event_address,
+      birthday_child_name: order.birthday_child_name || '', birthday_child_age: order.birthday_child_age ? String(order.birthday_child_age) : '',
+      notes: order.notes || '',
+    });
+  };
+
+  const saveEditOrder = async () => {
+    const f = editForm;
+    if (!f.customer_name?.trim()) { showToast('Nombre requerido'); return; }
+    const phoneDigits = (f.customer_phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) { showToast('Tel\u00e9fono inv\u00e1lido (7-15 d\u00edgitos)'); return; }
+    const editFields = {
+      customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email,
+      event_date: f.event_date, event_time: f.event_time, event_area: f.event_area, event_address: f.event_address,
+      birthday_child_name: f.birthday_child_name, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
+      notes: f.notes,
+    };
+    setSavingAction('edit');
+    try {
+      if (await patchOrder({ orderId: order.id, editFields })) {
+        onUpdateOrder(order.id, {
+          customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
+          event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
+          birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
+          notes: f.notes || null,
+        });
+        setIsEditing(false);
+        showToast('Pedido actualizado');
+      } else { showToast('Error al guardar cambios'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const addDeposit = async () => {
+    const val = Number(depositInput);
+    if (isNaN(val) || val <= 0) return;
+    const date = depositDate || new Date().toISOString().slice(0, 10);
+    const newDeposits = [...(order.deposits || []), { amount: val, date }];
+    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
+    setSavingAction('deposit');
+    try {
+      if (await patchOrder({ orderId: order.id, deposits: newDeposits, depositAmount: totalDep })) {
+        onUpdateOrder(order.id, { deposits: newDeposits, deposit_amount: totalDep });
+        setDepositInput('');
+        showToast('Dep\u00f3sito agregado');
+      } else { showToast('Error al guardar dep\u00f3sito'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const removeDeposit = async (index: number) => {
+    const newDeposits = (order.deposits || []).filter((_, i) => i !== index);
+    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
+    setSavingAction('deposit');
+    try {
+      if (await patchOrder({ orderId: order.id, deposits: newDeposits, depositAmount: totalDep })) {
+        onUpdateOrder(order.id, { deposits: newDeposits, deposit_amount: totalDep });
+        showToast('Dep\u00f3sito eliminado');
+      } else { showToast('Error al eliminar dep\u00f3sito'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const saveDiscount = async (overrideVal?: number, overrideType?: 'fixed' | 'percent') => {
+    const val = overrideVal !== undefined ? overrideVal : Number(discountInput);
+    if (isNaN(val) || val < 0) return;
+    const dtype = overrideType !== undefined ? overrideType : discountType;
+    if (dtype === 'percent' && val > 100) return;
+    setSavingAction('discount');
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        body: JSON.stringify({ orderId: order.id, discount: val, discountType: dtype }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onUpdateOrder(order.id, {
+          discount: val, discount_type: dtype,
+          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
+        });
+        setDiscountInput('');
+        showToast('Descuento guardado');
+      } else { showToast('Error al guardar descuento'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const startEditItems = () => {
+    setIsEditingItems(true);
+    const edits: Record<number, { quantity: string; unit_price: string }> = {};
+    for (const item of order.items) {
+      if (item.id) edits[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
+    }
+    setItemEdits(edits);
+    setNewItemForm({ name: '', qty: '1', price: '' });
+  };
+
+  const saveItemEdits = async () => {
+    const editItems = Object.entries(itemEdits).map(([id, vals]) => ({
+      id: Number(id),
+      quantity: Number(vals.quantity) || 1,
+      unit_price: Number(vals.unit_price) || 0,
+    }));
+    setSavingAction('items');
+    try {
+      if (await patchOrder({ orderId: order.id, editItems })) {
+        await fetchOrders();
+        setIsEditingItems(false);
+        showToast('Items actualizados');
+      } else { showToast('Error al guardar items'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const handleAddItem = async () => {
+    if (!newItemForm.name.trim() || !newItemForm.price) return;
+    setSavingAction('additem');
+    try {
+      if (await patchOrder({ orderId: order.id, addItem: { product_name: newItemForm.name, quantity: Number(newItemForm.qty) || 1, unit_price: Number(newItemForm.price) || 0 } })) {
+        const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
+          id: Number(id),
+          quantity: Number(vals.quantity) || 1,
+          unit_price: Number(vals.unit_price) || 0,
+        }));
+        if (pendingEdits.length > 0) {
+          await patchOrder({ orderId: order.id, editItems: pendingEdits });
+        }
+        await fetchOrders();
+        setIsEditingItems(false);
+        setNewItemForm({ name: '', qty: '1', price: '' });
+        showToast('Item agregado');
+      } else { showToast('Error al agregar item'); }
+    } catch { showToast('Error al agregar'); }
+    finally { setSavingAction(null); }
+  };
+
+  const handleRemoveItem = async (itemId: number) => {
+    if (!window.confirm('\u00bfEliminar este item?')) return;
+    setSavingAction('removeitem');
+    try {
+      if (await patchOrder({ orderId: order.id, removeItem: itemId })) {
+        await fetchOrders();
+        showToast('Item eliminado');
+      } else { showToast('Error al eliminar item'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  const saveTransport = async () => {
+    const val = Number(transportInput);
+    if (isNaN(val) || val < 0) return;
+    setSavingAction('transport');
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        body: JSON.stringify({ orderId: order.id, transportCostConfirmed: val }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onUpdateOrder(order.id, {
+          transport_cost_confirmed: val,
+          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
+        });
+        setTransportInput('');
+        showToast('Transporte confirmado');
+      } else { showToast('Error al confirmar transporte'); }
+    } catch { showToast('Error de conexi\u00f3n'); }
+    finally { setSavingAction(null); }
+  };
+
+  // ─── Computed values ───
+  const st = getOrderStatus(order);
+  const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
+  const ef = editForm;
+  const deposits = order.deposits || [];
+  const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
+  const areaSuggestion = order.transport_cost_confirmed === null && order.event_area
+    ? EVENT_AREAS.find(a => a.name === order.event_area)?.price
+    : undefined;
+
+  // Live-calculated totals (single source of truth)
+  const liveItemsTotal = order.items.reduce((s, i) => {
+    if (isEditingItems && i.id && itemEdits[i.id]) {
+      return s + (Number(itemEdits[i.id].unit_price) || 0) * (Number(itemEdits[i.id].quantity) || 1);
+    }
+    return s + i.unit_price * i.quantity;
+  }, 0);
+  const liveDiscRaw = order.discount || 0;
+  const liveDisc = order.discount_type === 'percent' ? round2(liveItemsTotal * liveDiscRaw / 100) : liveDiscRaw;
+  const liveTrans = order.transport_cost_confirmed ?? 0;
+  const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
+  const liveSurch = order.payment_method === 'credit_card' ? liveBase * 0.05 : 0;
+  const liveTotal = liveBase + liveSurch;
+  const payMethodLabel = order.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
+
+  return (
+    <div className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'rechazado' ? 'border-red-200' : 'border-purple/30'}`}>
+      {/* ─── HEADER (collapsed card) ─── */}
+      <button onClick={() => { onToggleExpand(); if (isEditing) setIsEditing(false); setShowMoreMenu(false); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full text-white ${stInfo.bg}`}>{stInfo.label}</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+                {totalDeposits > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-teal/10 text-teal font-semibold">{'\uD83D\uDCB0'}</span>}
+                {liveDisc > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-600 font-semibold">{'\uD83C\uDFF7\uFE0F'}</span>}
+                {order.transport_cost_confirmed === null && <span className="text-[9px] px-1 py-0.5 rounded bg-orange/10 text-orange font-semibold">{'\uD83D\uDE9A?'}</span>}
+              </div>
+              <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} {'\u00b7'} {order.event_date}</p>
+            </div>
+          </div>
+          <span className="font-heading font-bold text-lg text-purple">{formatCurrency(liveTotal)}</span>
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
+          {/* ─── 1. PIPELINE ─── */}
+          <div className="flex gap-1">
+            {ORDER_STATUSES.map(s => (
+              <button key={s.key} onClick={() => onSetStatus(order.id, s.key)}
+                disabled={savingAction === 'status'}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              >{s.label}</button>
+            ))}
+          </div>
+
+          {/* ─── 2. ACTIONS (neutral colors, delete in overflow) ─── */}
+          <div className="flex gap-2 items-center">
+            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              WhatsApp
+            </a>
+            {!isEditing && <button onClick={() => startEditOrder()} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Editar</button>}
+            {isEditing && <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>}
+            <button onClick={async () => {
+              const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
+              const logoUrl = await fetchLogoUrl().catch(() => null);
+              const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (EVENT_AREAS.find(a => a.name === order.event_area)?.price ?? 0) : 0);
+              const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
+              const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
+              const pdfTotal = pdfBase + pdfSurch;
+              await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
+              showToast('PDF descargado');
+            }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
+            {/* Overflow menu with delete */}
+            <div className="relative ml-auto">
+              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
+              </button>
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
+                  <button onClick={() => { setShowMoreMenu(false); onDeleteOrder(order.id, order.order_number); }} disabled={savingAction === 'delete'} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">Eliminar pedido</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── 3. DETAILS (edit form or read-only) ─── */}
+          {isEditing ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+              {/* Cliente */}
+              <div>
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Cliente</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={ef.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
+                  <input value={ef.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
+                </div>
+                <input value={ef.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={`${OI_CLS} mt-2`} />
+              </div>
+              {/* Evento */}
+              <div>
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <input type="date" value={ef.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
+                  {(() => {
+                    const raw = ef.event_time || '12:00';
+                    const [hh, mm] = raw.split(':').map(Number);
+                    const ap = hh >= 12 ? 'PM' : 'AM';
+                    const hr12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+                    const buildTime = (h: number, m: number, ampm: string) => {
+                      let h24 = h;
+                      if (ampm === 'AM' && h === 12) h24 = 0;
+                      else if (ampm === 'PM' && h !== 12) h24 = h + 12;
+                      return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    };
+                    return (
+                      <div className="flex gap-1">
+                        <select value={hr12} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(Number(e.target.value), mm, ap) }))} className="border border-gray-200 rounded-lg py-2 px-2 font-body text-sm focus:border-purple focus:outline-none w-16">
+                          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <select value={mm} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(hr12, Number(e.target.value), ap) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
+                          {[0,15,30,45].map(m => <option key={m} value={m}>:{String(m).padStart(2,'0')}</option>)}
+                        </select>
+                        <select value={ap} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(hr12, mm, e.target.value) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <select value={ef.event_area || ''} onChange={e => setEditForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
+                    <option value="">{'\u00c1'}rea</option>
+                    {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                  </select>
+                  <input value={ef.event_address || ''} onChange={e => setEditForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <input value={ef.birthday_child_name || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
+                  <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
+                  <input value={ef.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setIsEditing(false)} disabled={savingAction === 'edit'} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
+                <button onClick={() => saveEditOrder()} disabled={savingAction === 'edit'} className="flex-1 bg-purple text-white font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">{savingAction === 'edit' ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-100 p-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
+                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
+                {order.event_area && <div><span className="text-gray-400 font-heading text-[10px] uppercase">{'\u00c1'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
+                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
+                <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
+                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
+                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
+              </div>
+            </div>
+          )}
+
+          {/* ─── 4. FACTURA UNIFICADA (items + descuento + transporte + total) ─── */}
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+              <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
+              {isEditingItems ? (
+                <div className="flex gap-2">
+                  <button onClick={() => setIsEditingItems(false)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
+                  <button onClick={() => saveItemEdits()} disabled={savingAction === 'items'} className="text-xs text-purple font-heading font-semibold hover:text-purple/80">{savingAction === 'items' ? 'Guardando...' : 'Guardar'}</button>
+                </div>
+              ) : (
+                <button onClick={() => startEditItems()} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>
+              )}
+            </div>
+            {/* Items */}
+            <div className="divide-y divide-gray-100">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between px-3 py-2.5 text-sm gap-2">
+                  {isEditingItems && item.id ? (
+                    <>
+                      <span className="flex-1 truncate text-gray-700 text-xs">{item.product_name}</span>
+                      <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
+                      <span className="text-gray-400 text-xs">x</span>
+                      <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
+                      <span className="text-xs text-gray-400 w-16 text-right">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
+                      <button onClick={() => handleRemoveItem(item.id!)} className="text-gray-300 hover:text-red-500 ml-1"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                      <span className="font-heading font-semibold">{formatCurrency(item.line_total)}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Add item (when editing) */}
+            {isEditingItems && (
+              <div className="border-t border-gray-200 px-3 py-2.5 bg-gray-50/50 space-y-2">
+                <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
+                <div className="flex gap-1">
+                  <div className="flex-1 relative">
+                    <input type="text" value={newItemForm.name}
+                      onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
+                      onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      placeholder="Buscar producto..." className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs font-body" />
+                    {showSuggestions && productSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-48 overflow-y-auto">
+                        {productSuggestions.map(p => (
+                          <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2 min-h-[44px] items-center">
+                            <span className="truncate text-gray-700">{p.name}</span>
+                            <span className="text-purple font-heading font-semibold shrink-0">${p.price}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1.5 text-center text-xs" min="1" />
+                  <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1.5 text-right text-xs" min="0" step="0.01" />
+                  <button onClick={() => handleAddItem()} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-2.5 py-1.5 rounded text-xs disabled:opacity-40">+</button>
+                </div>
+              </div>
+            )}
+            {/* ─── TOTALS + INLINE DISCOUNT/TRANSPORT ─── */}
+            <div className="border-t border-gray-200 px-3 py-3 space-y-1.5">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Subtotal</span>
+                <span className="font-heading">{formatCurrency(liveItemsTotal)}</span>
+              </div>
+              {/* Discount (inline editable) */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Descuento</span>
+                {liveDisc > 0 ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
+                    <button onClick={() => { saveDiscount(0, 'fixed'); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="flex border border-gray-200 rounded overflow-hidden">
+                      <button onClick={() => setDiscountType('fixed')} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountType === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
+                      <button onClick={() => setDiscountType('percent')} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountType === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
+                    </div>
+                    <input type="number" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" max={discountType === 'percent' ? '100' : undefined} step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
+                    {discountInput && <button onClick={() => saveDiscount()} disabled={savingAction === 'discount'} className="text-[10px] font-heading font-semibold text-purple hover:underline disabled:opacity-50">{savingAction === 'discount' ? '...' : 'Aplicar'}</button>}
+                  </div>
+                )}
+              </div>
+              {/* Transport (inline editable) */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Transporte</span>
+                {liveTrans > 0 ? (
+                  <span className="font-heading font-semibold text-gray-700">{formatCurrency(liveTrans)}</span>
+                ) : order.transport_cost_confirmed !== null && liveTrans === 0 ? (
+                  <span className="font-heading text-gray-400">$0 (gratis)</span>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <input type="number" value={transportInput || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInput(e.target.value)} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
+                    <button onClick={() => saveTransport()} disabled={!transportInput || savingAction === 'transport'} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === 'transport' ? '...' : 'Confirmar'}</button>
+                  </div>
+                )}
+              </div>
+              {/* Surcharge */}
+              {liveSurch > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Recargo tarjeta (5%)</span>
+                  <span className="font-heading">{formatCurrency(liveSurch)}</span>
+                </div>
+              )}
+              {/* Payment method */}
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>M{'é'}todo</span>
+                <span className="font-heading">{payMethodLabel}</span>
+              </div>
+              {/* Total */}
+              <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-2 mt-1">
+                <span>Total</span>
+                <span>{formatCurrency(liveTotal)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── 5. DEPÓSITOS (simplified, with progress bar) ─── */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button onClick={() => toggleSection('dep')} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors">
+              <span className="font-heading font-semibold text-xs text-gray-500">{'\uD83D\uDCB0'} Dep{'ó'}sitos</span>
+              <div className="flex items-center gap-3 text-xs">
+                {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">{formatCurrency(totalDeposits)}</span>}
+                {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span>}
+                <span className="text-gray-400">{openSections['dep'] ? '\u25BE' : '\u25B8'}</span>
+              </div>
+            </button>
+            {totalDeposits > 0 && (
+              <div className="px-3 pt-1 pb-0"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
+            )}
+            {openSections['dep'] && (
+              <div className="p-3 space-y-2">
+                {deposits.length > 0 && (
+                  <div className="space-y-1">
+                    {deposits.map((d, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2.5 py-1.5">
+                        <span className="font-body text-gray-600">{d.date}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
+                          <button onClick={() => removeDeposit(i)} className="text-gray-300 hover:text-red-500 text-xs">{'\u2715'}</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span></p>}
+                <div className="flex gap-2">
+                  <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
+                  <input type="number" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(liveTotal) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
+                  <button onClick={() => addDeposit()} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === 'deposit' ? '...' : '+'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ─── 6. NOTA INTERNA ─── */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button onClick={() => toggleSection('note')} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors">
+              <span className="font-heading font-semibold text-xs text-gray-500">{'\uD83D\uDCDD'} Nota interna {order.internal_note ? '(1)' : ''}</span>
+              <span className="text-gray-400 text-xs">{openSections['note'] ? '\u25BE' : '\u25B8'}</span>
+            </button>
+            {openSections['note'] && (
+              <div className="px-3 pb-3 space-y-2">
+                {order.internal_note && <p className="font-body text-sm text-gray-700 bg-gray-50 rounded-lg px-2.5 py-2">{order.internal_note}</p>}
+                <div className="flex gap-2">
+                  <input type="text" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Agregar nota interna..." className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
+                  <button onClick={() => saveNote()} disabled={!noteInput.trim() || savingAction === 'note'} className="bg-purple text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-purple/80 transition-colors">{savingAction === 'note' ? '...' : 'Guardar'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 function OrdersTab() {
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -108,23 +691,6 @@ function OrdersTab() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
   const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
-  const [noteInputs, setNoteInputs] = useState<Record<number, string>>({});
-  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
-  const [editOrderForm, setEditOrderForm] = useState<Record<string, string>>({});
-  const [depositInputs, setDepositInputs] = useState<Record<number, string>>({});
-  const [depositDateInputs, setDepositDateInputs] = useState<Record<number, string>>({});
-  const [transportInputs, setTransportInputs] = useState<Record<number, string>>({});
-  const [discountInputs, setDiscountInputs] = useState<Record<number, string>>({});
-  const [discountTypeInputs, setDiscountTypeInputs] = useState<Record<number, 'fixed' | 'percent'>>({});
-  const [editingItems, setEditingItems] = useState<number | null>(null);
-  const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
-  const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
-  const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [savingAction, setSavingAction] = useState<string | null>(null);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
-  const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -145,7 +711,7 @@ function OrdersTab() {
       setOrders(data.orders || []);
       if (data.message) setError(data.message);
     } catch {
-      setError('No se pudieron cargar los pedidos. Verifica que Supabase esté configurado.');
+      setError('No se pudieron cargar los pedidos. Verifica que Supabase est\u00e9 configurado.');
     } finally {
       setLoading(false);
     }
@@ -153,25 +719,23 @@ function OrdersTab() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const setOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
+  const setOrderStatus = useCallback(async (orderId: number, newStatus: OrderStatus) => {
     const confirmed = newStatus === 'confirmado' || newStatus === 'realizado';
-    // Skip if already in this status
-    const current = orders.find(o => o.id === orderId);
-    if (current && getOrderStatus(current) === newStatus) return;
     const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
-    setSavingAction(`status-${orderId}`);
     try {
       if (await patchOrder({ orderId, status: newStatus })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o));
+        setOrders(prev => {
+          const current = prev.find(o => o.id === orderId);
+          if (current && getOrderStatus(current) === newStatus) return prev;
+          return prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o);
+        });
         showToast(`Estado: ${label}`);
       } else { showToast('Error al cambiar estado'); }
     } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
+  }, [patchOrder, showToast]);
 
-  const deleteOrder = async (orderId: number, orderNumber: number) => {
+  const deleteOrder = useCallback(async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
-    setSavingAction(`delete-${orderId}`);
     try {
       const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
       if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); showToast('Pedido eliminado'); }
@@ -179,204 +743,12 @@ function OrdersTab() {
     } catch (e) {
       console.error('Delete order error:', e);
       showToast('Error de conexi\u00f3n al eliminar');
-    } finally { setSavingAction(null); }
-  };
-
-  const saveNote = async (orderId: number) => {
-    const text = (noteInputs[orderId] || '').trim();
-    if (!text) return;
-    setSavingAction(`note-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, internalNote: text })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, internal_note: text } : o));
-        setNoteInputs(prev => ({ ...prev, [orderId]: '' }));
-        showToast('Nota guardada');
-      } else { showToast('Error al guardar nota'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const startEditOrder = (o: Order) => {
-    setEditingOrderId(o.id);
-    setEditOrderForm({
-      customer_name: o.customer_name, customer_phone: o.customer_phone, customer_email: o.customer_email || '',
-      event_date: o.event_date, event_time: o.event_time, event_area: o.event_area || '', event_address: o.event_address,
-      birthday_child_name: o.birthday_child_name || '', birthday_child_age: o.birthday_child_age ? String(o.birthday_child_age) : '',
-      notes: o.notes || '',
-    });
-  };
-
-  const saveEditOrder = async (orderId: number) => {
-    const f = editOrderForm;
-    // Client-side validation
-    if (!f.customer_name?.trim()) { showToast('Nombre requerido'); return; }
-    const phoneDigits = (f.customer_phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 7 || phoneDigits.length > 15) { showToast('Teléfono inválido (7-15 dígitos)'); return; }
-    const editFields = {
-      customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email,
-      event_date: f.event_date, event_time: f.event_time, event_area: f.event_area, event_address: f.event_address,
-      birthday_child_name: f.birthday_child_name, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
-      notes: f.notes,
-    };
-    setSavingAction(`edit-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, editFields })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? {
-          ...o, customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
-          event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
-          birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
-          notes: f.notes || null,
-        } : o));
-        setEditingOrderId(null);
-        showToast('Pedido actualizado');
-      } else { showToast('Error al guardar cambios'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const addDeposit = async (orderId: number) => {
-    const val = Number(depositInputs[orderId]);
-    if (isNaN(val) || val <= 0) return;
-    const date = depositDateInputs[orderId] || new Date().toISOString().slice(0, 10);
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-    const newDeposits = [...(order.deposits || []), { amount: val, date }];
-    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
-    setSavingAction(`deposit-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, deposits: newDeposits, depositAmount: totalDep })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposits: newDeposits, deposit_amount: totalDep } : o));
-        setDepositInputs(prev => ({ ...prev, [orderId]: '' }));
-        showToast('Dep\u00f3sito agregado');
-      } else { showToast('Error al guardar dep\u00f3sito'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const removeDeposit = async (orderId: number, index: number) => {
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-    const newDeposits = (order.deposits || []).filter((_, i) => i !== index);
-    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
-    setSavingAction(`deposit-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, deposits: newDeposits, depositAmount: totalDep })) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deposits: newDeposits, deposit_amount: totalDep } : o));
-        showToast('Dep\u00f3sito eliminado');
-      } else { showToast('Error al eliminar dep\u00f3sito'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const saveDiscount = async (orderId: number) => {
-    const val = Number(discountInputs[orderId]);
-    if (isNaN(val) || val < 0) return;
-    const dtype = discountTypeInputs[orderId] || 'fixed';
-    if (dtype === 'percent' && val > 100) return;
-    setSavingAction(`discount-${orderId}`);
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
-        body: JSON.stringify({ orderId, discount: val, discountType: dtype }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(prev => prev.map(o => o.id === orderId ? {
-          ...o, discount: val, discount_type: dtype,
-          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
-        } : o));
-        setDiscountInputs(prev => ({ ...prev, [orderId]: '' }));
-        showToast('Descuento guardado');
-      } else { showToast('Error al guardar descuento'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const startEditItems = (order: Order) => {
-    setEditingItems(order.id);
-    const edits: Record<number, { quantity: string; unit_price: string }> = {};
-    for (const item of order.items) {
-      if (item.id) edits[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
     }
-    setItemEdits(edits);
-    setNewItemForm({ name: '', qty: '1', price: '' });
-  };
+  }, [showToast]);
 
-  const saveItemEdits = async (orderId: number) => {
-    const editItems = Object.entries(itemEdits).map(([id, vals]) => ({
-      id: Number(id),
-      quantity: Number(vals.quantity) || 1,
-      unit_price: Number(vals.unit_price) || 0,
-    }));
-    setSavingAction(`items-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, editItems })) {
-        await fetchOrders();
-        setEditingItems(null);
-        showToast('Items actualizados');
-      } else { showToast('Error al guardar items'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const handleAddItem = async (orderId: number) => {
-    if (!newItemForm.name.trim() || !newItemForm.price) return;
-    setSavingAction(`additem-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, addItem: { product_name: newItemForm.name, quantity: Number(newItemForm.qty) || 1, unit_price: Number(newItemForm.price) || 0 } })) {
-        // First save any pending item edits too
-        const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
-          id: Number(id),
-          quantity: Number(vals.quantity) || 1,
-          unit_price: Number(vals.unit_price) || 0,
-        }));
-        if (pendingEdits.length > 0) {
-          await patchOrder({ orderId, editItems: pendingEdits });
-        }
-        await fetchOrders();
-        setEditingItems(null);
-        setNewItemForm({ name: '', qty: '1', price: '' });
-        showToast('Item agregado');
-      } else { showToast('Error al agregar item'); }
-    } catch { showToast('Error al agregar'); }
-    finally { setSavingAction(null); }
-  };
-
-  const handleRemoveItem = async (orderId: number, itemId: number) => {
-    if (!window.confirm('¿Eliminar este item?')) return;
-    setSavingAction(`removeitem-${orderId}`);
-    try {
-      if (await patchOrder({ orderId, removeItem: itemId })) {
-        await fetchOrders();
-        showToast('Item eliminado');
-      } else { showToast('Error al eliminar item'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const saveTransport = async (orderId: number) => {
-    const val = Number(transportInputs[orderId]);
-    if (isNaN(val) || val < 0) return;
-    setSavingAction(`transport-${orderId}`);
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
-        body: JSON.stringify({ orderId, transportCostConfirmed: val }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(prev => prev.map(o => o.id === orderId ? {
-          ...o, transport_cost_confirmed: val,
-          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
-        } : o));
-        setTransportInputs(prev => ({ ...prev, [orderId]: '' }));
-        showToast('Transporte confirmado');
-      } else { showToast('Error al confirmar transporte'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
+  const updateOrder = useCallback((orderId: number, updates: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
+  }, []);
 
   const exportCSV = () => {
     const headers = ['#Pedido','Cliente','Tel\u00e9fono','Email','Fecha Evento','Hora','\u00c1rea','Direcci\u00f3n','Cumplea\u00f1ero','Edad','Tema','M\u00e9todo Pago','Subtotal','Transporte','Recargo','Total','Dep\u00f3sito','Saldo Pendiente','Estado','Nota Interna','Fecha Creaci\u00f3n'];
@@ -446,360 +818,12 @@ function OrdersTab() {
       });
   }, [orders]);
 
-  const totalOrders = orders.length;
-  const confirmedOrders = orders.filter(o => o.confirmed).length;
-  const rejectedOrders = orders.filter(o => getOrderStatus(o) === 'rechazado').length;
-  const confirmedRevenue = orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0);
-
-  const renderOrderCard = (order: Order) => {
-    const st = getOrderStatus(order);
-    const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
-    const isEditing = editingOrderId === order.id;
-    const ef = editOrderForm;
-    const deposits = order.deposits || [];
-    const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
-    const areaSuggestion = order.transport_cost_confirmed === null && order.event_area
-      ? EVENT_AREAS.find(a => a.name === order.event_area)?.price
-      : undefined;
-
-    // Live-calculated totals (single source of truth)
-    const liveItemsTotal = order.items.reduce((s, i) => {
-      if (editingItems === order.id && i.id && itemEdits[i.id]) {
-        return s + (Number(itemEdits[i.id].unit_price) || 0) * (Number(itemEdits[i.id].quantity) || 1);
-      }
-      return s + i.unit_price * i.quantity;
-    }, 0);
-    const liveDiscRaw = order.discount || 0;
-    const liveDisc = order.discount_type === 'percent' ? round2(liveItemsTotal * liveDiscRaw / 100) : liveDiscRaw;
-    const liveTrans = order.transport_cost_confirmed ?? 0;
-    const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
-    const liveSurch = order.payment_method === 'credit_card' ? liveBase * 0.05 : 0;
-    const liveTotal = liveBase + liveSurch;
-    const payMethodLabel = order.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
-
-    return (
-      <div key={order.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'rechazado' ? 'border-red-200' : 'border-purple/30'}`}>
-        {/* ─── HEADER (collapsed card) ─── */}
-        <button onClick={() => { setExpandedOrder(expandedOrder === order.id ? null : order.id); if (editingOrderId === order.id) setEditingOrderId(null); setShowMoreMenu(null); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full text-white ${stInfo.bg}`}>{stInfo.label}</span>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-heading font-bold text-purple">#{order.order_number}</span>
-                  {totalDeposits > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-teal/10 text-teal font-semibold">{'💰'}</span>}
-                  {liveDisc > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-600 font-semibold">{'🏷️'}</span>}
-                  {order.transport_cost_confirmed === null && <span className="text-[9px] px-1 py-0.5 rounded bg-orange/10 text-orange font-semibold">{'🚚?'}</span>}
-                </div>
-                <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} {'·'} {order.event_date}</p>
-              </div>
-            </div>
-            <span className="font-heading font-bold text-lg text-purple">{formatCurrency(liveTotal)}</span>
-          </div>
-        </button>
-
-        {expandedOrder === order.id && (
-          <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
-            {/* ─── 1. PIPELINE ─── */}
-            <div className="flex gap-1">
-              {ORDER_STATUSES.map(s => (
-                <button key={s.key} onClick={() => setOrderStatus(order.id, s.key)}
-                  disabled={savingAction === `status-${order.id}`}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                >{s.label}</button>
-              ))}
-            </div>
-
-            {/* ─── 2. ACTIONS (neutral colors, delete in overflow) ─── */}
-            <div className="flex gap-2 items-center">
-              <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                WhatsApp
-              </a>
-              {!isEditing && <button onClick={() => startEditOrder(order)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Editar</button>}
-              {isEditing && <button onClick={() => setEditingOrderId(null)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>}
-              <button onClick={async () => {
-                const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
-                const logoUrl = await fetchLogoUrl().catch(() => null);
-                // Auto-resolve transport: use confirmed value, or area price, or 0
-                const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (EVENT_AREAS.find(a => a.name === order.event_area)?.price ?? 0) : 0);
-                const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
-                const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
-                const pdfTotal = pdfBase + pdfSurch;
-                await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
-                showToast('PDF descargado');
-              }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
-              {/* Overflow menu with delete */}
-              <div className="relative ml-auto">
-                <button onClick={() => setShowMoreMenu(showMoreMenu === order.id ? null : order.id)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
-                </button>
-                {showMoreMenu === order.id && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
-                    <button onClick={() => { setShowMoreMenu(null); deleteOrder(order.id, order.order_number); }} disabled={savingAction === `delete-${order.id}`} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">Eliminar pedido</button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ─── 3. DETAILS (edit form or read-only) ─── */}
-            {isEditing ? (
-              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-                {/* Cliente */}
-                <div>
-                  <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Cliente</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input value={ef.customer_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                    <input value={ef.customer_phone || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
-                  </div>
-                  <input value={ef.customer_email || ''} onChange={e => setEditOrderForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={`${OI_CLS} mt-2`} />
-                </div>
-                {/* Evento */}
-                <div>
-                  <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
-                  <div className="grid grid-cols-[1fr_auto] gap-2">
-                    <input type="date" value={ef.event_date || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
-                    {(() => {
-                      const raw = ef.event_time || '12:00';
-                      const [hh, mm] = raw.split(':').map(Number);
-                      const ap = hh >= 12 ? 'PM' : 'AM';
-                      const hr12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
-                      const buildTime = (h: number, m: number, ampm: string) => {
-                        let h24 = h;
-                        if (ampm === 'AM' && h === 12) h24 = 0;
-                        else if (ampm === 'PM' && h !== 12) h24 = h + 12;
-                        return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                      };
-                      return (
-                        <div className="flex gap-1">
-                          <select value={hr12} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(Number(e.target.value), mm, ap) }))} className="border border-gray-200 rounded-lg py-2 px-2 font-body text-sm focus:border-purple focus:outline-none w-16">
-                            {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
-                          </select>
-                          <select value={mm} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(hr12, Number(e.target.value), ap) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
-                            {[0,15,30,45].map(m => <option key={m} value={m}>:{String(m).padStart(2,'0')}</option>)}
-                          </select>
-                          <select value={ap} onChange={e => setEditOrderForm(p => ({ ...p, event_time: buildTime(hr12, mm, e.target.value) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                          </select>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <select value={ef.event_area || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
-                      <option value="">{'Á'}rea</option>
-                      {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
-                    </select>
-                    <input value={ef.event_address || ''} onChange={e => setEditOrderForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    <input value={ef.birthday_child_name || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
-                    <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditOrderForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
-                    <input value={ef.notes || ''} onChange={e => setEditOrderForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setEditingOrderId(null)} disabled={savingAction === `edit-${order.id}`} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
-                  <button onClick={() => saveEditOrder(order.id)} disabled={savingAction === `edit-${order.id}`} className="flex-1 bg-purple text-white font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">{savingAction === `edit-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-100 p-3">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
-                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
-                  {order.event_area && <div><span className="text-gray-400 font-heading text-[10px] uppercase">{'Á'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
-                  <div><span className="text-gray-400 font-heading text-[10px] uppercase">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
-                  <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
-                  {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Cumplea{'ñ'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
-                  {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
-                </div>
-              </div>
-            )}
-
-            {/* ─── 4. FACTURA UNIFICADA (items + descuento + transporte + total) ─── */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
-                <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
-                {editingItems === order.id ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditingItems(null)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
-                    <button onClick={() => saveItemEdits(order.id)} disabled={savingAction === `items-${order.id}`} className="text-xs text-purple font-heading font-semibold hover:text-purple/80">{savingAction === `items-${order.id}` ? 'Guardando...' : 'Guardar'}</button>
-                  </div>
-                ) : (
-                  <button onClick={() => startEditItems(order)} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>
-                )}
-              </div>
-              {/* Items */}
-              <div className="divide-y divide-gray-100">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between px-3 py-2.5 text-sm gap-2">
-                    {editingItems === order.id && item.id ? (
-                      <>
-                        <span className="flex-1 truncate text-gray-700 text-xs">{item.product_name}</span>
-                        <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
-                        <span className="text-gray-400 text-xs">x</span>
-                        <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
-                        <span className="text-xs text-gray-400 w-16 text-right">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
-                        <button onClick={() => handleRemoveItem(order.id, item.id!)} className="text-gray-300 hover:text-red-500 ml-1"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                        <span className="font-heading font-semibold">{formatCurrency(item.line_total)}</span>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Add item (when editing) */}
-              {editingItems === order.id && (
-                <div className="border-t border-gray-200 px-3 py-2.5 bg-gray-50/50 space-y-2">
-                  <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
-                  <div className="flex gap-1">
-                    <div className="flex-1 relative">
-                      <input type="text" value={newItemForm.name}
-                        onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(PRODUCTS.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
-                        onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
-                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                        placeholder="Buscar producto..." className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs font-body" />
-                      {showSuggestions && productSuggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-48 overflow-y-auto">
-                          {productSuggestions.map(p => (
-                            <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2 min-h-[44px] items-center">
-                              <span className="truncate text-gray-700">{p.name}</span>
-                              <span className="text-purple font-heading font-semibold shrink-0">${p.price}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1.5 text-center text-xs" min="1" />
-                    <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1.5 text-right text-xs" min="0" step="0.01" />
-                    <button onClick={() => handleAddItem(order.id)} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === `additem-${order.id}`} className="bg-purple text-white font-heading font-semibold px-2.5 py-1.5 rounded text-xs disabled:opacity-40">+</button>
-                  </div>
-                </div>
-              )}
-              {/* ─── TOTALS + INLINE DISCOUNT/TRANSPORT ─── */}
-              <div className="border-t border-gray-200 px-3 py-3 space-y-1.5">
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Subtotal</span>
-                  <span className="font-heading">{formatCurrency(liveItemsTotal)}</span>
-                </div>
-                {/* Discount (inline editable) */}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Descuento</span>
-                  {liveDisc > 0 ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
-                      <button onClick={() => { setDiscountInputs(prev => ({ ...prev, [order.id]: '0' })); setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'fixed' })); setTimeout(() => saveDiscount(order.id), 50); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <div className="flex border border-gray-200 rounded overflow-hidden">
-                        <button onClick={() => setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'fixed' }))} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${(discountTypeInputs[order.id] || 'fixed') === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
-                        <button onClick={() => setDiscountTypeInputs(prev => ({ ...prev, [order.id]: 'percent' }))} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountTypeInputs[order.id] === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
-                      </div>
-                      <input type="number" value={discountInputs[order.id] || ''} onChange={e => setDiscountInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={discountTypeInputs[order.id] === 'percent' ? '10' : '$0'} min="0" max={discountTypeInputs[order.id] === 'percent' ? '100' : undefined} step={discountTypeInputs[order.id] === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
-                      {discountInputs[order.id] && <button onClick={() => saveDiscount(order.id)} disabled={savingAction === `discount-${order.id}`} className="text-[10px] font-heading font-semibold text-purple hover:underline disabled:opacity-50">{savingAction === `discount-${order.id}` ? '...' : 'Aplicar'}</button>}
-                    </div>
-                  )}
-                </div>
-                {/* Transport (inline editable) */}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Transporte</span>
-                  {liveTrans > 0 ? (
-                    <span className="font-heading font-semibold text-gray-700">{formatCurrency(liveTrans)}</span>
-                  ) : order.transport_cost_confirmed !== null && liveTrans === 0 ? (
-                    <span className="font-heading text-gray-400">$0 (gratis)</span>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <input type="number" value={transportInputs[order.id] || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
-                      <button onClick={() => saveTransport(order.id)} disabled={!transportInputs[order.id] || savingAction === `transport-${order.id}`} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === `transport-${order.id}` ? '...' : 'Confirmar'}</button>
-                    </div>
-                  )}
-                </div>
-                {/* Surcharge */}
-                {liveSurch > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Recargo tarjeta (5%)</span>
-                    <span className="font-heading">{formatCurrency(liveSurch)}</span>
-                  </div>
-                )}
-                {/* Payment method */}
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>M{'é'}todo</span>
-                  <span className="font-heading">{payMethodLabel}</span>
-                </div>
-                {/* Total */}
-                <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-2 mt-1">
-                  <span>Total</span>
-                  <span>{formatCurrency(liveTotal)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* ─── 5. DEPÓSITOS (simplified, with progress bar) ─── */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <button onClick={() => toggleSection(`dep-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <span className="font-heading font-semibold text-xs text-gray-500">{'💰'} Dep{'ó'}sitos</span>
-                <div className="flex items-center gap-3 text-xs">
-                  {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">{formatCurrency(totalDeposits)}</span>}
-                  {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span>}
-                  <span className="text-gray-400">{openSections[`dep-${order.id}`] ? '▾' : '▸'}</span>
-                </div>
-              </button>
-              {/* Progress bar (always visible if deposits exist) */}
-              {totalDeposits > 0 && (
-                <div className="px-3 pt-1 pb-0"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
-              )}
-              {openSections[`dep-${order.id}`] && (
-                <div className="p-3 space-y-2">
-                  {deposits.length > 0 && (
-                    <div className="space-y-1">
-                      {deposits.map((d, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2.5 py-1.5">
-                          <span className="font-body text-gray-600">{d.date}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                            <button onClick={() => removeDeposit(order.id, i)} className="text-gray-300 hover:text-red-500 text-xs">{'✕'}</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span></p>}
-                  <div className="flex gap-2">
-                    <input type="date" value={depositDateInputs[order.id] || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDateInputs(prev => ({ ...prev, [order.id]: e.target.value }))} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
-                    <input type="number" value={depositInputs[order.id] || ''} onChange={e => setDepositInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder={liveTotal > 0 ? formatCurrency(liveTotal) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                    <button onClick={() => addDeposit(order.id)} disabled={!depositInputs[order.id] || savingAction === `deposit-${order.id}`} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === `deposit-${order.id}` ? '...' : '+'}</button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ─── 6. NOTA INTERNA ─── */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <button onClick={() => toggleSection(`note-${order.id}`)} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors">
-                <span className="font-heading font-semibold text-xs text-gray-500">{'📝'} Nota interna {order.internal_note ? '(1)' : ''}</span>
-                <span className="text-gray-400 text-xs">{openSections[`note-${order.id}`] ? '▾' : '▸'}</span>
-              </button>
-              {openSections[`note-${order.id}`] && (
-                <div className="px-3 pb-3 space-y-2">
-                  {order.internal_note && <p className="font-body text-sm text-gray-700 bg-gray-50 rounded-lg px-2.5 py-2">{order.internal_note}</p>}
-                  <div className="flex gap-2">
-                    <input type="text" value={noteInputs[order.id] || ''} onChange={e => setNoteInputs(prev => ({ ...prev, [order.id]: e.target.value }))} placeholder="Agregar nota interna..." className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
-                    <button onClick={() => saveNote(order.id)} disabled={!(noteInputs[order.id] || '').trim() || savingAction === `note-${order.id}`} className="bg-purple text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-purple/80 transition-colors">{savingAction === `note-${order.id}` ? '...' : 'Guardar'}</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const { totalOrders, confirmedOrders, rejectedOrders, confirmedRevenue } = useMemo(() => ({
+    totalOrders: orders.length,
+    confirmedOrders: orders.filter(o => o.confirmed).length,
+    rejectedOrders: orders.filter(o => getOrderStatus(o) === 'rechazado').length,
+    confirmedRevenue: orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0),
+  }), [orders]);
 
   return (
     <div>
@@ -851,7 +875,7 @@ function OrdersTab() {
         </button>
         <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-3 py-1 rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
         <button onClick={fetchOrders} disabled={loading} className="px-3 py-1 rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto">
-          {loading ? '...' : '↻'}
+          {loading ? '...' : '\u21BB'}
         </button>
       </div>
 
@@ -890,7 +914,7 @@ function OrdersTab() {
 
       {!loading && filteredOrders.length === 0 && !error && (
         <div className="text-center py-16">
-          <div className="text-4xl mb-3">{'📋'}</div>
+          <div className="text-4xl mb-3">{'\uD83D\uDCCB'}</div>
           <p className="font-heading font-bold text-lg text-gray-400 mb-1">{search ? 'No se encontraron pedidos' : 'No hay pedidos'}</p>
           <p className="font-body text-sm text-gray-400">{search ? 'Prueba con otro nombre o fecha' : 'Los pedidos aparecer\u00e1n aqu\u00ed'}</p>
         </div>
@@ -903,11 +927,35 @@ function OrdersTab() {
               <h3 className="font-heading font-bold text-sm text-purple">{group.label}</h3>
               <span className="text-xs font-body text-gray-400">{group.orders.length} pedido{group.orders.length !== 1 ? 's' : ''}</span>
             </div>
-            <div className="space-y-3">{group.orders.map(renderOrderCard)}</div>
+            <div className="space-y-3">{group.orders.map(o => (
+              <OrderCard
+                key={o.id}
+                order={o}
+                isExpanded={expandedOrder === o.id}
+                onToggleExpand={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+                patchOrder={patchOrder}
+                fetchOrders={fetchOrders}
+                onDeleteOrder={deleteOrder}
+                onSetStatus={setOrderStatus}
+                onUpdateOrder={updateOrder}
+              />
+            ))}</div>
           </div>
         ))
       ) : !loading ? (
-        <div className="space-y-3">{filteredOrders.map(renderOrderCard)}</div>
+        <div className="space-y-3">{filteredOrders.map(o => (
+          <OrderCard
+            key={o.id}
+            order={o}
+            isExpanded={expandedOrder === o.id}
+            onToggleExpand={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+            patchOrder={patchOrder}
+            fetchOrders={fetchOrders}
+            onDeleteOrder={deleteOrder}
+            onSetStatus={setOrderStatus}
+            onUpdateOrder={updateOrder}
+          />
+        ))}</div>
       ) : null}
     </div>
   );
