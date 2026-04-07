@@ -33,10 +33,12 @@ El orden de categorías es configurable desde admin (drag-and-drop) y se guarda 
 - Botón deshabilitado si no hay variante seleccionada
 
 ## Auth
-- Admin: PIN validado en `/api/auth` con rate limiting (5 intentos / 15 min)
-- Sesión: token en memoria (24h), comparación constant-time
+- Roles: admin (full access) y vendedora (solo Pedidos, sin stats/resumen)
+- Admin PIN validado en `/api/auth` con rate limiting (5 intentos / 15 min)
+- Vendedora PIN: acceso a Pedidos tab con CRUD completo, sin dashboard stats ni resumen mensual
+- Sesión: token en memoria (24h) con role almacenado, comparación constant-time
 - RLS: anon puede leer, solo authenticated/service_role puede escribir
-- Env var: `ADMIN_PIN`, `SUPABASE_SERVICE_ROLE_KEY`
+- Env var: `ADMIN_PIN`, `VENDEDORA_PIN`, `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Base de datos
 - Schema en `supabase-migration.sql` y `supabase-migration-v2.sql`
@@ -198,7 +200,8 @@ git push origin main   # Auto-deploy via Vercel
 ```
 
 ## Env vars necesarias en Vercel
-- `ADMIN_PIN` — PIN del admin
+- `ADMIN_PIN` — PIN del admin (ej: 2588)
+- `VENDEDORA_PIN` — PIN de vendedora (ej: 1234, opcional)
 - `SUPABASE_SERVICE_ROLE_KEY` — service role key
 - `NEXT_PUBLIC_SUPABASE_URL` — URL del proyecto
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon key

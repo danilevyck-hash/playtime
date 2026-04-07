@@ -4,6 +4,7 @@ import {
   isRateLimited,
   clearRateLimit,
   isValidSession,
+  getSessionRole,
   createSession,
   verifyPin,
 } from '@/lib/admin-auth';
@@ -24,10 +25,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
-    if (verifyPin(pin)) {
-      const token = createSession();
+    const result = verifyPin(pin);
+    if (result.valid && result.role) {
+      const token = createSession(result.role);
       clearRateLimit(ip);
-      return NextResponse.json({ ok: true, token });
+      return NextResponse.json({ ok: true, token, role: result.role });
     }
 
     return NextResponse.json({ ok: false }, { status: 401 });
@@ -40,5 +42,6 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const token = request.headers.get('x-admin-token');
   const valid = isValidSession(token);
-  return NextResponse.json({ ok: valid }, { status: valid ? 200 : 401 });
+  const role = valid ? getSessionRole(token) : null;
+  return NextResponse.json({ ok: valid, role }, { status: valid ? 200 : 401 });
 }

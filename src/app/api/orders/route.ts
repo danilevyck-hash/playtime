@@ -4,7 +4,7 @@ import { isValidSession } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 
 function isAdminAuthorized(request: NextRequest): boolean {
-  // Check session token first, then fall back to PIN
+  // Check session token first (works for both admin and vendedora), then fall back to PIN
   const token = request.headers.get('x-admin-token');
   if (isValidSession(token)) return true;
   const pin = request.headers.get('x-admin-pin');
