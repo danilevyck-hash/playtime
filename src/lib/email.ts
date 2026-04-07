@@ -110,34 +110,42 @@ function buildOrderHTML(data: OrderEmailData, isAdmin: boolean): string {
 }
 
 export async function sendOrderNotification(data: OrderEmailData): Promise<void> {
+  console.log('[Email] sendOrderNotification called for order #' + data.orderNumber);
+  console.log('[Email] RESEND_API_KEY present:', !!process.env.RESEND_API_KEY);
+  console.log('[Email] resend client initialized:', !!resend);
+
   if (!resend) {
-    console.warn('Resend not configured (RESEND_API_KEY missing), skipping email');
+    console.warn('[Email] Resend not configured (RESEND_API_KEY missing), skipping email');
     return;
   }
 
-  const promises: Promise<unknown>[] = [];
-
   // 1. Send to admin
-  promises.push(
-    resend.emails.send({
+  try {
+    console.log('[Email] Sending to admin:', ADMIN_EMAIL, 'from:', FROM_EMAIL);
+    const adminResult = await resend.emails.send({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `Nuevo Pedido #${data.orderNumber} — ${data.customerName}`,
       html: buildOrderHTML(data, true),
-    }).catch(err => console.error('Admin email error:', err))
-  );
+    });
+    console.log('[Email] Admin email result:', JSON.stringify(adminResult));
+  } catch (err) {
+    console.error('[Email] Admin email error:', err);
+  }
 
   // 2. Send to customer (if email provided)
   if (data.customerEmail) {
-    promises.push(
-      resend.emails.send({
+    try {
+      console.log('[Email] Sending to customer:', data.customerEmail);
+      const custResult = await resend.emails.send({
         from: FROM_EMAIL,
         to: data.customerEmail,
         subject: `Tu pedido #${data.orderNumber} ha sido recibido — PlayTime`,
         html: buildOrderHTML(data, false),
-      }).catch(err => console.error('Customer email error:', err))
-    );
+      });
+      console.log('[Email] Customer email result:', JSON.stringify(custResult));
+    } catch (err) {
+      console.error('[Email] Customer email error:', err);
+    }
   }
-
-  await Promise.allSettled(promises);
 }
