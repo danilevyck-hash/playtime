@@ -89,11 +89,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
             className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
           >
             <option value="">Hora</option>
-            {(() => {
-              const isPM = data.time ? parseInt(data.time.split(':')[0]) >= 12 : false;
-              const hours = isPM ? [1,2,3,4,5,6,7,8] : [8,9,10,11,12];
-              return hours.map(h => <option key={h} value={String(h)}>{h}</option>);
-            })()}
+            {[7,8,9,10,11,12,1,2,3,4,5,6].map(h => <option key={h} value={String(h)}>{h}</option>)}
           </select>
           <span className="text-xl text-gray-400 font-bold">:</span>
           <select
@@ -173,10 +169,10 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       {/* Birthday child — always visible, optional */}
       <div className="space-y-3 pt-2">
         <p className="font-heading font-semibold text-sm text-gray-400">{'\uD83C\uDF82'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
-        <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumplea\u00f1ero/a" />
+        <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumpleañero/a" />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
-          <Input label="Tem{'á'}tica" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
+          <Input label="Temática" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
         </div>
       </div>
 

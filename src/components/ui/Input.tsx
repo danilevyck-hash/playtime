@@ -7,7 +7,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export default function Input({ label, error, className = '', required, value, ...props }: InputProps) {
+export default function Input({ label, error, className = '', required, value, placeholder, ...props }: InputProps) {
   const ref = useRef<HTMLInputElement>(null);
   const hasValue = value !== undefined && value !== '';
 
@@ -44,6 +44,12 @@ export default function Input({ label, error, className = '', required, value, .
         }`}>
           {label}
         </label>
+        {/* Placeholder visible only when focused and empty */}
+        {placeholder && !hasValue && (
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-300 pointer-events-none opacity-0 peer-focus:opacity-100 peer-focus:top-[60%] transition-all font-body">
+            {placeholder}
+          </span>
+        )}
       </div>
       {error && (
         <span className="text-xs text-pink font-body flex items-center gap-1">
