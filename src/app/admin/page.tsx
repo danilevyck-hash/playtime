@@ -17,6 +17,15 @@ import {
   fetchVariantImages,
   upsertVariantImages,
   fetchLogoUrl,
+  fetchDBProducts,
+  fetchDBProductVariants,
+  upsertDBProduct,
+  deleteDBProduct,
+  upsertDBVariant,
+  deleteDBVariant,
+  bulkUpdateProductOrder,
+  DBProduct,
+  DBProductVariant,
 } from '@/lib/supabase-data';
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
@@ -996,21 +1005,14 @@ function OrdersTab() {
 const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'ballpit', 'addons', 'creative'];
 const INPUT_CLS = 'w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
-interface AdminProduct {
-  id: string; name: string; cat: string; price: number; desc: string;
-  imgUrl: string; active: boolean; custom?: boolean;
-}
-
-interface EditForm {
-  name: string; desc: string; price: string; cat: string;
-}
-
 function ProductsTab() {
   const { showToast } = useToast();
+  const [products, setProducts] = useState<DBProduct[]>([]);
+  const [variants, setVariants] = useState<DBProductVariant[]>([]);
   const [filter, setFilter] = useState('');
-  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [productSearch, setProductSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: '', desc: '', price: '', cat: '' });
+  const [editForm, setEditForm] = useState({ name: '', desc: '', price: '', cat: '', variant_label: '', featured: false, max_quantity: '' });
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
@@ -1019,88 +1021,56 @@ function ProductsTab() {
   const [reorderMode, setReorderMode] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const [variantImages, setVariantImages] = useState<Record<string, Record<string, string>>>({});
   const [uploadingVariant, setUploadingVariant] = useState('');
+  const [newVariant, setNewVariant] = useState<Record<string, { label: string; price: string }>>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [combineMode, setCombineMode] = useState(false);
+  const [combineSelected, setCombineSelected] = useState<Set<string>>(new Set());
+  const [combinePrompt, setCombinePrompt] = useState(false);
+  const [combineName, setCombineName] = useState('');
+  const [allCategories, setAllCategories] = useState<string[]>(ALL_CATEGORIES);
+  const [variantMenu, setVariantMenu] = useState<string | null>(null);
 
-  // ─── LOAD from constants.ts + Supabase overrides ───
+  // ─── LOAD from pt_products + pt_product_variants ───
   useEffect(() => {
     async function load() {
-      // Use PRODUCTS from constants.ts as the single source of truth
-      const builtIn: AdminProduct[] = PRODUCTS.map(p => ({
-        id: p.id, name: p.name, cat: p.category, price: p.price,
-        desc: p.description, imgUrl: p.image || `/images/products/${p.id}.png`, active: true,
-      }));
-
       try {
-        const [overrides, custom] = await Promise.all([
-          fetchProductOverrides(),
-          fetchAllCustomProducts(),
+        const [dbProducts, dbVariants, customCats] = await Promise.all([
+          fetchDBProducts(),
+          fetchDBProductVariants(),
+          fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories'),
         ]);
-
-        const ovMap = new Map(overrides.map(o => [o.id, o]));
-        const merged = builtIn.map(p => {
-          const ov = ovMap.get(p.id);
-          if (!ov) return p;
-          return {
-            ...p,
-            name: ov.name_override || p.name,
-            price: ov.price_override ?? p.price,
-            desc: ov.description_override ?? p.desc,
-            cat: ov.category_override || p.cat,
-            imgUrl: ov.image_url || p.imgUrl,
-            active: !ov.disabled,
-          };
-        });
-
-        const customMapped: AdminProduct[] = custom.map(cp => ({
-          id: cp.id, name: cp.name, cat: cp.category, price: cp.price,
-          desc: cp.description || '', imgUrl: cp.image_url || '', active: cp.active, custom: true,
-        }));
-
-        const allProducts = [...merged, ...customMapped];
-
-        // Apply saved order
-        const savedOrder = await fetchSetting<string[]>('product_order');
-        if (savedOrder && savedOrder.length > 0) {
-          const orderMap = new Map(savedOrder.map((id, idx) => [id, idx]));
-          allProducts.sort((a, b) => {
-            const ia = orderMap.get(a.id) ?? Infinity;
-            const ib = orderMap.get(b.id) ?? Infinity;
-            return ia - ib;
-          });
+        setProducts(dbProducts);
+        setVariants(dbVariants);
+        if (customCats && customCats.length > 0) {
+          setAllCategories([...ALL_CATEGORIES, ...customCats.map(c => c.id)]);
         }
 
-        setProducts(allProducts);
-
-        // Load gallery images for all products
+        // Load gallery images
         const galleries: Record<string, string[]> = {};
-        await Promise.all(allProducts.map(async (p) => {
+        await Promise.all(dbProducts.map(async (p) => {
           const imgs = await fetchProductImages(p.id);
           if (imgs.length > 0) galleries[p.id] = imgs;
         }));
         setImageGalleries(galleries);
-
-        // Load variant images for products with variants
-        const productsWithVariants = PRODUCTS.filter(p => p.variants && p.variants.length > 0);
-        const varImgs: Record<string, Record<string, string>> = {};
-        await Promise.all(productsWithVariants.map(async (p) => {
-          const imgs = await fetchVariantImages(p.id);
-          if (Object.keys(imgs).length > 0) varImgs[p.id] = imgs;
-        }));
-        setVariantImages(varImgs);
-      } catch {
-        setProducts(builtIn);
+      } catch (e) {
+        console.error('Load products error:', e);
       }
     }
     load();
   }, []);
 
+  const getVariants = useCallback((productId: string) => {
+    return variants.filter(v => v.product_id === productId).sort((a, b) => a.sort_order - b.sort_order);
+  }, [variants]);
+
+  const getCatLabel = useCallback((catId: string) => {
+    return CATEGORIES.find(c => c.id === catId)?.label || catId;
+  }, []);
+
   // ─── UPLOAD IMAGE ───
   const handleUpload = async (productId: string, file: File, imageIndex = 0) => {
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Foto muy grande. M\u00e1ximo 2MB');
-      return;
-    }
+    if (file.size > 2 * 1024 * 1024) { showToast('Foto muy grande. Maximo 2MB'); return; }
     setUploading(`${productId}-${imageIndex}`);
     try {
       const formData = new FormData();
@@ -1112,44 +1082,29 @@ function ProductsTab() {
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
-
         if (imageIndex === 0) {
-          // Primary image — same as before
-          setProducts(prev => prev.map(p => p.id === productId ? { ...p, imgUrl: newUrl } : p));
+          setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: newUrl } : p));
           setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-          const product = products.find(p => p.id === productId);
-          if (product?.custom) {
-            upsertCustomProduct({ id: productId, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: newUrl, active: product.active }).catch((e) => console.error('Save custom product error:', e));
-          } else {
-            upsertProductOverride({ id: productId, image_url: newUrl }).catch((e) => console.error('Save override error:', e));
-          }
+          upsertDBProduct({ id: productId, image_url: newUrl }).catch(e => console.error('Save image error:', e));
         }
-
-        // Update gallery array (all 3 slots)
         const currentGallery = [...(imageGalleries[productId] || [])];
         while (currentGallery.length <= imageIndex) currentGallery.push('');
         currentGallery[imageIndex] = newUrl;
-        // If slot 0 updated, also sync with product main image
         if (imageIndex === 0) {
           const product = products.find(p => p.id === productId);
-          currentGallery[0] = product?.imgUrl || newUrl;
+          currentGallery[0] = product?.image_url || newUrl;
         }
         setImageGalleries(prev => ({ ...prev, [productId]: currentGallery }));
-        // Save extra images (slots 1+2) to pt_settings
         upsertProductImages(productId, currentGallery).catch(e => console.error('Save gallery error:', e));
-
         showToast('Foto actualizada');
       } else { showToast('Error al subir foto'); }
-    } catch (e) { console.error('Upload error:', e); showToast('Error de conexi\u00f3n'); }
+    } catch (e) { console.error('Upload error:', e); showToast('Error de conexion'); }
     finally { setUploading(''); }
   };
 
   // ─── UPLOAD VARIANT IMAGE ───
   const handleVariantUpload = async (productId: string, variantId: string, file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Foto muy grande. Máximo 2MB');
-      return;
-    }
+    if (file.size > 2 * 1024 * 1024) { showToast('Foto muy grande. Maximo 2MB'); return; }
     const key = `${productId}-${variantId}`;
     setUploadingVariant(key);
     try {
@@ -1162,13 +1117,15 @@ function ProductsTab() {
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
-        const current = { ...(variantImages[productId] || {}) };
-        current[variantId] = newUrl;
-        setVariantImages(prev => ({ ...prev, [productId]: current }));
-        upsertVariantImages(productId, current).catch(e => console.error('Save variant image error:', e));
+        const variant = variants.find(v => v.product_id === productId && v.id === variantId);
+        if (variant) {
+          const updated = { ...variant, image_url: newUrl };
+          setVariants(prev => prev.map(v => (v.product_id === productId && v.id === variantId) ? updated : v));
+          upsertDBVariant(updated).catch(e => console.error('Save variant image error:', e));
+        }
         showToast('Foto de variante actualizada');
       } else { showToast('Error al subir foto'); }
-    } catch (e) { console.error('Variant upload error:', e); showToast('Error de conexión'); }
+    } catch (e) { console.error('Variant upload error:', e); showToast('Error de conexion'); }
     finally { setUploadingVariant(''); }
   };
 
@@ -1178,69 +1135,150 @@ function ProductsTab() {
     if (!product) return;
     const nowActive = !product.active;
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: nowActive } : p));
-
-    if (product.custom) {
-      upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: product.imgUrl || null, active: nowActive }).catch((e) => { console.error('Toggle error:', e); showToast('Error al guardar'); });
-    } else {
-      upsertProductOverride({ id, disabled: !nowActive }).catch((e) => { console.error('Toggle error:', e); showToast('Error al guardar'); });
-    }
+    upsertDBProduct({ id, active: nowActive }).catch(e => { console.error('Toggle error:', e); showToast('Error al guardar'); });
     showToast(nowActive ? 'Producto activado' : 'Producto desactivado');
   };
 
   // ─── START EDITING ───
-  const startEdit = (p: AdminProduct) => {
+  const startEdit = (p: DBProduct) => {
     setEditingId(p.id);
-    setEditForm({ name: p.name, desc: p.desc, price: String(p.price), cat: p.cat });
+    setEditForm({ name: p.name, desc: p.description, price: String(p.price), cat: p.category, variant_label: p.variant_label || '', featured: p.featured, max_quantity: p.max_quantity ? String(p.max_quantity) : '' });
   };
 
   // ─── SAVE EDIT ───
   const saveEdit = async (id: string) => {
     const product = products.find(p => p.id === id);
     if (!product) return;
-
     const parsedPrice = parseFloat(editForm.price);
-    const updated: AdminProduct = {
+    const parsedMax = editForm.max_quantity ? parseInt(editForm.max_quantity) : null;
+    const updated: DBProduct = {
       ...product,
       name: editForm.name || product.name,
-      desc: editForm.desc,
+      description: editForm.desc,
       price: isNaN(parsedPrice) ? product.price : parsedPrice,
-      cat: editForm.cat || product.cat,
+      category: editForm.cat || product.category,
+      variant_label: editForm.variant_label || null,
+      featured: editForm.featured,
+      max_quantity: parsedMax,
     };
-
     setProducts(prev => prev.map(p => p.id === id ? updated : p));
     setEditingId(null);
-
-    if (product.custom) {
-      upsertCustomProduct({ id, name: updated.name, category: updated.cat, price: updated.price, description: updated.desc, image_url: product.imgUrl || null, active: product.active }).catch((e) => { console.error('Save error:', e); showToast('Error al guardar'); });
-    } else {
-      upsertProductOverride({ id, name_override: updated.name, price_override: updated.price, description_override: updated.desc, category_override: updated.cat }).catch((e) => { console.error('Save error:', e); showToast('Error al guardar'); });
-    }
-    showToast('Producto guardado');
+    const ok = await upsertDBProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, max_quantity: updated.max_quantity });
+    showToast(ok ? 'Producto guardado' : 'Error al guardar');
   };
 
   // ─── ADD PRODUCT ───
   const handleAddProduct = async () => {
     if (!newProduct.name.trim()) return;
-    const id = `custom-${Date.now()}`;
-    const product: AdminProduct = { id, name: newProduct.name, cat: newProduct.cat, price: Number(newProduct.price) || 0, desc: newProduct.desc, imgUrl: '', active: true, custom: true };
+    const id = `prod-${Date.now()}`;
+    const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
-    upsertCustomProduct({ id, name: product.name, category: product.cat, price: product.price, description: product.desc, image_url: null, active: true }).catch((e) => { console.error('Add product error:', e); showToast('Error al guardar'); });
+    const ok = await upsertDBProduct(product);
+    if (!ok) showToast('Error al guardar');
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
     showToast('Producto agregado');
   };
 
-  // ─── REMOVE CUSTOM PRODUCT ───
-  const handleRemove = async (id: string) => {
+  // ─── DELETE PRODUCT ───
+  const handleDelete = async (id: string) => {
+    const product = products.find(p => p.id === id);
+    if (!product) return;
     setProducts(prev => prev.filter(p => p.id !== id));
-    deleteCustomProduct(id).catch((e) => { console.error('Delete product error:', e); showToast('Error al eliminar'); });
-    showToast('Producto eliminado');
+    setVariants(prev => prev.filter(v => v.product_id !== id));
+    setConfirmDelete(null);
+    setEditingId(null);
+    const ok = await deleteDBProduct(id);
+    showToast(ok ? 'Producto eliminado' : 'Error al eliminar');
   };
 
-  const saveOrder = (newProducts: AdminProduct[]) => {
-    upsertSetting('product_order', newProducts.map(p => p.id)).catch(e => console.error('Save order error:', e));
+  // ─── ADD VARIANT ───
+  const handleAddVariant = async (productId: string) => {
+    const form = newVariant[productId];
+    if (!form || !form.label.trim()) return;
+    const variantId = form.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const existingVars = getVariants(productId);
+    const variant: DBProductVariant = { id: variantId, product_id: productId, label: form.label.trim(), price: form.price ? parseFloat(form.price) : null, image_url: null, sort_order: existingVars.length };
+    setVariants(prev => [...prev, variant]);
+    setNewVariant(prev => ({ ...prev, [productId]: { label: '', price: '' } }));
+    // If product has no variant_label yet, set default
+    const product = products.find(p => p.id === productId);
+    if (product && !product.variant_label) {
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: 'Modelo' } : p));
+      upsertDBProduct({ id: productId, variant_label: 'Modelo' }).catch(e => console.error('Set variant_label error:', e));
+    }
+    const ok = await upsertDBVariant(variant);
+    showToast(ok ? 'Variante agregada' : 'Error al agregar variante');
   };
 
+  // ─── DELETE VARIANT ───
+  const handleDeleteVariant = async (productId: string, variantId: string) => {
+    setVariants(prev => prev.filter(v => !(v.product_id === productId && v.id === variantId)));
+    const remaining = variants.filter(v => v.product_id === productId && v.id !== variantId);
+    if (remaining.length === 0) {
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: null } : p));
+      upsertDBProduct({ id: productId, variant_label: null }).catch(e => console.error('Clear variant_label error:', e));
+    }
+    const ok = await deleteDBVariant(productId, variantId);
+    showToast(ok ? 'Variante eliminada' : 'Error al eliminar variante');
+  };
+
+  // ─── EXTRACT VARIANT TO PRODUCT ───
+  const handleExtractVariant = async (productId: string, variantId: string) => {
+    const variant = variants.find(v => v.product_id === productId && v.id === variantId);
+    const parent = products.find(p => p.id === productId);
+    if (!variant || !parent) return;
+    // Create new product
+    const newId = `prod-${Date.now()}`;
+    const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
+    setProducts(prev => [...prev, newProd]);
+    await upsertDBProduct(newProd);
+    // Remove variant
+    setVariants(prev => prev.filter(v => !(v.product_id === productId && v.id === variantId)));
+    await deleteDBVariant(productId, variantId);
+    const remaining = variants.filter(v => v.product_id === productId && v.id !== variantId);
+    if (remaining.length === 0) {
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: null } : p));
+      await upsertDBProduct({ id: productId, variant_label: null });
+    }
+    setVariantMenu(null);
+    showToast(`"${variant.label}" ahora es producto independiente`);
+  };
+
+  // ─── COMBINE PRODUCTS ───
+  const handleCombine = async () => {
+    if (!combineName.trim() || combineSelected.size < 2) return;
+    const selected = products.filter(p => combineSelected.has(p.id));
+    const [first, ...rest] = selected;
+    // Update first product as the combined one
+    const updated: DBProduct = { ...first, name: combineName.trim(), variant_label: 'Modelo' };
+    setProducts(prev => prev.map(p => p.id === first.id ? updated : p));
+    await upsertDBProduct({ id: first.id, name: updated.name, variant_label: 'Modelo' });
+    // Convert rest into variants of first
+    const existingVars = getVariants(first.id);
+    let sortIdx = existingVars.length;
+    // Also add original first as variant
+    const firstVariantId = first.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const firstVariant: DBProductVariant = { id: firstVariantId, product_id: first.id, label: first.name, price: first.price, image_url: first.image_url, sort_order: sortIdx++ };
+    setVariants(prev => [...prev, firstVariant]);
+    await upsertDBVariant(firstVariant);
+    for (const p of rest) {
+      const varId = p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const variant: DBProductVariant = { id: varId, product_id: first.id, label: p.name, price: p.price, image_url: p.image_url, sort_order: sortIdx++ };
+      setVariants(prev => [...prev, variant]);
+      await upsertDBVariant(variant);
+      // Delete the product
+      setProducts(prev => prev.filter(pr => pr.id !== p.id));
+      await deleteDBProduct(p.id);
+    }
+    setCombineMode(false);
+    setCombineSelected(new Set());
+    setCombinePrompt(false);
+    setCombineName('');
+    showToast(`${selected.length} productos combinados`);
+  };
+
+  // ─── REORDER ───
   const handleDrop = (targetId: string) => {
     if (!draggingId || draggingId === targetId) return;
     const fromIdx = products.findIndex(p => p.id === draggingId);
@@ -1250,40 +1288,49 @@ function ProductsTab() {
     const [moved] = newProducts.splice(fromIdx, 1);
     newProducts.splice(toIdx, 0, moved);
     setProducts(newProducts);
-    saveOrder(newProducts);
+    bulkUpdateProductOrder(newProducts.map(p => p.id)).catch(e => console.error('Save order error:', e));
     setDraggingId(null);
     setDragOverId(null);
   };
 
-  const [productSearch, setProductSearch] = useState('');
-
-  const filtered = products.filter(p => {
-    const matchFilter = !filter || p.cat === filter;
-    const matchSearch = !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase());
-    return matchFilter && matchSearch;
-  });
+  const filtered = useMemo(() => {
+    return products.filter(p => {
+      const matchFilter = !filter || p.category === filter;
+      const matchSearch = !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+  }, [products, filter, productSearch]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-heading font-bold text-xl text-purple mb-1">Productos</h2>
-          <p className="font-body text-gray-500 text-sm">Edita nombre, descripción, precio, categoría y foto</p>
+          <h2 className="font-heading font-bold text-xl text-purple mb-0.5">Productos</h2>
+          <p className="font-body text-gray-500 text-xs">{products.length} productos en la base de datos</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-4 py-2 rounded-xl text-sm transition-colors ${reorderMode ? 'bg-teal text-white hover:bg-teal/80' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
-          </button>
-          <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-light transition-colors">
-            {showAdd ? 'Cancelar' : '+ Agregar'}
-          </button>
+          {!combineMode && (
+            <>
+              <button onClick={() => { setCombineMode(true); setCombineSelected(new Set()); }} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Combinar</button>
+              <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-3 py-2 rounded-xl text-xs transition-colors ${reorderMode ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
+              </button>
+              <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold w-9 h-9 rounded-xl text-lg hover:bg-purple-light transition-colors flex items-center justify-center">
+                {showAdd ? '\u00D7' : '+'}
+              </button>
+            </>
+          )}
+          {combineMode && (
+            <button onClick={() => { setCombineMode(false); setCombineSelected(new Set()); }} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Cancelar</button>
+          )}
         </div>
       </div>
 
       {/* Search */}
       <div className={`relative ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar producto por nombre..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
+        <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar producto..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
         {productSearch && (
           <button onClick={() => setProductSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1297,31 +1344,33 @@ function ProductsTab() {
           <h3 className="font-heading font-bold text-sm text-purple">Nuevo Producto</h3>
           <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} placeholder="Nombre" className={INPUT_CLS} />
           <div className="grid grid-cols-2 gap-3">
-            <select value={newProduct.cat} onChange={(e) => setNewProduct({ ...newProduct, cat: e.target.value })} className={INPUT_CLS}>{ALL_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</option>)}</select>
+            <select value={newProduct.cat} onChange={(e) => setNewProduct({ ...newProduct, cat: e.target.value })} className={INPUT_CLS}>{allCategories.map(c => <option key={c} value={c}>{getCatLabel(c)}</option>)}</select>
             <input type="number" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })} placeholder="Precio ($)" className={INPUT_CLS} />
           </div>
-          <input type="text" value={newProduct.desc} onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })} placeholder="Descripción" className={INPUT_CLS} />
+          <input type="text" value={newProduct.desc} onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })} placeholder="Descripcion" className={INPUT_CLS} />
           <button onClick={handleAddProduct} disabled={!newProduct.name.trim()} className="w-full bg-purple text-white font-heading font-bold py-2.5 rounded-xl disabled:opacity-50">Agregar</button>
         </div>
       )}
 
       {/* Category filter */}
       <div className={`flex gap-2 flex-wrap ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
-        {ALL_CATEGORIES.map(c => (
-          <button key={c} onClick={() => setFilter(filter === c ? '' : c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</button>
+        {allCategories.map(c => (
+          <button key={c} onClick={() => setFilter(filter === c ? '' : c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{getCatLabel(c)}</button>
         ))}
       </div>
 
       {/* Product list */}
       {!filter && !productSearch ? (
         <div className="text-center py-6">
-          <p className="font-body text-sm text-gray-400">Selecciona una categor&iacute;a</p>
+          <p className="font-body text-sm text-gray-400">Selecciona una categoria o busca un producto</p>
         </div>
       ) : (
       <div className="space-y-2">
         {filtered.map((product) => {
           const isEditing = editingId === product.id;
-          const imgSrc = product.imgUrl || `/images/products/${product.id}.png`;
+          const imgSrc = product.image_url || '';
+          const prodVariants = getVariants(product.id);
+          const isCombineSelected = combineSelected.has(product.id);
 
           return (
             <div
@@ -1331,118 +1380,205 @@ function ProductsTab() {
               onDragOver={(e) => { if (reorderMode) { e.preventDefault(); setDragOverId(product.id); } }}
               onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
               onDrop={() => { if (reorderMode) handleDrop(product.id); }}
-              className={`bg-white rounded-xl border p-3 transition-all ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'} ${draggingId === product.id ? 'opacity-40 scale-95' : ''} ${dragOverId === product.id && draggingId !== product.id ? 'border-t-2 border-t-purple' : ''}`}
+              className={`bg-white rounded-xl border p-3 transition-all ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'} ${draggingId === product.id ? 'opacity-40 scale-95' : ''} ${dragOverId === product.id && draggingId !== product.id ? 'border-t-2 border-t-purple' : ''} ${isCombineSelected ? 'ring-2 ring-purple' : ''}`}
             >
               {/* Collapsed view */}
-              <div className="flex items-center gap-3">
-                {/* Toggle or drag handle */}
-                {reorderMode ? (
+              <div className="flex items-center gap-3" onClick={() => { if (combineMode) { setCombineSelected(prev => { const next = new Set(prev); if (next.has(product.id)) next.delete(product.id); else next.add(product.id); return next; }); } }}>
+                {/* Combine checkbox / Toggle / Drag handle */}
+                {combineMode ? (
+                  <div className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center ${isCombineSelected ? 'bg-purple border-purple' : 'border-gray-300'}`}>
+                    {isCombineSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                ) : reorderMode ? (
                   <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg leading-none px-1">{'\u2807'}</div>
                 ) : (
-                  <button onClick={() => toggleActive(product.id)} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
+                  <button onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${!product.active ? 'left-1' : 'left-5'}`} />
                   </button>
                 )}
 
-                {/* Image gallery (3 slots) */}
-                <div className="flex gap-1 flex-shrink-0">
-                  {[0, 1, 2].map(idx => {
-                    const gallery = imageGalleries[product.id] || [];
-                    const slotUrl = idx === 0 ? imgSrc : (gallery[idx] || '');
-                    const isUploading = uploading === `${product.id}-${idx}`;
-                    return (
-                      <label key={idx} className={`${idx === 0 ? 'w-12 h-12' : 'w-8 h-8'} bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group`}>
-                        {slotUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img key={`${product.id}-${idx}-${imageKeys[product.id] || 0}`} src={slotUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className={`${idx === 0 ? 'w-4 h-4' : 'w-3 h-3'} text-white opacity-0 group-hover:opacity-100 transition-opacity`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </div>
-                        <input type="file" accept="image/*" className="hidden" disabled={!!uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f, idx); }} />
-                        {isUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
-                      </label>
-                    );
-                  })}
+                {/* Thumbnail */}
+                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                  {imgSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={`${product.id}-${imageKeys[product.id] || 0}`} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">IMG</div>
+                  )}
                 </div>
 
                 {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-heading font-semibold text-sm text-gray-800 truncate">{product.name}</p>
-                    <button onClick={() => isEditing ? setEditingId(null) : startEdit(product)} className="flex-shrink-0 text-gray-400 hover:text-purple transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                    </button>
+                <div className="flex-1 min-w-0" onClick={(e) => { if (!combineMode) { e.stopPropagation(); isEditing ? setEditingId(null) : startEdit(product); } }}>
+                  <p className="font-heading font-semibold text-sm text-gray-800 truncate">{product.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-body text-xs text-gray-400">${product.price}</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-heading font-semibold text-gray-500">{getCatLabel(product.category)}</span>
+                    {prodVariants.length > 0 && <span className="text-[10px] text-purple font-heading font-semibold">{prodVariants.length} var.</span>}
+                    {product.featured && <span className="text-[10px] text-orange font-heading font-bold">DEST.</span>}
                   </div>
-                  <p className="font-body text-xs text-gray-400">{CATEGORIES.find(c => c.id === product.cat)?.label || product.cat} · ${product.price}</p>
                 </div>
-
-                {/* Delete custom */}
-                {product.custom && (
-                  <button onClick={() => handleRemove(product.id)} className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0" title="Eliminar">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                )}
               </div>
 
               {/* Expanded edit form */}
-              {isEditing && (
-                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+              {isEditing && !combineMode && (
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
                   <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Nombre" className={INPUT_CLS} />
-                  <input type="text" value={editForm.desc} onChange={(e) => setEditForm({ ...editForm, desc: e.target.value })} placeholder="Descripción" className={INPUT_CLS} />
+                  <input type="text" value={editForm.desc} onChange={(e) => setEditForm({ ...editForm, desc: e.target.value })} placeholder="Descripcion" className={INPUT_CLS} />
                   <div className="grid grid-cols-2 gap-2">
                     <input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} placeholder="Precio" className={INPUT_CLS} />
                     <select value={editForm.cat} onChange={(e) => setEditForm({ ...editForm, cat: e.target.value })} className={INPUT_CLS}>
-                      {ALL_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORIES.find(cat => cat.id === c)?.label || c}</option>)}
+                      {allCategories.map(c => <option key={c} value={c}>{getCatLabel(c)}</option>)}
                     </select>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditingId(null)} className="flex-1 border-2 border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
-                    <button onClick={() => saveEdit(product.id)} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm">Guardar</button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="number" value={editForm.max_quantity} onChange={(e) => setEditForm({ ...editForm, max_quantity: e.target.value })} placeholder="Cant. maxima (opc)" className={INPUT_CLS} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.featured} onChange={(e) => setEditForm({ ...editForm, featured: e.target.checked })} className="w-4 h-4 accent-purple rounded" />
+                      <span className="font-body text-sm text-gray-600">Destacado</span>
+                    </label>
                   </div>
 
-                  {/* Variant images */}
-                  {(() => {
-                    const productVariants = PRODUCTS.find(p => p.id === product.id)?.variants;
-                    if (!productVariants || productVariants.length === 0) return null;
-                    return (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Fotos por variante</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {productVariants.map(v => {
-                            const varUrl = variantImages[product.id]?.[v.id] || '';
-                            const isVarUploading = uploadingVariant === `${product.id}-${v.id}`;
-                            return (
-                              <label key={v.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 cursor-pointer group">
-                                <div className="w-10 h-10 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative">
-                                  {varUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={varUrl} alt={v.label} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
-                                  )}
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                  </div>
-                                  {isVarUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
-                                </div>
-                                <span className="font-heading text-xs text-gray-600 truncate">{v.label}</span>
-                                <input type="file" accept="image/*" className="hidden" disabled={!!uploadingVariant} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVariantUpload(product.id, v.id, f); }} />
-                              </label>
-                            );
-                          })}
-                        </div>
+                  {/* Image gallery (3 slots) */}
+                  <div>
+                    <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Fotos</p>
+                    <div className="flex gap-2">
+                      {[0, 1, 2].map(idx => {
+                        const gallery = imageGalleries[product.id] || [];
+                        const slotUrl = idx === 0 ? imgSrc : (gallery[idx] || '');
+                        const isUploading = uploading === `${product.id}-${idx}`;
+                        return (
+                          <label key={idx} className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer relative group">
+                            {slotUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img key={`${product.id}-${idx}-${imageKeys[product.id] || 0}`} src={slotUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">+</div>
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </div>
+                            <input type="file" accept="image/*" className="hidden" disabled={!!uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(product.id, f, idx); }} />
+                            {isUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-3 h-3 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Variants section */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Variantes</p>
+                        {(product.variant_label || prodVariants.length > 0) && (
+                          <input type="text" value={editForm.variant_label} onChange={(e) => setEditForm({ ...editForm, variant_label: e.target.value })} placeholder="Label (ej: Color)" className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs font-body w-24 focus:border-purple focus:outline-none" />
+                        )}
                       </div>
-                    );
-                  })()}
+                      {(product.variant_label || prodVariants.length > 0) ? (
+                        <button onClick={() => setNewVariant(prev => ({ ...prev, [product.id]: { label: '', price: '' } }))} className="text-purple font-heading font-bold text-xs">+ Agregar</button>
+                      ) : (
+                        <button onClick={() => {
+                          setEditForm(prev => ({ ...prev, variant_label: 'Modelo' }));
+                          setNewVariant(prev => ({ ...prev, [product.id]: { label: '', price: '' } }));
+                        }} className="text-purple font-heading font-bold text-xs">Agregar variantes</button>
+                      )}
+                    </div>
+
+                    {/* Existing variants */}
+                    {prodVariants.map(v => (
+                      <div key={v.id} className="flex items-center gap-2 mb-1.5 bg-gray-50 rounded-lg p-2 relative">
+                        <label className="w-9 h-9 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group">
+                          {v.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={v.image_url} alt={v.label} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300 text-[10px] font-bold">+</div>
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                          <input type="file" accept="image/*" className="hidden" disabled={!!uploadingVariant} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVariantUpload(product.id, v.id, f); }} />
+                          {uploadingVariant === `${product.id}-${v.id}` && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-2 h-2 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
+                        </label>
+                        <span className="font-heading text-xs text-gray-700 flex-1 truncate">{v.label}</span>
+                        {v.price !== null && <span className="font-body text-xs text-gray-400">${v.price}</span>}
+                        {/* Menu button */}
+                        <button onClick={() => setVariantMenu(variantMenu === `${product.id}-${v.id}` ? null : `${product.id}-${v.id}`)} className="text-gray-400 hover:text-gray-600 px-1">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                        </button>
+                        <button onClick={() => handleDeleteVariant(product.id, v.id)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        {/* Variant menu dropdown */}
+                        {variantMenu === `${product.id}-${v.id}` && (
+                          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-10 min-w-[180px]">
+                            <button onClick={() => handleExtractVariant(product.id, v.id)} className="w-full text-left px-3 py-2 font-body text-xs text-gray-700 hover:bg-gray-50">
+                              Hacer producto independiente
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add variant inline form */}
+                    {newVariant[product.id] && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input type="text" value={newVariant[product.id].label} onChange={(e) => setNewVariant(prev => ({ ...prev, [product.id]: { ...prev[product.id], label: e.target.value } }))} placeholder="Nombre de variante" className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-body focus:border-purple focus:outline-none" />
+                        <input type="number" value={newVariant[product.id].price} onChange={(e) => setNewVariant(prev => ({ ...prev, [product.id]: { ...prev[product.id], price: e.target.value } }))} placeholder="$ (opc)" className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-body focus:border-purple focus:outline-none" />
+                        <button onClick={() => handleAddVariant(product.id)} disabled={!newVariant[product.id]?.label.trim()} className="bg-purple text-white font-heading font-bold px-3 py-1.5 rounded-lg text-xs disabled:opacity-50">+</button>
+                        <button onClick={() => setNewVariant(prev => { const n = { ...prev }; delete n[product.id]; return n; })} className="text-gray-400 hover:text-gray-600">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={() => setEditingId(null)} className="flex-1 border-2 border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
+                    <button onClick={() => saveEdit(product.id)} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm">Guardar</button>
+                    <button onClick={() => setConfirmDelete(product.id)} className="px-4 bg-red-50 text-red-500 font-heading font-semibold py-2 rounded-xl text-sm hover:bg-red-100">Eliminar</button>
+                  </div>
+
+                  {/* Confirm delete dialog */}
+                  {confirmDelete === product.id && (
+                    <div className="bg-red-50 rounded-xl p-3 border border-red-200">
+                      <p className="font-body text-sm text-red-700 mb-2">Eliminar &ldquo;{product.name}&rdquo;? Esta accion no se puede deshacer.</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => setConfirmDelete(null)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-1.5 rounded-lg text-xs">Cancelar</button>
+                        <button onClick={() => handleDelete(product.id)} className="flex-1 bg-red-500 text-white font-heading font-semibold py-1.5 rounded-lg text-xs">Eliminar</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
+        {filtered.length === 0 && (
+          <div className="text-center py-6">
+            <p className="font-body text-sm text-gray-400">No se encontraron productos</p>
+          </div>
+        )}
       </div>
+      )}
+
+      {/* Combine bottom bar */}
+      {combineMode && combineSelected.size >= 2 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 safe-area-pb">
+          {!combinePrompt ? (
+            <button onClick={() => { setCombinePrompt(true); setCombineName(''); }} className="w-full bg-purple text-white font-heading font-bold py-3 rounded-xl text-sm">
+              Combinar ({combineSelected.size})
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="font-heading font-semibold text-sm text-gray-700">Nombre del producto combinado:</p>
+              <input type="text" value={combineName} onChange={(e) => setCombineName(e.target.value)} placeholder="Nombre del producto" className={INPUT_CLS} autoFocus />
+              <div className="flex gap-2">
+                <button onClick={() => setCombinePrompt(false)} className="flex-1 border-2 border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm">Cancelar</button>
+                <button onClick={handleCombine} disabled={!combineName.trim()} className="flex-1 bg-purple text-white font-heading font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">Combinar</button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
