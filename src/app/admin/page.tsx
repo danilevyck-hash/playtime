@@ -7,15 +7,10 @@ import { useToast } from '@/context/ToastContext';
 import {
   fetchProductOverrides,
   fetchAllCustomProducts,
-  upsertProductOverride,
-  upsertCustomProduct,
-  deleteCustomProduct,
   fetchSetting,
   upsertSetting,
   fetchProductImages,
   upsertProductImages,
-  fetchVariantImages,
-  upsertVariantImages,
   fetchLogoUrl,
   fetchDBProducts,
   fetchDBProductVariants,
@@ -1408,7 +1403,7 @@ function ProductsTab() {
                 </div>
 
                 {/* Info */}
-                <div className="flex-1 min-w-0" onClick={(e) => { if (!combineMode) { e.stopPropagation(); isEditing ? setEditingId(null) : startEdit(product); } }}>
+                <div className="flex-1 min-w-0" onClick={(e) => { if (!combineMode) { e.stopPropagation(); if (isEditing) { setEditingId(null); } else { startEdit(product); } } }}>
                   <p className="font-heading font-semibold text-sm text-gray-800 truncate">{product.name}</p>
                   <div className="flex items-center gap-1.5">
                     <span className="font-body text-xs text-gray-400">${product.price}</span>
