@@ -44,8 +44,11 @@ El orden de categorías es configurable desde admin (drag-and-drop) y se guarda 
 - Env var: `ADMIN_PIN`, `VENDEDORA_PIN`, `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Base de datos
-- Schema en `supabase-migration.sql` y `supabase-migration-v2.sql`
-- Tablas: pt_product_overrides, pt_custom_products, pt_settings, pt_orders, pt_order_items
+- Schema en `supabase-migration.sql`, `supabase-migration-v2.sql`, `supabase-migration-v3-products.sql`
+- Tablas principales: **pt_products**, **pt_product_variants**, pt_orders, pt_order_items, pt_settings
+- Tablas legacy (aún existen pero no se usan para productos nuevos): pt_product_overrides, pt_custom_products
+- pt_products: id, name, category, description, price, image_url, active, featured, max_quantity, variant_label, sort_order
+- pt_product_variants: (product_id, id) PK, label, price, image_url, sort_order — CASCADE delete con producto
 - Columnas extras en pt_orders: deposits (JSONB), discount (NUMERIC), transport_cost_confirmed (NUMERIC)
 - Storage bucket: `playtime-images` para fotos de productos y PDFs
 - Push subscriptions en pt_settings key `push_subscriptions`
@@ -86,10 +89,23 @@ El orden de categorías es configurable desde admin (drag-and-drop) y se guarda 
 - Resumen mensual colapsable (solo admin, no vendedora)
 - **Búsqueda de items incluye productos custom** de Supabase + overrides
 
-### Catálogo (sub-tabs: Productos | Categorías)
-- Productos: filtrar por categoría, buscar, toggle activo, editar nombre/precio/desc/cat, galería 3 fotos, drag reorder
-- **Fotos por variante**: sección "Fotos por variante" en productos con variants, upload individual por variante
-- Categorías: editar nombre/emoji/subtítulo, crear custom, eliminar custom, drag reorder
+### Catálogo — Productos (DB-first: pt_products + pt_product_variants)
+- **Fuente de datos**: tablas pt_products y pt_product_variants en Supabase (migrado de constants.ts)
+- **CRUD completo**: crear, editar, eliminar productos desde admin
+- Editar: nombre, precio, descripción, categoría, imagen principal, galería (3 fotos), featured, max_quantity
+- Toggle activo/inactivo (oculta del catálogo público)
+- Drag-and-drop reorder (guarda sort_order en pt_products)
+- Buscar + filtrar por categoría
+- **Variantes**: agregar/editar/eliminar variantes por producto
+  - Cada variante: label, precio opcional, imagen propia
+  - variant_label editable (Color, Tamaño, Modelo)
+  - Foto por variante: se muestra en modal cuando cliente selecciona
+- **Combinar productos**: seleccionar 2+ productos → unirlos en uno con variantes
+- **Extraer variante**: variante → "Hacer producto independiente" (crea nuevo producto)
+- **Fallback**: si pt_products está vacía, useProducts() cae a constants.ts
+
+### Catálogo — Categorías
+- Editar nombre/emoji/subtítulo, crear custom, eliminar custom, drag reorder
 
 ### Sitio (sub-tabs: Textos | Logo & Media | Destacados | Config)
 - Textos: homepage content + site texts (carrito, checkout)
