@@ -180,6 +180,91 @@ export async function upsertVariantImages(productId: string, images: Record<stri
   return upsertSetting(`variant_images_${productId}`, images);
 }
 
+// ─── Products (new DB-first approach) ───
+
+export interface DBProduct {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  price: number;
+  image_url: string | null;
+  active: boolean;
+  featured: boolean;
+  max_quantity: number | null;
+  variant_label: string | null;
+  sort_order: number;
+}
+
+export interface DBProductVariant {
+  id: string;
+  product_id: string;
+  label: string;
+  price: number | null;
+  image_url: string | null;
+  sort_order: number;
+}
+
+export async function fetchDBProducts(): Promise<DBProduct[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('pt_products')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('fetchDBProducts error:', error); return []; }
+  return data || [];
+}
+
+export async function fetchDBProductVariants(): Promise<DBProductVariant[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('pt_product_variants')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('fetchDBProductVariants error:', error); return []; }
+  return data || [];
+}
+
+export async function upsertDBProduct(product: Partial<DBProduct> & { id: string }): Promise<boolean> {
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
+  const { error } = await db.from('pt_products').upsert(product, { onConflict: 'id' });
+  if (error) { console.error('upsertDBProduct error:', error); return false; }
+  return true;
+}
+
+export async function deleteDBProduct(id: string): Promise<boolean> {
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
+  const { error } = await db.from('pt_products').delete().eq('id', id);
+  if (error) { console.error('deleteDBProduct error:', error); return false; }
+  return true;
+}
+
+export async function upsertDBVariant(variant: DBProductVariant): Promise<boolean> {
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
+  const { error } = await db.from('pt_product_variants').upsert(variant, { onConflict: 'product_id,id' });
+  if (error) { console.error('upsertDBVariant error:', error); return false; }
+  return true;
+}
+
+export async function deleteDBVariant(productId: string, variantId: string): Promise<boolean> {
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
+  const { error } = await db.from('pt_product_variants').delete().eq('product_id', productId).eq('id', variantId);
+  if (error) { console.error('deleteDBVariant error:', error); return false; }
+  return true;
+}
+
+export async function bulkUpdateProductOrder(ids: string[]): Promise<boolean> {
+  const db = supabaseAdmin || supabase;
+  if (!db) return false;
+  const updates = ids.map((id, i) => db.from('pt_products').update({ sort_order: i }).eq('id', id));
+  const results = await Promise.allSettled(updates);
+  return results.every(r => r.status === 'fulfilled');
+}
+
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {
   const db = supabaseAdmin || supabase;
   if (!db) return false;

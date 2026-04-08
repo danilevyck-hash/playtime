@@ -12,7 +12,7 @@ interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
   extraImages?: string[];
-  variantImages?: Record<string, string>;
+  variantImages?: Record<string, string>;  // kept for backward compat, prefer variant.image
 }
 
 export default function ProductModal({ product, onClose, extraImages, variantImages }: ProductModalProps) {
@@ -86,7 +86,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
   const cartName = hasVariants && selectedVariant ? `${product.name} — ${selectedVariant.label}` : product.name;
   const inCart = items.find((i) => i.productId === cartId);
   const needsVariant = hasVariants && !selectedVariant;
-  const variantImage = selectedVariant && variantImages?.[selectedVariant.id];
+  const variantImage = selectedVariant?.image || (selectedVariant && variantImages?.[selectedVariant.id]);
   const currentImage = variantImage || allImages[activeIndex] || '';
   const hasMultiple = !variantImage && allImages.length > 1;
 

@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
-import { fetchProductImages, fetchVariantImages } from '@/lib/supabase-data';
-import { PRODUCTS } from '@/lib/constants';
+import { fetchProductImages } from '@/lib/supabase-data';
 import CategoryFilter from '@/components/catalog/CategoryFilter';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
@@ -17,7 +16,6 @@ export default function CatalogoContent() {
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
-  const [variantImageMap, setVariantImageMap] = useState<Record<string, Record<string, string>>>({});
   const PAGE_SIZE = 12;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -33,20 +31,13 @@ export default function CatalogoContent() {
     if (products.length === 0) return;
     const load = async () => {
       const galleries: Record<string, string[]> = {};
-      const variantImgs: Record<string, Record<string, string>> = {};
-      const productsWithVariants = PRODUCTS.filter(p => p.variants && p.variants.length > 0);
-      await Promise.all([
-        ...products.map(async (p) => {
+      await Promise.all(
+        products.map(async (p) => {
           const imgs = await fetchProductImages(p.id);
           if (imgs.length > 0) galleries[p.id] = imgs;
         }),
-        ...productsWithVariants.map(async (p) => {
-          const imgs = await fetchVariantImages(p.id);
-          if (Object.keys(imgs).length > 0) variantImgs[p.id] = imgs;
-        }),
-      ]);
+      );
       setProductGalleries(galleries);
-      setVariantImageMap(variantImgs);
     };
     load();
   }, [products]);
@@ -127,7 +118,7 @@ export default function CatalogoContent() {
         </>
       )}
 
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedProduct ? productGalleries[selectedProduct.id] : undefined} variantImages={selectedProduct ? variantImageMap[selectedProduct.id] : undefined} />
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedProduct ? productGalleries[selectedProduct.id] : undefined} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ export interface ProductVariant {
   id: string;
   label: string;
   price?: number;
+  image?: string;
 }
 
 export interface Product {

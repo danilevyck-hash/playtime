@@ -2,14 +2,27 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { PRODUCTS } from './constants';
-import { Product, Category } from './types';
-import { fetchProductOverrides, fetchCustomProducts, fetchSetting, ProductOverride, CustomProduct } from './supabase-data';
+import { Product, ProductVariant, Category } from './types';
+import {
+  fetchDBProducts,
+  fetchDBProductVariants,
+  fetchProductOverrides,
+  fetchCustomProducts,
+  fetchSetting,
+  ProductOverride,
+  CustomProduct,
+  DBProduct,
+  DBProductVariant,
+} from './supabase-data';
 
 /**
- * Hook that returns products merged with admin overrides.
- * Reads from Supabase first; falls back to localStorage if Supabase is unavailable.
+ * Hook that returns products.
+ * Tries DB-first (pt_products table). If empty, falls back to
+ * constants.ts + overrides + custom products (legacy behaviour).
  */
 export function useProducts(): Product[] {
+  const [dbProducts, setDbProducts] = useState<DBProduct[]>([]);
+  const [dbVariants, setDbVariants] = useState<DBProductVariant[]>([]);
   const [overrides, setOverrides] = useState<ProductOverride[]>([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [productOrder, setProductOrder] = useState<string[]>([]);
@@ -20,6 +33,20 @@ export function useProducts(): Product[] {
 
     async function load() {
       try {
+        // Try DB-first
+        const [products, variants] = await Promise.all([
+          fetchDBProducts(),
+          fetchDBProductVariants(),
+        ]);
+
+        if (!cancelled && products.length > 0) {
+          setDbProducts(products);
+          setDbVariants(variants);
+          setLoaded(true);
+          return;
+        }
+
+        // Fallback: legacy system
         const [ov, cp, order] = await Promise.all([
           fetchProductOverrides(),
           fetchCustomProducts(),
@@ -32,7 +59,7 @@ export function useProducts(): Product[] {
           setLoaded(true);
         }
       } catch (e) {
-        console.error('Supabase load failed:', e);
+        console.error('useProducts load failed:', e);
         if (!cancelled) setLoaded(true);
       }
     }
@@ -44,11 +71,41 @@ export function useProducts(): Product[] {
   const products = useMemo(() => {
     if (!loaded) return PRODUCTS;
 
-    // Build override map
+    // ── DB-first path ──
+    if (dbProducts.length > 0) {
+      // Build variant map: productId -> ProductVariant[]
+      const variantMap = new Map<string, ProductVariant[]>();
+      for (const v of dbVariants) {
+        const arr = variantMap.get(v.product_id) || [];
+        arr.push({
+          id: v.id,
+          label: v.label,
+          price: v.price ?? undefined,
+          image: v.image_url ?? undefined,
+        });
+        variantMap.set(v.product_id, arr);
+      }
+
+      return dbProducts
+        .filter(p => p.active)
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          category: p.category as Category,
+          description: p.description,
+          price: p.price,
+          image: p.image_url || undefined,
+          featured: p.featured,
+          maxQuantity: p.max_quantity ?? undefined,
+          variants: variantMap.get(p.id),
+          variantLabel: p.variant_label ?? undefined,
+        }));
+    }
+
+    // ── Legacy fallback path ──
     const ovMap = new Map<string, ProductOverride>();
     for (const o of overrides) ovMap.set(o.id, o);
 
-    // Filter out disabled built-in products, apply all overrides
     const builtIn: Product[] = PRODUCTS
       .filter(p => {
         const ov = ovMap.get(p.id);
@@ -67,7 +124,6 @@ export function useProducts(): Product[] {
         };
       });
 
-    // Add custom products
     const custom: Product[] = customProducts.map(cp => ({
       id: cp.id,
       name: cp.name,
@@ -79,7 +135,6 @@ export function useProducts(): Product[] {
 
     const result = [...builtIn, ...custom];
 
-    // Apply saved order from admin drag-and-drop
     if (productOrder.length > 0) {
       const orderMap = new Map(productOrder.map((id, idx) => [id, idx]));
       result.sort((a, b) => {
@@ -90,7 +145,7 @@ export function useProducts(): Product[] {
     }
 
     return result;
-  }, [loaded, overrides, customProducts, productOrder]);
+  }, [loaded, dbProducts, dbVariants, overrides, customProducts, productOrder]);
 
   return products;
 }
