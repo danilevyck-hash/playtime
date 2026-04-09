@@ -75,15 +75,19 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
             {formatCurrency(product.price)}
           </span>
           <button
-            onClick={() =>
-              addItem({
-                productId: product.id,
-                name: product.name,
-                category: product.category,
-                unitPrice: product.price,
-                image: product.image,
-              })
-            }
+            onClick={() => {
+              if (product.variants && product.variants.length > 0) {
+                onSelect(product);
+              } else {
+                addItem({
+                  productId: product.id,
+                  name: product.name,
+                  category: product.category,
+                  unitPrice: product.price,
+                  image: product.image,
+                });
+              }
+            }}
             className="rounded-full bg-orange text-white px-3 py-1.5 font-heading font-semibold text-[10px] sm:text-xs hover:bg-orange/90 transition-colors shrink-0"
           >
             Lo quiero

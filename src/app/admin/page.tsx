@@ -1582,6 +1582,7 @@ function ProductsTab() {
 // ─── CATALOG TAB ───
 function CatalogTab() {
   const { showToast } = useToast();
+  const [dbProducts, setDbProducts] = useState<DBProduct[]>([]);
   const [categories, setCategories] = useState<{ id: string; label: string; icon: string; description: string; subtitle?: string }[]>([]);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
@@ -1591,6 +1592,8 @@ function CatalogTab() {
   const [newCat, setNewCat] = useState({ name: '', emoji: '', description: '' });
   const [catDragging, setCatDragging] = useState<string | null>(null);
   const [catDragOver, setCatDragOver] = useState<string | null>(null);
+
+  useEffect(() => { fetchDBProducts().then(setDbProducts).catch(() => {}); }, []);
 
   const handleCatDrop = (targetId: string) => {
     if (!catDragging || catDragging === targetId) return;
@@ -1610,9 +1613,9 @@ function CatalogTab() {
   // Count products per category
   const productCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const p of PRODUCTS) { counts[p.category] = (counts[p.category] || 0) + 1; }
+    for (const p of dbProducts) { counts[p.category] = (counts[p.category] || 0) + 1; }
     return counts;
-  }, []);
+  }, [dbProducts]);
 
   useEffect(() => {
     async function load() {
@@ -1811,6 +1814,9 @@ function WebsiteTab() {
   const { showToast } = useToast();
   const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'logo'>('homepage');
   const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [dbProducts, setDbProducts] = useState<DBProduct[]>([]);
+
+  useEffect(() => { fetchDBProducts().then(setDbProducts).catch(() => {}); }, []);
 
   // ─── A) HOMEPAGE ───
   const [hp, setHp] = useState({
@@ -2112,7 +2118,7 @@ function WebsiteTab() {
             <span className={`font-heading font-bold text-sm ${featuredIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{featuredIds.length}/6</span>
           </div>
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {PRODUCTS.map(p => {
+            {dbProducts.filter(p => p.active).map(p => {
               const checked = featuredIds.includes(p.id);
               const disabled = !checked && featuredIds.length >= 6;
               return (
@@ -2218,6 +2224,7 @@ function uint8ArrayToBase64url(bytes: Uint8Array): string {
 }
 
 export default function AdminPage() {
+  const { showToast } = useToast();
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
@@ -2255,6 +2262,7 @@ export default function AdminPage() {
           await sub.unsubscribe();
         }
         setPushEnabled(false);
+        showToast('Notificaciones desactivadas');
       } else {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return;
@@ -2264,9 +2272,11 @@ export default function AdminPage() {
         });
         await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
         setPushEnabled(true);
+        showToast('Notificaciones activadas');
       }
     } catch (err) {
       console.error('Push toggle error:', err);
+      showToast('Error al activar notificaciones');
     }
   };
 

@@ -35,13 +35,7 @@ function ConfirmacionContent() {
     } catch {}
   }, []);
 
-  // Auto-open WhatsApp after a brief delay
-  useEffect(() => {
-    if (waParam) {
-      const timer = setTimeout(() => { window.open(waParam, '_blank'); }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [waParam]);
+  // WhatsApp button is prominent — no auto-open needed
 
   const copyBank = () => {
     navigator.clipboard.writeText(`${BANK_INFO.bank} | ${BANK_INFO.name} | ${BANK_INFO.accountType}: ${BANK_INFO.accountNumber}`);
@@ -143,11 +137,15 @@ function ConfirmacionContent() {
               const dateStr = eventDate.replace(/-/g, '');
               const timeStr = `${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
               const dtStart = dateStr ? `${dateStr}T${timeStr}` : new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
+              const endHours = hours + 3;
+              const dtEnd = dateStr ? `${dateStr}T${String(endHours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00` : dtStart;
               const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
+                'PRODID:-//PlayTime//Pedido//ES',
                 'BEGIN:VEVENT',
                 `DTSTART:${dtStart}`,
+                `DTEND:${dtEnd}`,
                 `SUMMARY:PlayTime Fiesta #${pedido || ''}`,
                 'DESCRIPTION:Pedido PlayTime',
                 'END:VEVENT',

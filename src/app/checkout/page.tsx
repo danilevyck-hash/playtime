@@ -55,6 +55,8 @@ export default function CheckoutPage() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmData, setConfirmData] = useState<{ subtotalLine: string; transportLine: string; surchargeLine: string; totalLine: string; pendingNote: string } | null>(null);
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
   const [areasLoaded, setAreasLoaded] = useState(false);
@@ -105,19 +107,31 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleSubmit = async () => {
-    // Prevent double submissions
+  const handleConfirmRequest = () => {
     if (submittingRef.current) return;
 
     const effectiveTransport = isTransportPending ? 0 : transportCost;
     const surcharge = paymentMethod === 'credit_card' ? round2((subtotal + effectiveTransport) * CREDIT_CARD_SURCHARGE) : 0;
     const total = round2(subtotal + effectiveTransport + surcharge);
 
-    // Show itemized confirm dialog
-    const transportLine = isTransportPending ? '\nTransporte: Se confirma por WhatsApp' : (effectiveTransport > 0 ? `\nTransporte: $${effectiveTransport.toFixed(2)}` : '');
-    const surchargeLine = surcharge > 0 ? `\nRecargo tarjeta (5%): $${surcharge.toFixed(2)}` : '';
-    const pendingNote = isTransportPending ? '\n\n* El costo de transporte se confirma aparte' : '';
-    if (!window.confirm(`¿Confirmar reserva?\n\nSubtotal: $${subtotal.toFixed(2)}${transportLine}${surchargeLine}\nTotal: $${total.toFixed(2)}${isTransportPending ? '*' : ''}${pendingNote}`)) return;
+    const transportLine = isTransportPending ? 'Transporte: Se confirma por WhatsApp' : (effectiveTransport > 0 ? `Transporte: ${formatCurrency(effectiveTransport)}` : '');
+    const surchargeLine = surcharge > 0 ? `Recargo tarjeta (5%): ${formatCurrency(surcharge)}` : '';
+    const pendingNote = isTransportPending ? '* El costo de transporte se confirma aparte' : '';
+    const totalLine = `Total: ${formatCurrency(total)}${isTransportPending ? '*' : ''}`;
+    const subtotalLine = `Subtotal: ${formatCurrency(subtotal)}`;
+
+    setConfirmData({ subtotalLine, transportLine, surchargeLine, totalLine, pendingNote });
+    setShowConfirmModal(true);
+  };
+
+  const handleSubmit = async () => {
+    setShowConfirmModal(false);
+    // Prevent double submissions
+    if (submittingRef.current) return;
+
+    const effectiveTransport = isTransportPending ? 0 : transportCost;
+    const surcharge = paymentMethod === 'credit_card' ? round2((subtotal + effectiveTransport) * CREDIT_CARD_SURCHARGE) : 0;
+    const total = round2(subtotal + effectiveTransport + surcharge);
 
     submittingRef.current = true;
     setLoading(true);
@@ -254,7 +268,7 @@ export default function CheckoutPage() {
           subtotal={subtotal}
           transportCost={isTransportPending ? -1 : transportCost}
           onBack={() => setStep(1)}
-          onSubmit={handleSubmit}
+          onSubmit={handleConfirmRequest}
           onEditStep={(s) => setStep(s)}
           loading={loading}
           submitLabel={texts.checkout_submit}
@@ -262,6 +276,37 @@ export default function CheckoutPage() {
         />
       )}
       </div>
+
+      {/* Confirm Modal */}
+      {showConfirmModal && confirmData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <h3 className="font-heading font-bold text-lg text-purple text-center">{'\u00bf'}Confirmar pedido?</h3>
+            <div className="space-y-1 font-body text-sm text-gray-600">
+              <p>{confirmData.subtotalLine}</p>
+              {confirmData.transportLine && <p>{confirmData.transportLine}</p>}
+              {confirmData.surchargeLine && <p>{confirmData.surchargeLine}</p>}
+              <p className="font-heading font-bold text-purple text-base pt-1">{confirmData.totalLine}</p>
+              {confirmData.pendingNote && <p className="text-xs text-gray-400 pt-1">{confirmData.pendingNote}</p>}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl font-heading font-bold text-sm text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex-1 py-2.5 rounded-xl font-heading font-bold text-sm text-white bg-black hover:bg-gray-800 transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

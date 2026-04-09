@@ -10,7 +10,7 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string } }
+  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number } }
   | { type: 'REMOVE_ITEM'; payload: { productId: string } }
   | { type: 'UPDATE_QUANTITY'; payload: { productId: string; quantity: number } }
   | { type: 'CLEAR_CART' }
@@ -22,17 +22,22 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return { items: action.payload, hydrated: true };
 
     case 'ADD_ITEM': {
+      const maxQ = action.payload.maxQuantity;
       const existing = state.items.find((i) => i.productId === action.payload.productId);
       if (existing) {
+        let newQty = existing.quantity + (action.payload.quantity || 1);
+        if (maxQ !== undefined && maxQ !== null && newQty > maxQ) newQty = maxQ;
         return {
           ...state,
           items: state.items.map((i) =>
             i.productId === action.payload.productId
-              ? { ...i, quantity: i.quantity + (action.payload.quantity || 1) }
+              ? { ...i, quantity: newQty }
               : i
           ),
         };
       }
+      let qty = action.payload.quantity || 1;
+      if (maxQ !== undefined && maxQ !== null && qty > maxQ) qty = maxQ;
       return {
         ...state,
         items: [
@@ -42,7 +47,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
             name: action.payload.name,
             category: action.payload.category,
             unitPrice: action.payload.unitPrice,
-            quantity: action.payload.quantity || 1,
+            quantity: qty,
             image: action.payload.image,
           },
         ],
@@ -78,7 +83,7 @@ interface CartContextValue {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string }) => void;
+  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;

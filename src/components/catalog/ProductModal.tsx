@@ -237,7 +237,8 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
                 <span className="min-w-[28px] text-center font-heading font-bold text-base text-purple select-none">{quantity}</span>
                 <button
                   onClick={() => setQuantity(q => q + 1)}
-                  className="min-h-[44px] w-10 flex items-center justify-center rounded-r-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors"
+                  className="min-h-[44px] w-10 flex items-center justify-center rounded-r-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors disabled:opacity-30"
+                  disabled={product.maxQuantity !== undefined && product.maxQuantity !== null && quantity >= product.maxQuantity}
                   aria-label="Aumentar cantidad"
                 >
                   +
@@ -259,6 +260,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
                       quantity,
                     });
                     setQuantity(1);
+                    setTimeout(() => onClose(), 300);
                   }}
                 >
                   {inCart ? 'Agregar otro' : 'Agregar al carrito'}
