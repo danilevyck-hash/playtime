@@ -40,30 +40,6 @@ export function base64urlDecode(str: string): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
-// Challenge store (in-memory, 5 min expiry)
-// ---------------------------------------------------------------------------
-
-const challengeStore = new Map<string, { data: unknown; expires: number }>();
-const CHALLENGE_TTL = 5 * 60 * 1000; // 5 minutes
-
-export function storeChallenge(challenge: string, data: unknown): void {
-  // Clean expired entries
-  const now = Date.now();
-  for (const [key, val] of challengeStore) {
-    if (val.expires < now) challengeStore.delete(key);
-  }
-  challengeStore.set(challenge, { data, expires: now + CHALLENGE_TTL });
-}
-
-export function consumeChallenge(challenge: string): unknown | null {
-  const entry = challengeStore.get(challenge);
-  if (!entry) return null;
-  challengeStore.delete(challenge);
-  if (entry.expires < Date.now()) return null;
-  return entry.data;
-}
-
-// ---------------------------------------------------------------------------
 // Minimal CBOR decoder (enough for attestation parsing)
 // ---------------------------------------------------------------------------
 
@@ -239,9 +215,6 @@ export function generateRegistrationOptions(
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = base64urlEncode(challengeBytes);
 
-  // Store challenge with userId
-  storeChallenge(challenge, { userId, userName });
-
   return {
     challenge,
     rp: { name: "Fashion Group", id: rpId },
@@ -384,8 +357,6 @@ export function generateAuthenticationOptions(
 ): AuthenticationOptions {
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = base64urlEncode(challengeBytes);
-
-  storeChallenge(challenge, { credentialIds });
 
   return {
     challenge,

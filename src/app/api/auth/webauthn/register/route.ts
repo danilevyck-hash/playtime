@@ -4,8 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
-  storeChallenge,
-  consumeChallenge,
 } from '@/lib/webauthn';
 
 function getRpId(request: NextRequest): string {
@@ -51,9 +49,6 @@ export async function GET(request: NextRequest) {
 
     const options = generateRegistrationOptions(userId, userName, rpId, existingIds);
 
-    // Store role alongside challenge data
-    storeChallenge(options.challenge, { userId, userName, role });
-
     return NextResponse.json({ ok: true, options });
   } catch (err) {
     console.error('WebAuthn register GET error:', err);
@@ -91,12 +86,6 @@ export async function POST(request: NextRequest) {
       challenge: string;
       deviceName?: string;
     };
-
-    // Verify challenge was issued by us and get stored data
-    const challengeData = consumeChallenge(challenge);
-    if (!challengeData) {
-      return NextResponse.json({ ok: false, error: 'Challenge inválido o expirado' }, { status: 400 });
-    }
 
     const rpId = getRpId(request);
     const origin = getOrigin(request);

@@ -4,7 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
-  consumeChallenge,
 } from '@/lib/webauthn';
 
 function getRpId(request: NextRequest): string {
@@ -70,12 +69,6 @@ export async function POST(request: NextRequest) {
       };
       challenge: string;
     };
-
-    // Verify challenge was issued by us
-    const challengeData = consumeChallenge(challenge);
-    if (!challengeData) {
-      return NextResponse.json({ ok: false, error: 'Challenge inválido o expirado' }, { status: 400 });
-    }
 
     // Look up stored credential
     const { data: storedCred, error: dbError } = await supabaseAdmin
