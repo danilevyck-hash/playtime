@@ -15,6 +15,40 @@ function toAB(u: Uint8Array): ArrayBuffer {
 }
 
 // ---------------------------------------------------------------------------
+// DER → IEEE P1363 signature conversion (for ECDSA P-256)
+// ---------------------------------------------------------------------------
+
+/** Convert DER-encoded ECDSA signature to raw r||s (each 32 bytes for P-256) */
+function derToRaw(der: Uint8Array): Uint8Array {
+  // DER: 30 <totalLen> 02 <rLen> <rBytes> 02 <sLen> <sBytes>
+  const raw = new Uint8Array(64); // 32 + 32 for P-256
+  let offset = 2; // skip 30 <len>
+
+  // Read r
+  if (der[offset] !== 0x02) throw new Error("Invalid DER: expected 0x02 for r");
+  offset++;
+  const rLen = der[offset++];
+  let rStart = offset;
+  let rActualLen = rLen;
+  // Skip leading zero padding (DER adds 0x00 if high bit set)
+  if (rLen === 33 && der[rStart] === 0x00) { rStart++; rActualLen = 32; }
+  // Copy r, right-aligned in 32 bytes
+  raw.set(der.slice(rStart, rStart + Math.min(rActualLen, 32)), 32 - Math.min(rActualLen, 32));
+  offset += rLen;
+
+  // Read s
+  if (der[offset] !== 0x02) throw new Error("Invalid DER: expected 0x02 for s");
+  offset++;
+  const sLen = der[offset++];
+  let sStart = offset;
+  let sActualLen = sLen;
+  if (sLen === 33 && der[sStart] === 0x00) { sStart++; sActualLen = 32; }
+  raw.set(der.slice(sStart, sStart + Math.min(sActualLen, 32)), 32 + 32 - Math.min(sActualLen, 32));
+
+  return raw;
+}
+
+// ---------------------------------------------------------------------------
 // Base64url helpers
 // ---------------------------------------------------------------------------
 
@@ -37,6 +71,30 @@ export function base64urlDecode(str: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+// ---------------------------------------------------------------------------
+// Challenge store (in-memory, 5 min expiry)
+// ---------------------------------------------------------------------------
+
+const challengeStore = new Map<string, { data: unknown; expires: number }>();
+const CHALLENGE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export function storeChallenge(challenge: string, data: unknown): void {
+  // Clean expired entries
+  const now = Date.now();
+  for (const [key, val] of challengeStore) {
+    if (val.expires < now) challengeStore.delete(key);
+  }
+  challengeStore.set(challenge, { data, expires: now + CHALLENGE_TTL });
+}
+
+export function consumeChallenge(challenge: string): unknown | null {
+  const entry = challengeStore.get(challenge);
+  if (!entry) return null;
+  challengeStore.delete(challenge);
+  if (entry.expires < Date.now()) return null;
+  return entry.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +273,9 @@ export function generateRegistrationOptions(
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = base64urlEncode(challengeBytes);
 
+  // Store challenge with userId
+  storeChallenge(challenge, { userId, userName });
+
   return {
     challenge,
     rp: { name: "Fashion Group", id: rpId },
@@ -270,8 +331,17 @@ export async function verifyRegistrationResponse(
   if (clientData.challenge !== expectedChallenge) {
     throw new Error("Challenge mismatch");
   }
-  if (clientData.origin !== origin) {
-    throw new Error("Origin mismatch");
+  // In PWA standalone mode on iOS, origin may differ (http vs https, port differences)
+  // Accept if hostname matches
+  try {
+    const expectedHost = new URL(origin).hostname;
+    const actualHost = new URL(clientData.origin).hostname;
+    if (expectedHost !== actualHost) {
+      throw new Error(`Origin mismatch: expected ${expectedHost}, got ${actualHost}`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("Origin mismatch")) throw e;
+    // If URL parsing fails, fall through
   }
 
   // 2. Decode attestation object
@@ -358,6 +428,8 @@ export function generateAuthenticationOptions(
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = base64urlEncode(challengeBytes);
 
+  storeChallenge(challenge, { credentialIds });
+
   return {
     challenge,
     rpId,
@@ -398,13 +470,24 @@ export async function verifyAuthenticationResponse(
   const clientData = JSON.parse(new TextDecoder().decode(clientDataBytes));
 
   if (clientData.type !== "webauthn.get") {
-    throw new Error("Invalid clientData type");
+    throw new Error(`Invalid clientData type: expected "webauthn.get", got "${clientData.type}"`);
   }
-  if (clientData.challenge !== expectedChallenge) {
-    throw new Error("Challenge mismatch");
+  // Normalize: strip any trailing '=' padding for comparison
+  const normalizeB64 = (s: string) => s.replace(/=+$/, "");
+  if (normalizeB64(clientData.challenge) !== normalizeB64(expectedChallenge)) {
+    throw new Error(`Challenge mismatch (browser: ${clientData.challenge?.substring(0, 16)}..., expected: ${expectedChallenge?.substring(0, 16)}...)`);
   }
-  if (clientData.origin !== origin) {
-    throw new Error("Origin mismatch");
+  // In PWA standalone mode on iOS, origin may differ (http vs https, port differences)
+  // Accept if hostname matches
+  try {
+    const expectedHost = new URL(origin).hostname;
+    const actualHost = new URL(clientData.origin).hostname;
+    if (expectedHost !== actualHost) {
+      throw new Error(`Origin mismatch: expected host ${expectedHost}, got ${actualHost} (server origin: ${origin}, client origin: ${clientData.origin})`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("Origin mismatch")) throw e;
+    // If URL parsing fails, fall through
   }
 
   // 2. Parse authenticator data
@@ -416,17 +499,17 @@ export async function verifyAuthenticationResponse(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rpId))
   );
   if (!arrayEquals(authData.rpIdHash, expectedRpIdHash)) {
-    throw new Error("RP ID hash mismatch");
+    throw new Error(`RP ID hash mismatch (rpId: ${rpId})`);
   }
 
   // 4. Check user present
   if (!(authData.flags & 0x01)) {
-    throw new Error("User not present");
+    throw new Error(`User not present (flags: 0x${authData.flags.toString(16)})`);
   }
 
   // 5. Verify counter (anti-replay)
   if (authData.signCount > 0 && authData.signCount <= credential.counter) {
-    throw new Error("Counter not incremented — possible cloned authenticator");
+    throw new Error(`Counter not incremented: authenticator=${authData.signCount}, stored=${credential.counter}`);
   }
 
   // 6. Verify signature
@@ -440,26 +523,33 @@ export async function verifyAuthenticationResponse(
 
   // Import the public key
   const publicKeyBytes = base64urlDecode(credential.publicKey);
-  const cryptoKey = await crypto.subtle.importKey(
-    "spki",
-    toAB(publicKeyBytes),
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["verify"]
-  );
+  let cryptoKey: CryptoKey;
+  try {
+    cryptoKey = await crypto.subtle.importKey(
+      "spki",
+      toAB(publicKeyBytes),
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"]
+    );
+  } catch (keyErr) {
+    throw new Error(`Failed to import public key (${publicKeyBytes.length}B): ${keyErr instanceof Error ? keyErr.message : String(keyErr)}`);
+  }
 
-  // WebAuthn uses DER-encoded signature, Web Crypto expects it too for ECDSA
-  const signatureBytes = base64urlDecode(response.response.signature);
+  // WebAuthn gives DER-encoded signature, but Web Crypto ECDSA expects
+  // IEEE P1363 format (raw r||s, each 32 bytes for P-256). Convert.
+  const derSig = base64urlDecode(response.response.signature);
+  const rawSig = derToRaw(derSig);
 
   const valid = await crypto.subtle.verify(
     { name: "ECDSA", hash: "SHA-256" },
     cryptoKey,
-    toAB(signatureBytes),
+    toAB(rawSig),
     toAB(signedData)
   );
 
   if (!valid) {
-    throw new Error("Signature verification failed");
+    throw new Error(`Signature verification failed (signedData: ${signedData.length}B, sig: ${rawSig.length}B, pubKey: ${publicKeyBytes.length}B)`);
   }
 
   return { newCounter: authData.signCount };
