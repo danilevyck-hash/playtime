@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
@@ -2233,6 +2233,7 @@ export default function AdminPage() {
   const [webauthnAvailable, setWebauthnAvailable] = useState(false);
   const [showWebauthnSetup, setShowWebauthnSetup] = useState(false);
   const [webauthnLoading, setWebauthnLoading] = useState(false);
+  const autoTriggered = useRef(false);
 
   // Check if WebAuthn/Face ID is available on mount
   useEffect(() => {
@@ -2349,6 +2350,18 @@ export default function AdminPage() {
     }
     setWebauthnLoading(false);
   };
+
+  // Auto-trigger Face ID on page load
+  useEffect(() => {
+    if (webauthnAvailable && !authenticated && !autoTriggered.current) {
+      autoTriggered.current = true;
+      const timer = setTimeout(() => {
+        handleWebauthnLogin();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webauthnAvailable, authenticated]);
 
   // WebAuthn: Register new passkey after PIN login
   const handleWebauthnSetup = async () => {
