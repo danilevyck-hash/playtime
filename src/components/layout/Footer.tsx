@@ -20,11 +20,14 @@ export default function Footer() {
           <div>
             <h3 className="font-heading font-bold text-lg mb-3">Contacto</h3>
             <div className="space-y-2 font-body text-sm text-white/70">
-              <p>Panam&aacute; {'\uD83C\uDDF5\uD83C\uDDE6'}</p>
+              <p>Panamá {'\uD83C\uDDF5\uD83C\uDDE6'}</p>
               <p>{CONTACT.phone}</p>
               <p>{CONTACT.email}</p>
               <p>Instagram: {CONTACT.instagram}</p>
             </div>
+            <p className="mt-3 text-xs text-white/50 flex items-center gap-1.5">
+              <span>&#9889;</span> Respondemos en menos de 2 horas
+            </p>
           </div>
 
           {/* WhatsApp CTA + social icons */}

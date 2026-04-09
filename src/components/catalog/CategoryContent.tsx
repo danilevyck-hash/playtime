@@ -62,7 +62,7 @@ export default function CategoryContent() {
           &larr; Volver al cat&aacute;logo
         </Link>
         <h1 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-1">
-          {categoryInfo.label}
+          {categoryInfo.label} para Fiestas — PlayTime
         </h1>
         <p className="font-body text-gray-500">{categoryInfo.description}</p>
       </div>

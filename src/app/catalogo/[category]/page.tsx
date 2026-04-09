@@ -17,8 +17,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const info = CATEGORIES.find((c) => c.id === category);
   return {
-    title: `${info!.label} - Cat\u00e1logo`,
+    title: `${info!.label} para Fiestas — PlayTime`,
     description: info!.description,
+    openGraph: {
+      title: `${info!.label} para Fiestas — PlayTime Panamá`,
+      description: info!.description,
+      url: `https://playtime-kids.vercel.app/catalogo/${category}`,
+      images: ['/logo.png'],
+    },
+    twitter: {
+      card: 'summary_large_image' as const,
+      title: `${info!.label} para Fiestas — PlayTime Panamá`,
+      description: info!.description,
+      images: ['/logo.png'],
+    },
   };
 }
 

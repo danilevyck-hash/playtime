@@ -33,6 +33,18 @@ export const metadata: Metadata = {
   },
   description: "Fiestas infantiles en Panam\u00e1. Animaci\u00f3n, alquiler de equipos y manualidades para cumplea\u00f1os y eventos. \u00a1Todo hasta tu puerta!",
   openGraph: {
+    title: "PlayTime - Creando Momentos",
+    description: "Fiestas infantiles en Panamá. Animación, alquiler de equipos y manualidades para cumpleaños y eventos. ¡Todo hasta tu puerta!",
+    url: "https://playtime-kids.vercel.app",
+    siteName: "PlayTime Panamá",
+    locale: "es_PA",
+    type: "website",
+    images: ["/logo.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PlayTime - Creando Momentos",
+    description: "Fiestas infantiles en Panamá. Animación, alquiler de equipos y manualidades para cumpleaños y eventos.",
     images: ["/logo.png"],
   },
   icons: {

@@ -82,6 +82,7 @@ export default function CatalogoContent() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
+      <h1 className="sr-only">Catálogo de Fiestas Infantiles en Panamá — PlayTime</h1>
 
       <div className="sticky top-16 z-30 bg-beige/95 backdrop-blur-sm -mx-4 px-4 pt-4 pb-3 space-y-3">
         <CategoryFilter selected={category} onSelect={handleCategoryChange} />

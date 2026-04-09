@@ -42,7 +42,11 @@ export default function Hero({ content, logoUrl }: HeroProps) {
           </Link>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mt-8 flex-wrap">
+        <p className="mt-5 text-sm font-body text-gray-500 flex items-center justify-center gap-1.5">
+          <span>&#9889;</span> Respondemos en menos de 2 horas
+        </p>
+
+        <div className="flex items-center justify-center gap-2 mt-5 flex-wrap">
           <span className="bg-white/60 rounded-full px-3 py-1 text-sm font-heading font-semibold text-purple">+600 eventos {'\uD83C\uDF89'}</span>
           <span className="bg-white/60 rounded-full px-3 py-1 text-sm font-heading font-semibold text-purple">+400 familias felices {'\uD83D\uDC95'}</span>
         </div>
