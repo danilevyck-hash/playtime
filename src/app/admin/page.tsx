@@ -14,14 +14,55 @@ import {
   fetchLogoUrl,
   fetchDBProducts,
   fetchDBProductVariants,
-  upsertDBProduct,
-  deleteDBProduct,
-  upsertDBVariant,
-  deleteDBVariant,
-  bulkUpdateProductOrder,
   DBProduct,
   DBProductVariant,
 } from '@/lib/supabase-data';
+
+// ─── API helpers (server-side writes via service role) ───
+async function apiUpsertProduct(data: Partial<DBProduct>) {
+  const res = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    body: JSON.stringify(data),
+  });
+  return res.ok;
+}
+
+async function apiUpsertVariant(data: DBProductVariant) {
+  const res = await fetch('/api/products/variants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    body: JSON.stringify(data),
+  });
+  return res.ok;
+}
+
+async function apiDeleteProduct(id: string) {
+  const res = await fetch('/api/products', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
+}
+
+async function apiDeleteVariant(productId: string, variantId: string) {
+  const res = await fetch('/api/products/variants', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    body: JSON.stringify({ productId, variantId }),
+  });
+  return res.ok;
+}
+
+async function apiBulkUpdateOrder(ids: string[]) {
+  const res = await fetch('/api/products/order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    body: JSON.stringify({ ids }),
+  });
+  return res.ok;
+}
 import { PRODUCTS, CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
 import { downloadOrderPDF } from '@/lib/pdf-order';
@@ -1080,7 +1121,7 @@ function ProductsTab() {
         if (imageIndex === 0) {
           setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: newUrl } : p));
           setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-          upsertDBProduct({ id: productId, image_url: newUrl }).then(() => revalidateSite()).catch(e => console.error('Save image error:', e));
+          apiUpsertProduct({ id: productId, image_url: newUrl }).then(() => revalidateSite()).catch(e => console.error('Save image error:', e));
         }
         const currentGallery = [...(imageGalleries[productId] || [])];
         while (currentGallery.length <= imageIndex) currentGallery.push('');
@@ -1116,7 +1157,7 @@ function ProductsTab() {
         if (variant) {
           const updated = { ...variant, image_url: newUrl };
           setVariants(prev => prev.map(v => (v.product_id === productId && v.id === variantId) ? updated : v));
-          upsertDBVariant(updated).then(() => revalidateSite()).catch(e => console.error('Save variant image error:', e));
+          apiUpsertVariant(updated).then(() => revalidateSite()).catch(e => console.error('Save variant image error:', e));
         }
         showToast('Foto de variante actualizada');
       } else { showToast('Error al subir foto'); }
@@ -1130,7 +1171,7 @@ function ProductsTab() {
     if (!product) return;
     const nowActive = !product.active;
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: nowActive } : p));
-    upsertDBProduct({ id, active: nowActive }).then(() => revalidateSite()).catch(e => { console.error('Toggle error:', e); showToast('Error al guardar'); });
+    apiUpsertProduct({ id, active: nowActive }).then(() => revalidateSite()).catch(e => { console.error('Toggle error:', e); showToast('Error al guardar'); });
     showToast(nowActive ? 'Producto activado' : 'Producto desactivado');
   };
 
@@ -1158,7 +1199,7 @@ function ProductsTab() {
     };
     setProducts(prev => prev.map(p => p.id === id ? updated : p));
     setEditingId(null);
-    const ok = await upsertDBProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, max_quantity: updated.max_quantity });
+    const ok = await apiUpsertProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, max_quantity: updated.max_quantity });
     if (ok) revalidateSite();
     showToast(ok ? 'Producto guardado' : 'Error al guardar');
   };
@@ -1169,7 +1210,7 @@ function ProductsTab() {
     const id = `prod-${Date.now()}`;
     const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
-    const ok = await upsertDBProduct(product);
+    const ok = await apiUpsertProduct(product);
     if (ok) revalidateSite();
     else showToast('Error al guardar');
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
@@ -1185,7 +1226,7 @@ function ProductsTab() {
     setVariants(prev => prev.filter(v => v.product_id !== id));
     setConfirmDelete(null);
     setEditingId(null);
-    const ok = await deleteDBProduct(id);
+    const ok = await apiDeleteProduct(id);
     if (ok) revalidateSite();
     showToast(ok ? 'Producto eliminado' : 'Error al eliminar');
   };
@@ -1203,9 +1244,9 @@ function ProductsTab() {
     const product = products.find(p => p.id === productId);
     if (product && !product.variant_label) {
       setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: 'Modelo' } : p));
-      upsertDBProduct({ id: productId, variant_label: 'Modelo' }).catch(e => console.error('Set variant_label error:', e));
+      apiUpsertProduct({ id: productId, variant_label: 'Modelo' }).catch(e => console.error('Set variant_label error:', e));
     }
-    const ok = await upsertDBVariant(variant);
+    const ok = await apiUpsertVariant(variant);
     if (ok) revalidateSite();
     showToast(ok ? 'Variante agregada' : 'Error al agregar variante');
   };
@@ -1216,9 +1257,9 @@ function ProductsTab() {
     const remaining = variants.filter(v => v.product_id === productId && v.id !== variantId);
     if (remaining.length === 0) {
       setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: null } : p));
-      upsertDBProduct({ id: productId, variant_label: null }).catch(e => console.error('Clear variant_label error:', e));
+      apiUpsertProduct({ id: productId, variant_label: null }).catch(e => console.error('Clear variant_label error:', e));
     }
-    const ok = await deleteDBVariant(productId, variantId);
+    const ok = await apiDeleteVariant(productId, variantId);
     if (ok) revalidateSite();
     showToast(ok ? 'Variante eliminada' : 'Error al eliminar variante');
   };
@@ -1232,14 +1273,14 @@ function ProductsTab() {
     const newId = `prod-${Date.now()}`;
     const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, newProd]);
-    await upsertDBProduct(newProd);
+    await apiUpsertProduct(newProd);
     // Remove variant
     setVariants(prev => prev.filter(v => !(v.product_id === productId && v.id === variantId)));
-    await deleteDBVariant(productId, variantId);
+    await apiDeleteVariant(productId, variantId);
     const remaining = variants.filter(v => v.product_id === productId && v.id !== variantId);
     if (remaining.length === 0) {
       setProducts(prev => prev.map(p => p.id === productId ? { ...p, variant_label: null } : p));
-      await upsertDBProduct({ id: productId, variant_label: null });
+      await apiUpsertProduct({ id: productId, variant_label: null });
     }
     setVariantMenu(null);
     revalidateSite();
@@ -1254,7 +1295,7 @@ function ProductsTab() {
     // Update first product as the combined one
     const updated: DBProduct = { ...first, name: combineName.trim(), variant_label: 'Modelo' };
     setProducts(prev => prev.map(p => p.id === first.id ? updated : p));
-    await upsertDBProduct({ id: first.id, name: updated.name, variant_label: 'Modelo' });
+    await apiUpsertProduct({ id: first.id, name: updated.name, variant_label: 'Modelo' });
     // Convert rest into variants of first
     const existingVars = getVariants(first.id);
     let sortIdx = existingVars.length;
@@ -1262,15 +1303,15 @@ function ProductsTab() {
     const firstVariantId = first.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     const firstVariant: DBProductVariant = { id: firstVariantId, product_id: first.id, label: first.name, price: first.price, image_url: first.image_url, sort_order: sortIdx++ };
     setVariants(prev => [...prev, firstVariant]);
-    await upsertDBVariant(firstVariant);
+    await apiUpsertVariant(firstVariant);
     for (const p of rest) {
       const varId = p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const variant: DBProductVariant = { id: varId, product_id: first.id, label: p.name, price: p.price, image_url: p.image_url, sort_order: sortIdx++ };
       setVariants(prev => [...prev, variant]);
-      await upsertDBVariant(variant);
+      await apiUpsertVariant(variant);
       // Delete the product
       setProducts(prev => prev.filter(pr => pr.id !== p.id));
-      await deleteDBProduct(p.id);
+      await apiDeleteProduct(p.id);
     }
     setCombineMode(false);
     setCombineSelected(new Set());
@@ -1290,7 +1331,7 @@ function ProductsTab() {
     const [moved] = newProducts.splice(fromIdx, 1);
     newProducts.splice(toIdx, 0, moved);
     setProducts(newProducts);
-    bulkUpdateProductOrder(newProducts.map(p => p.id)).then(() => revalidateSite()).catch(e => console.error('Save order error:', e));
+    apiBulkUpdateOrder(newProducts.map(p => p.id)).then(() => revalidateSite()).catch(e => console.error('Save order error:', e));
     setDraggingId(null);
     setDragOverId(null);
   };
