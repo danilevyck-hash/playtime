@@ -19,10 +19,14 @@ import {
 } from '@/lib/supabase-data';
 
 // ─── API helpers (server-side writes via service role) ───
+function adminHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin, ...extra };
+}
+
 async function apiUpsertProduct(data: Partial<DBProduct>) {
   const res = await fetch('/api/products', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
   return res.ok;
@@ -31,7 +35,7 @@ async function apiUpsertProduct(data: Partial<DBProduct>) {
 async function apiUpsertVariant(data: DBProductVariant) {
   const res = await fetch('/api/products/variants', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
   return res.ok;
@@ -40,7 +44,7 @@ async function apiUpsertVariant(data: DBProductVariant) {
 async function apiDeleteProduct(id: string) {
   const res = await fetch('/api/products', {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    headers: adminHeaders(),
     body: JSON.stringify({ id }),
   });
   return res.ok;
@@ -49,7 +53,7 @@ async function apiDeleteProduct(id: string) {
 async function apiDeleteVariant(productId: string, variantId: string) {
   const res = await fetch('/api/products/variants', {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    headers: adminHeaders(),
     body: JSON.stringify({ productId, variantId }),
   });
   return res.ok;
@@ -58,7 +62,7 @@ async function apiDeleteVariant(productId: string, variantId: string) {
 async function apiBulkUpdateOrder(ids: string[]) {
   const res = await fetch('/api/products/order', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
+    headers: adminHeaders(),
     body: JSON.stringify({ ids }),
   });
   return res.ok;
@@ -1855,7 +1859,7 @@ const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body tex
 function revalidateSite() {
   fetch('/api/revalidate', {
     method: 'POST',
-    headers: { 'x-admin-token': _adminToken },
+    headers: { 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin },
   }).catch(() => {});
 }
 

@@ -15,10 +15,9 @@ export default function CatalogoContent() {
   const [initialSet, setInitialSet] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
+  const [selectedGallery, setSelectedGallery] = useState<string[] | undefined>(undefined);
   const PAGE_SIZE = 12;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const galleryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-select first category when products load
   useEffect(() => {
@@ -28,30 +27,18 @@ export default function CatalogoContent() {
     }
   }, [products, initialSet]);
 
-  // Debounced gallery fetch — clears old galleries immediately, fetches after 300ms
+  // Fetch gallery images only when a product modal opens (lazy, per-product)
   useEffect(() => {
-    if (products.length === 0) return;
-
-    // Clear galleries immediately so cards show placeholder
-    setProductGalleries({});
-
-    if (galleryTimerRef.current) clearTimeout(galleryTimerRef.current);
-
-    galleryTimerRef.current = setTimeout(async () => {
-      const galleries: Record<string, string[]> = {};
-      await Promise.all(
-        products.map(async (p) => {
-          const imgs = await fetchProductImages(p.id);
-          if (imgs.length > 0) galleries[p.id] = imgs;
-        }),
-      );
-      setProductGalleries(galleries);
-    }, 300);
-
-    return () => {
-      if (galleryTimerRef.current) clearTimeout(galleryTimerRef.current);
-    };
-  }, [products]);
+    if (!selectedProduct) {
+      setSelectedGallery(undefined);
+      return;
+    }
+    let cancelled = false;
+    fetchProductImages(selectedProduct.id).then((imgs) => {
+      if (!cancelled && imgs.length > 0) setSelectedGallery(imgs);
+    });
+    return () => { cancelled = true; };
+  }, [selectedProduct]);
 
   const filtered = useMemo(() => {
     const isSearching = search.trim() !== '';
@@ -130,7 +117,7 @@ export default function CatalogoContent() {
         </>
       )}
 
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedProduct ? productGalleries[selectedProduct.id] : undefined} />
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} extraImages={selectedGallery} />
     </div>
   );
 }
