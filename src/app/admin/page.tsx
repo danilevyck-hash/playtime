@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
@@ -2272,23 +2272,6 @@ function CatalogoAdminTab() {
 }
 
 // ─── MAIN ADMIN PAGE ───
-// ArrayBuffer conversion helper for WebAuthn
-const toBuffer = (u: Uint8Array): ArrayBuffer => { const ab = new ArrayBuffer(u.byteLength); new Uint8Array(ab).set(u); return ab; };
-
-function base64urlToUint8Array(base64url: string): Uint8Array {
-  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  while (base64.length % 4 !== 0) base64 += '=';
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-function uint8ArrayToBase64url(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
 
 export default function AdminPage() {
   const { showToast } = useToast();
@@ -2297,18 +2280,6 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo'>('pedidos');
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [webauthnAvailable, setWebauthnAvailable] = useState(false);
-  const [showWebauthnSetup, setShowWebauthnSetup] = useState(false);
-  const [webauthnLoading, setWebauthnLoading] = useState(false);
-  const autoTriggered = useRef(false);
-
-  // Check if WebAuthn/Face ID is available on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pt_webauthn_available');
-      if (saved === 'true') setWebauthnAvailable(true);
-    }
-  }, []);
 
   useEffect(() => {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -2348,168 +2319,6 @@ export default function AdminPage() {
     }
   };
 
-  // WebAuthn: Authenticate with Face ID / passkey
-  const handleWebauthnLogin = async () => {
-    setWebauthnLoading(true);
-    setError('');
-    try {
-      // 1. Get authentication options from server
-      const optRes = await fetch('/api/auth/webauthn/authenticate');
-      const optData = await optRes.json();
-      if (!optData.ok) {
-        // No passkeys registered, fall back
-        setWebauthnAvailable(false);
-        localStorage.removeItem('pt_webauthn_available');
-        setError(optData.error || 'No hay passkeys registradas');
-        setWebauthnLoading(false);
-        return;
-      }
-
-      const options = optData.options;
-
-      // 2. Call navigator.credentials.get with options
-      const publicKeyOptions: PublicKeyCredentialRequestOptions = {
-        challenge: toBuffer(base64urlToUint8Array(options.challenge)),
-        rpId: options.rpId,
-        timeout: options.timeout,
-        userVerification: options.userVerification as UserVerificationRequirement,
-        allowCredentials: options.allowCredentials.map((c: { type: string; id: string }) => ({
-          type: c.type,
-          id: toBuffer(base64urlToUint8Array(c.id)),
-        })),
-      };
-
-      const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions }) as PublicKeyCredential;
-      if (!assertion) { setWebauthnLoading(false); return; }
-
-      const assertionResponse = assertion.response as AuthenticatorAssertionResponse;
-
-      // 3. Send to server for verification
-      const verifyRes = await fetch('/api/auth/webauthn/authenticate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          credential: {
-            id: assertion.id,
-            rawId: uint8ArrayToBase64url(new Uint8Array(assertion.rawId)),
-            type: assertion.type,
-            response: {
-              clientDataJSON: uint8ArrayToBase64url(new Uint8Array(assertionResponse.clientDataJSON)),
-              authenticatorData: uint8ArrayToBase64url(new Uint8Array(assertionResponse.authenticatorData)),
-              signature: uint8ArrayToBase64url(new Uint8Array(assertionResponse.signature)),
-            },
-          },
-          challenge: options.challenge,
-        }),
-      });
-
-      const verifyData = await verifyRes.json();
-      if (verifyData.ok) {
-        _adminToken = verifyData.token || '';
-        _adminRole = verifyData.role || 'admin';
-        setAuthenticated(true);
-      } else {
-        setError(verifyData.error || 'Error de autenticación');
-      }
-    } catch (err) {
-      console.error('WebAuthn login error:', err);
-      setError('Error al usar Face ID');
-    }
-    setWebauthnLoading(false);
-  };
-
-  // Auto-trigger Face ID on page load
-  useEffect(() => {
-    if (webauthnAvailable && !authenticated && !autoTriggered.current) {
-      autoTriggered.current = true;
-      const timer = setTimeout(() => {
-        handleWebauthnLogin();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [webauthnAvailable, authenticated]);
-
-  // WebAuthn: Register new passkey after PIN login
-  const handleWebauthnSetup = async () => {
-    setWebauthnLoading(true);
-    try {
-      // 1. Get registration options
-      const optRes = await fetch('/api/auth/webauthn/register', {
-        headers: { 'x-admin-token': _adminToken },
-      });
-      const optData = await optRes.json();
-      if (!optData.ok) {
-        console.error('WebAuthn setup error:', optData.error);
-        setShowWebauthnSetup(false);
-        setWebauthnLoading(false);
-        return;
-      }
-
-      const options = optData.options;
-
-      // 2. Call navigator.credentials.create
-      const publicKeyOptions: PublicKeyCredentialCreationOptions = {
-        challenge: toBuffer(base64urlToUint8Array(options.challenge)),
-        rp: options.rp,
-        user: {
-          id: toBuffer(base64urlToUint8Array(options.user.id)),
-          name: options.user.name,
-          displayName: options.user.displayName,
-        },
-        pubKeyCredParams: options.pubKeyCredParams,
-        authenticatorSelection: {
-          authenticatorAttachment: options.authenticatorSelection.authenticatorAttachment as AuthenticatorAttachment,
-          residentKey: options.authenticatorSelection.residentKey as ResidentKeyRequirement,
-          userVerification: options.authenticatorSelection.userVerification as UserVerificationRequirement,
-        },
-        attestation: options.attestation as AttestationConveyancePreference,
-        timeout: options.timeout,
-        excludeCredentials: (options.excludeCredentials || []).map((c: { type: string; id: string }) => ({
-          type: c.type,
-          id: toBuffer(base64urlToUint8Array(c.id)),
-        })),
-      };
-
-      const attestation = await navigator.credentials.create({ publicKey: publicKeyOptions }) as PublicKeyCredential;
-      if (!attestation) { setWebauthnLoading(false); return; }
-
-      const attestationResponse = attestation.response as AuthenticatorAttestationResponse;
-
-      // 3. Send to server
-      const verifyRes = await fetch('/api/auth/webauthn/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': _adminToken,
-        },
-        body: JSON.stringify({
-          credential: {
-            id: attestation.id,
-            rawId: uint8ArrayToBase64url(new Uint8Array(attestation.rawId)),
-            type: attestation.type,
-            response: {
-              clientDataJSON: uint8ArrayToBase64url(new Uint8Array(attestationResponse.clientDataJSON)),
-              attestationObject: uint8ArrayToBase64url(new Uint8Array(attestationResponse.attestationObject)),
-            },
-          },
-          challenge: options.challenge,
-          deviceName: navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.userAgent.includes('iPad') ? 'iPad' : 'Dispositivo',
-        }),
-      });
-
-      const verifyData = await verifyRes.json();
-      if (verifyData.ok) {
-        localStorage.setItem('pt_webauthn_available', 'true');
-        setWebauthnAvailable(true);
-      }
-    } catch (err) {
-      console.error('WebAuthn setup error:', err);
-    }
-    setShowWebauthnSetup(false);
-    setWebauthnLoading(false);
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -2524,16 +2333,6 @@ export default function AdminPage() {
         _adminToken = data.token || '';
         _adminRole = data.role || 'admin';
         setAuthenticated(true);
-
-        // After successful PIN login, check if platform authenticator is available
-        if (typeof window !== 'undefined' && window.PublicKeyCredential) {
-          try {
-            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-            if (available && !localStorage.getItem('pt_webauthn_available')) {
-              setShowWebauthnSetup(true);
-            }
-          } catch { /* ignore */ }
-        }
       } else {
         setError(data.error || 'PIN incorrecto');
       }
@@ -2556,35 +2355,6 @@ export default function AdminPage() {
             <p className="font-body text-gray-500 text-sm mt-1">Ingresa el PIN</p>
           </div>
 
-          {/* Face ID / WebAuthn login button */}
-          {webauthnAvailable && (
-            <button
-              type="button"
-              onClick={handleWebauthnLogin}
-              disabled={webauthnLoading}
-              className="w-full bg-purple text-white font-heading font-bold py-3 rounded-xl hover:bg-purple-light transition-colors mb-3 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {webauthnLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  Entrar con Face ID
-                </>
-              )}
-            </button>
-          )}
-
-          {webauthnAvailable && (
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400 font-body">o con PIN</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-          )}
-
           <input
             type="password"
             inputMode="numeric"
@@ -2594,47 +2364,13 @@ export default function AdminPage() {
             onChange={(e) => { setPin(e.target.value); setError(''); }}
             placeholder="PIN de 4 dígitos"
             className="w-full text-center text-2xl tracking-[0.5em] font-heading font-bold border-2 border-gray-200 rounded-xl py-3 px-4 focus:border-purple focus:outline-none mb-4"
-            autoFocus={!webauthnAvailable}
+            autoFocus
           />
           {error && <p className="text-red-500 text-sm text-center mb-3 font-body">{error}</p>}
           <button type="submit" className="w-full bg-purple text-white font-heading font-bold py-3 rounded-xl hover:bg-purple-light transition-colors">
             Entrar
           </button>
         </form>
-      </div>
-    );
-  }
-
-  // WebAuthn setup prompt after PIN login
-  if (showWebauthnSetup) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cream px-4">
-        <div className="bg-white rounded-3xl p-8 shadow-lg max-w-sm w-full text-center">
-          <div className="w-16 h-16 bg-purple/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-          <h2 className="font-heading font-bold text-xl text-purple mb-2">Acceso rapido</h2>
-          <p className="font-body text-gray-500 text-sm mb-6">Configura Face ID para entrar sin PIN la proxima vez</p>
-          <button
-            onClick={handleWebauthnSetup}
-            disabled={webauthnLoading}
-            className="w-full bg-purple text-white font-heading font-bold py-3 rounded-xl hover:bg-purple-light transition-colors mb-3 disabled:opacity-50 flex items-center justify-center"
-          >
-            {webauthnLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              'Configurar Face ID'
-            )}
-          </button>
-          <button
-            onClick={() => setShowWebauthnSetup(false)}
-            className="w-full text-gray-400 font-body text-sm py-2 hover:text-gray-600 transition-colors"
-          >
-            No, gracias
-          </button>
-        </div>
       </div>
     );
   }
