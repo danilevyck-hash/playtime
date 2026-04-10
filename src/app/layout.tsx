@@ -75,6 +75,33 @@ export default async function RootLayout({
     <html lang="es">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": ["Organization", "LocalBusiness"],
+              name: "PlayTime Panamá",
+              description:
+                "Fiestas infantiles en Panamá. Animación, alquiler de equipos, manualidades y shows para cumpleaños y eventos infantiles. ¡Todo hasta tu puerta!",
+              url: "https://playtimepanama.com",
+              telephone: "(+507) 6433-2724",
+              email: "playtimekidspty@gmail.com",
+              address: {
+                "@type": "PostalAddress",
+                addressLocality: "Ciudad de Panamá",
+                addressCountry: "PA",
+              },
+              priceRange: "$$",
+              sameAs: ["https://www.instagram.com/playtimekids"],
+              serviceType: "Fiestas Infantiles",
+              areaServed: {
+                "@type": "City",
+                name: "Ciudad de Panamá",
+              },
+            }),
+          }}
+        />
         {GA_ID && (
           <>
             <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
