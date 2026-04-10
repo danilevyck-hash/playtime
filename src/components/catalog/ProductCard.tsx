@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useRef } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
@@ -19,8 +19,12 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
   const { toggle, isFavorite } = useFavorites();
   const [loaded, setLoaded] = useState(false);
 
-  // Reset loaded state when image URL changes
-  useEffect(() => { setLoaded(false); }, [product.image]);
+  // Reset loaded state SYNCHRONOUSLY when image URL changes (no useEffect delay)
+  const prevImageRef = useRef(product.image);
+  if (prevImageRef.current !== product.image) {
+    prevImageRef.current = product.image;
+    setLoaded(false);
+  }
 
   const inCart = items.find((i) => i.productId === product.id);
   const fav = isFavorite(product.id);
@@ -37,7 +41,7 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
               <div className="absolute inset-0 bg-gray-100 animate-pulse" />
             )}
             <Image
-              key={product.image}
+              key={`${product.id}-${product.image}`}
               src={product.image}
               alt={product.name}
               fill

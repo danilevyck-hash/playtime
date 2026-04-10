@@ -84,6 +84,22 @@ export function useProducts(): Product[] {
     };
   }, [load]);
 
+  // Refetch when user returns to tab (covers case where real-time is not configured
+  // in Supabase dashboard, or admin made changes in another tab/device)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [load]);
+
+  // Fallback polling every 60s in case real-time subscription is silently dead
+  useEffect(() => {
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
+  }, [load]);
+
   const products = useMemo(() => {
     if (!loaded) return PRODUCTS;
 
