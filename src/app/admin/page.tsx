@@ -8,7 +8,6 @@ import {
   fetchProductOverrides,
   fetchAllCustomProducts,
   fetchSetting,
-  upsertSetting,
   fetchProductImages,
   upsertProductImages,
   fetchLogoUrl,
@@ -21,6 +20,15 @@ import {
 // ─── API helpers (server-side writes via service role) ───
 function adminHeaders(extra?: Record<string, string>): Record<string, string> {
   return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin, ...extra };
+}
+
+async function apiUpsertSetting(key: string, value: unknown): Promise<boolean> {
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify({ key, value }),
+  });
+  return res.ok;
 }
 
 async function apiUpsertProduct(data: Partial<DBProduct>) {
@@ -1671,7 +1679,7 @@ function CatalogTab() {
     const [moved] = newCats.splice(fromIdx, 1);
     newCats.splice(toIdx, 0, moved);
     setCategories(newCats);
-    upsertSetting('category_order', newCats.map(c => c.id)).catch(e => console.error('Save cat order:', e));
+    apiUpsertSetting('category_order', newCats.map(c => c.id)).catch(e => console.error('Save cat order:', e));
     setCatDragging(null);
     setCatDragOver(null);
     showToast('Orden guardado');
@@ -1743,7 +1751,7 @@ function CatalogTab() {
       if (subtitle !== (orig.subtitle || '')) ov.subtitle = subtitle;
       if (Object.keys(ov).length > 0) overrides[cat.id] = ov;
     }
-    await upsertSetting('category_overrides', overrides);
+    await apiUpsertSetting('category_overrides', overrides);
     setCategories(prev => prev.map(c => c.id === editingCatId ? { ...c, label: editForm.name, icon: editForm.emoji, subtitle: editForm.subtitle || undefined } : c));
     setEditingCatId(null);
     setSaving(false);
@@ -1775,7 +1783,7 @@ function CatalogTab() {
               if ([...ALL_CATEGORIES, ...categories.map(c => c.id)].includes(id)) { showToast('Esa categor\u00eda ya existe'); return; }
               const item = { id, label: newCat.name.trim(), icon: newCat.emoji || '\uD83C\uDF88', description: newCat.description.trim() };
               const existing = await fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories') || [];
-              await upsertSetting('custom_categories', [...existing, item]);
+              await apiUpsertSetting('custom_categories', [...existing, item]);
               setCategories(prev => [...prev, item]);
               setNewCat({ name: '', emoji: '', description: '' });
               setShowNewCat(false);
@@ -1846,9 +1854,9 @@ function CatalogTab() {
                           <button onClick={async () => {
                             if (!window.confirm(`¿Eliminar categoría "${cat.label}"?`)) return;
                             const existing = await fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories') || [];
-                            await upsertSetting('custom_categories', existing.filter(c => c.id !== cat.id));
+                            await apiUpsertSetting('custom_categories', existing.filter(c => c.id !== cat.id));
                             const order = categories.filter(c => c.id !== cat.id).map(c => c.id);
-                            await upsertSetting('category_order', order);
+                            await apiUpsertSetting('category_order', order);
                             setCategories(prev => prev.filter(c => c.id !== cat.id));
                             setExpandedCatId(null);
                             showToast('Categoría eliminada');
@@ -1903,7 +1911,7 @@ function WebsiteTab() {
   const saveHomepage = async () => {
     setSavingSection('homepage');
     try {
-      await upsertSetting('homepage_content', hp);
+      await apiUpsertSetting('homepage_content', hp);
       revalidateSite();
       showToast('Homepage guardado');
     } catch { showToast('Error al guardar'); }
@@ -1928,7 +1936,7 @@ function WebsiteTab() {
   const saveFeatured = async () => {
     setSavingSection('featured');
     try {
-      await upsertSetting('featured_products', featuredIds);
+      await apiUpsertSetting('featured_products', featuredIds);
       revalidateSite();
       showToast('Productos destacados guardados');
     } catch { showToast('Error al guardar'); }
@@ -1950,7 +1958,7 @@ function WebsiteTab() {
     setSavingSection('areas');
     try {
       const clean = areas.filter(a => a.name.trim());
-      await upsertSetting('event_areas', clean);
+      await apiUpsertSetting('event_areas', clean);
       setAreas(clean);
       revalidateSite();
       showToast('\u00c1reas guardadas');
@@ -1988,7 +1996,7 @@ function WebsiteTab() {
       if (res.ok) {
         const data = await res.json();
         const url = data.path + '?t=' + Date.now();
-        await upsertSetting('site_logo_url', url);
+        await apiUpsertSetting('site_logo_url', url);
         setLogoUrl(url);
         revalidateSite();
         showToast('Logo actualizado');
@@ -1998,7 +2006,7 @@ function WebsiteTab() {
   };
 
   const resetLogo = async () => {
-    await upsertSetting('site_logo_url', null);
+    await apiUpsertSetting('site_logo_url', null);
     setLogoUrl(null);
     revalidateSite();
     showToast('Logo tipogr\u00e1fico restaurado');
@@ -2010,7 +2018,7 @@ function WebsiteTab() {
     setSavingSection('reels');
     try {
       const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
-      await upsertSetting('reels', reels);
+      await apiUpsertSetting('reels', reels);
       revalidateSite();
       showToast('Reels guardados');
     } catch { showToast('Error al guardar'); }
@@ -2041,7 +2049,7 @@ function WebsiteTab() {
     setSavingSection('testimonials');
     try {
       const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
-      await upsertSetting('testimonials', clean);
+      await apiUpsertSetting('testimonials', clean);
       revalidateSite();
       showToast('Testimonios guardados');
     } catch { showToast('Error al guardar'); }
@@ -2069,7 +2077,7 @@ function WebsiteTab() {
           overrides[key] = siteTexts[key];
         }
       }
-      await upsertSetting('site_texts', overrides);
+      await apiUpsertSetting('site_texts', overrides);
       clearSiteTextsCache();
       revalidateSite();
       showToast('Textos guardados');
