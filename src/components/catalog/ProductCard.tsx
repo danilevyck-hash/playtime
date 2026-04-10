@@ -17,8 +17,11 @@ interface ProductCardProps {
 export default memo(function ProductCard({ product, onSelect, index = 0 }: ProductCardProps & { index?: number }) {
   const { addItem, items } = useCart();
   const { toggle, isFavorite } = useFavorites();
-  const [imgLoaded, setImgLoaded] = useState(false);
-  useEffect(() => { setImgLoaded(false); }, [product.image]);
+  const [loaded, setLoaded] = useState(false);
+
+  // Reset loaded state when image URL changes
+  useEffect(() => { setLoaded(false); }, [product.image]);
+
   const inCart = items.find((i) => i.productId === product.id);
   const fav = isFavorite(product.id);
 
@@ -26,19 +29,24 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
     <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg transition-all active:scale-[0.98] flex flex-col animate-slide-up" style={{ animationDelay: `${Math.min(index * 50, 400)}ms`, animationFillMode: 'both' }}>
       <button
         onClick={() => onSelect(product)}
-        className="relative aspect-[4/3] bg-gray-100 cursor-pointer group"
+        className="relative aspect-[4/3] bg-gray-100 cursor-pointer group overflow-hidden"
       >
         {product.image ? (
-          <Image
-            key={product.image}
-            src={product.image}
-            alt={product.name}
-            fill
-            className={`object-cover group-hover:scale-105 transition-all duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            loading="lazy"
-            onLoad={() => setImgLoaded(true)}
-          />
+          <>
+            {!loaded && (
+              <div className="absolute inset-0 bg-gray-100 animate-pulse" />
+            )}
+            <Image
+              key={product.image}
+              src={product.image}
+              alt={product.name}
+              fill
+              className={`object-cover group-hover:scale-105 transition-all duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              loading="lazy"
+              onLoad={() => setLoaded(true)}
+            />
+          </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-teal/10">
             <span className="text-3xl">{CATEGORY_ICONS[product.category]}</span>

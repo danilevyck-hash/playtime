@@ -1080,7 +1080,7 @@ function ProductsTab() {
         if (imageIndex === 0) {
           setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: newUrl } : p));
           setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-          upsertDBProduct({ id: productId, image_url: newUrl }).catch(e => console.error('Save image error:', e));
+          upsertDBProduct({ id: productId, image_url: newUrl }).then(() => revalidateSite()).catch(e => console.error('Save image error:', e));
         }
         const currentGallery = [...(imageGalleries[productId] || [])];
         while (currentGallery.length <= imageIndex) currentGallery.push('');
@@ -1116,7 +1116,7 @@ function ProductsTab() {
         if (variant) {
           const updated = { ...variant, image_url: newUrl };
           setVariants(prev => prev.map(v => (v.product_id === productId && v.id === variantId) ? updated : v));
-          upsertDBVariant(updated).catch(e => console.error('Save variant image error:', e));
+          upsertDBVariant(updated).then(() => revalidateSite()).catch(e => console.error('Save variant image error:', e));
         }
         showToast('Foto de variante actualizada');
       } else { showToast('Error al subir foto'); }
@@ -1130,7 +1130,7 @@ function ProductsTab() {
     if (!product) return;
     const nowActive = !product.active;
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: nowActive } : p));
-    upsertDBProduct({ id, active: nowActive }).catch(e => { console.error('Toggle error:', e); showToast('Error al guardar'); });
+    upsertDBProduct({ id, active: nowActive }).then(() => revalidateSite()).catch(e => { console.error('Toggle error:', e); showToast('Error al guardar'); });
     showToast(nowActive ? 'Producto activado' : 'Producto desactivado');
   };
 
@@ -1159,6 +1159,7 @@ function ProductsTab() {
     setProducts(prev => prev.map(p => p.id === id ? updated : p));
     setEditingId(null);
     const ok = await upsertDBProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, max_quantity: updated.max_quantity });
+    if (ok) revalidateSite();
     showToast(ok ? 'Producto guardado' : 'Error al guardar');
   };
 
@@ -1169,7 +1170,8 @@ function ProductsTab() {
     const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
     const ok = await upsertDBProduct(product);
-    if (!ok) showToast('Error al guardar');
+    if (ok) revalidateSite();
+    else showToast('Error al guardar');
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
     showToast('Producto agregado');
@@ -1184,6 +1186,7 @@ function ProductsTab() {
     setConfirmDelete(null);
     setEditingId(null);
     const ok = await deleteDBProduct(id);
+    if (ok) revalidateSite();
     showToast(ok ? 'Producto eliminado' : 'Error al eliminar');
   };
 
@@ -1203,6 +1206,7 @@ function ProductsTab() {
       upsertDBProduct({ id: productId, variant_label: 'Modelo' }).catch(e => console.error('Set variant_label error:', e));
     }
     const ok = await upsertDBVariant(variant);
+    if (ok) revalidateSite();
     showToast(ok ? 'Variante agregada' : 'Error al agregar variante');
   };
 
@@ -1215,6 +1219,7 @@ function ProductsTab() {
       upsertDBProduct({ id: productId, variant_label: null }).catch(e => console.error('Clear variant_label error:', e));
     }
     const ok = await deleteDBVariant(productId, variantId);
+    if (ok) revalidateSite();
     showToast(ok ? 'Variante eliminada' : 'Error al eliminar variante');
   };
 
@@ -1237,6 +1242,7 @@ function ProductsTab() {
       await upsertDBProduct({ id: productId, variant_label: null });
     }
     setVariantMenu(null);
+    revalidateSite();
     showToast(`"${variant.label}" ahora es producto independiente`);
   };
 
@@ -1270,6 +1276,7 @@ function ProductsTab() {
     setCombineSelected(new Set());
     setCombinePrompt(false);
     setCombineName('');
+    revalidateSite();
     showToast(`${selected.length} productos combinados`);
   };
 
@@ -1283,15 +1290,16 @@ function ProductsTab() {
     const [moved] = newProducts.splice(fromIdx, 1);
     newProducts.splice(toIdx, 0, moved);
     setProducts(newProducts);
-    bulkUpdateProductOrder(newProducts.map(p => p.id)).catch(e => console.error('Save order error:', e));
+    bulkUpdateProductOrder(newProducts.map(p => p.id)).then(() => revalidateSite()).catch(e => console.error('Save order error:', e));
     setDraggingId(null);
     setDragOverId(null);
   };
 
   const filtered = useMemo(() => {
+    const isSearching = productSearch.trim() !== '';
     return products.filter(p => {
-      const matchFilter = !filter || p.category === filter;
-      const matchSearch = !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase());
+      const matchFilter = isSearching || !filter || p.category === filter;
+      const matchSearch = !isSearching || p.name.toLowerCase().includes(productSearch.toLowerCase());
       return matchFilter && matchSearch;
     });
   }, [products, filter, productSearch]);

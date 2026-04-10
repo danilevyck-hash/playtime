@@ -18,6 +18,7 @@ export default function CatalogoContent() {
   const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
   const PAGE_SIZE = 12;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const galleryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-select first category when products load
   useEffect(() => {
@@ -27,9 +28,16 @@ export default function CatalogoContent() {
     }
   }, [products, initialSet]);
 
+  // Debounced gallery fetch — clears old galleries immediately, fetches after 300ms
   useEffect(() => {
     if (products.length === 0) return;
-    const load = async () => {
+
+    // Clear galleries immediately so cards show placeholder
+    setProductGalleries({});
+
+    if (galleryTimerRef.current) clearTimeout(galleryTimerRef.current);
+
+    galleryTimerRef.current = setTimeout(async () => {
       const galleries: Record<string, string[]> = {};
       await Promise.all(
         products.map(async (p) => {
@@ -38,8 +46,11 @@ export default function CatalogoContent() {
         }),
       );
       setProductGalleries(galleries);
+    }, 300);
+
+    return () => {
+      if (galleryTimerRef.current) clearTimeout(galleryTimerRef.current);
     };
-    load();
   }, [products]);
 
   const filtered = useMemo(() => {

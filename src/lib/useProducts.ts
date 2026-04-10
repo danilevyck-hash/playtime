@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PRODUCTS } from './constants';
 import { Product, ProductVariant, Category } from './types';
+import { supabase } from './supabase';
 import {
   fetchDBProducts,
   fetchDBProductVariants,
@@ -19,6 +20,7 @@ import {
  * Hook that returns products.
  * Tries DB-first (pt_products table). If empty, falls back to
  * constants.ts + overrides + custom products (legacy behaviour).
+ * Subscribes to Supabase real-time for auto-refresh.
  */
 export function useProducts(): Product[] {
   const [dbProducts, setDbProducts] = useState<DBProduct[]>([]);
@@ -28,45 +30,59 @@ export function useProducts(): Product[] {
   const [productOrder, setProductOrder] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
+    try {
+      // Try DB-first
+      const [products, variants] = await Promise.all([
+        fetchDBProducts(),
+        fetchDBProductVariants(),
+      ]);
 
-    async function load() {
-      try {
-        // Try DB-first
-        const [products, variants] = await Promise.all([
-          fetchDBProducts(),
-          fetchDBProductVariants(),
-        ]);
-
-        if (!cancelled && products.length > 0) {
-          setDbProducts(products);
-          setDbVariants(variants);
-          setLoaded(true);
-          return;
-        }
-
-        // Fallback: legacy system
-        const [ov, cp, order] = await Promise.all([
-          fetchProductOverrides(),
-          fetchCustomProducts(),
-          fetchSetting<string[]>('product_order'),
-        ]);
-        if (!cancelled) {
-          setOverrides(ov);
-          setCustomProducts(cp);
-          if (order) setProductOrder(order);
-          setLoaded(true);
-        }
-      } catch (e) {
-        console.error('useProducts load failed:', e);
-        if (!cancelled) setLoaded(true);
+      if (products.length > 0) {
+        setDbProducts(products);
+        setDbVariants(variants);
+        setLoaded(true);
+        return;
       }
-    }
 
-    load();
-    return () => { cancelled = true; };
+      // Fallback: legacy system
+      const [ov, cp, order] = await Promise.all([
+        fetchProductOverrides(),
+        fetchCustomProducts(),
+        fetchSetting<string[]>('product_order'),
+      ]);
+      setOverrides(ov);
+      setCustomProducts(cp);
+      if (order) setProductOrder(order);
+      setLoaded(true);
+    } catch (e) {
+      console.error('useProducts load failed:', e);
+      setLoaded(true);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Subscribe to real-time changes on pt_products and pt_product_variants
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('products-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pt_products' }, () => {
+        load();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pt_product_variants' }, () => {
+        load();
+      })
+      .subscribe();
+
+    return () => {
+      supabase!.removeChannel(channel);
+    };
+  }, [load]);
 
   const products = useMemo(() => {
     if (!loaded) return PRODUCTS;
