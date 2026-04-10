@@ -28,7 +28,9 @@ export function verifySignedToken(token: string): { valid: boolean; role: 'admin
     const [payloadB64, sig] = token.split('.');
     if (!payloadB64 || !sig) return { valid: false, role: null };
     const expectedSig = crypto.createHmac('sha256', getSigningKey()).update(payloadB64).digest('base64url');
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return { valid: false, role: null };
+    const sigBuf = Buffer.from(sig, 'base64url');
+    const expectedBuf = Buffer.from(expectedSig, 'base64url');
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) return { valid: false, role: null };
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
     if (Date.now() > payload.exp) return { valid: false, role: null };
     return { valid: true, role: payload.role };

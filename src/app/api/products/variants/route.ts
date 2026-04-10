@@ -3,12 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 
 function isAuthorized(request: NextRequest): boolean {
-  // Check session token first, then fall back to PIN (needed because in-memory sessions
-  // are lost when serverless function instance goes cold)
+  // 1. Check HMAC-signed token (works across serverless cold starts)
   const token = request.headers.get('x-admin-token');
   if (isValidSession(token)) return true;
+  // 2. Check PIN (for PIN-based login)
   const pin = request.headers.get('x-admin-pin');
-  return pin === process.env.ADMIN_PIN;
+  if (pin && pin === process.env.ADMIN_PIN) return true;
+  if (pin && pin === process.env.VENDEDORA_PIN) return true;
+  return false;
 }
 
 export async function POST(request: NextRequest) {
