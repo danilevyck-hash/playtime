@@ -101,7 +101,7 @@ export function useProducts(): Product[] {
   }, [load]);
 
   const products = useMemo(() => {
-    if (!loaded) return PRODUCTS;
+    if (!loaded) return [];
 
     // ── DB-first path ──
     if (dbProducts.length > 0) {
