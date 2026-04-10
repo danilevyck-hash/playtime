@@ -1,7 +1,6 @@
 'use client';
 
 import { memo, useState, useRef } from 'react';
-import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { CATEGORY_ICONS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
@@ -37,16 +36,13 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
       >
         {product.image ? (
           <>
-            {!loaded && (
-              <div className="absolute inset-0 bg-gray-100 animate-pulse" />
-            )}
-            <Image
+            <div className={`absolute inset-0 bg-gray-100 ${loaded ? '' : 'animate-pulse'}`} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               key={`${product.id}-${product.image}`}
               src={product.image}
               alt={product.name}
-              fill
-              className={`object-cover group-hover:scale-105 transition-all duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
               loading="lazy"
               onLoad={() => setLoaded(true)}
             />
