@@ -38,6 +38,10 @@ async function apiUpsertVariant(data: DBProductVariant) {
     headers: adminHeaders(),
     body: JSON.stringify(data),
   });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error('apiUpsertVariant failed:', res.status, errBody, 'data:', JSON.stringify(data));
+  }
   return res.ok;
 }
 
@@ -1154,17 +1158,27 @@ function ProductsTab() {
       formData.append('folder', 'variants');
       formData.append('imageIndex', '0');
       const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        const newUrl = data.path + '?t=' + Date.now();
-        const variant = variants.find(v => v.product_id === productId && v.id === variantId);
-        if (variant) {
-          const updated = { ...variant, image_url: newUrl };
-          setVariants(prev => prev.map(v => (v.product_id === productId && v.id === variantId) ? updated : v));
-          apiUpsertVariant(updated).then(() => revalidateSite()).catch(e => console.error('Save variant image error:', e));
-        }
-        showToast('Foto de variante actualizada');
-      } else { showToast('Error al subir foto'); }
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        console.error('Variant upload failed:', res.status, errBody);
+        showToast(res.status === 401 ? 'Sesión expirada — recarga la página' : 'Error al subir foto');
+        return;
+      }
+      const data = await res.json();
+      const newUrl = data.path + '?t=' + Date.now();
+      const variant = variants.find(v => v.product_id === productId && v.id === variantId);
+      if (!variant) { showToast('Variante no encontrada'); return; }
+      const updated = { ...variant, image_url: newUrl };
+      // Save to DB first, then update local state
+      const saved = await apiUpsertVariant(updated);
+      if (!saved) {
+        console.error('Variant upsert failed for', productId, variantId);
+        showToast('Error al guardar imagen en base de datos');
+        return;
+      }
+      setVariants(prev => prev.map(v => (v.product_id === productId && v.id === variantId) ? updated : v));
+      revalidateSite();
+      showToast('Foto de variante actualizada');
     } catch (e) { console.error('Variant upload error:', e); showToast('Error de conexion'); }
     finally { setUploadingVariant(''); }
   };
