@@ -254,6 +254,46 @@ El orden de categorías es configurable desde admin (drag-and-drop) y se guarda 
 - Callbacks envueltos en useCallback para estabilidad de referencia
 - Solo el card expandido re-renderiza al interactuar, no todos
 
+## Changes — April 2026 Session
+
+### UX Audit (9 fixes)
+- Variant selection: button disabled until variant chosen
+- maxQuantity enforced in stepper
+- Modal close on backdrop click
+- Confirm dialog before order submit
+- ICS calendar file generation fixed
+- Push notification feedback improved
+
+### Catalog
+- Products load from DB only (no more constants.ts fallback that showed wrong images)
+- Native `<img>` instead of Next Image (no cache flash on revalidation)
+- Cards remount on category change (key prop)
+- Gallery images fetched lazily (only on modal open, not on page load)
+
+### Admin
+- All product/variant/settings writes go through server API routes (not direct Supabase from client)
+- HMAC-signed auth tokens for serverless compatibility (replaced in-memory Map)
+
+### PDF
+- Chalet font replaced with Helvetica (was unreadable on iOS)
+
+### API & Cache
+- All API routes have `export const dynamic = 'force-dynamic'`
+
+### SEO
+- Schema JSON-LD on all pages
+- robots.txt and sitemap.xml added
+- H1 SEO on catalog pages
+
+### UI Enhancements
+- WhatsApp button minimizable
+- Scroll indicator on category filter chips
+- Response time badge on landing
+- Real-time product updates (Supabase subscription + visibility change + 60s polling)
+
+### Attempted & Reverted
+- Face ID (WebAuthn): implemented and removed — too unstable on serverless
+
 ## Deploy
 ```bash
 git push origin main   # Auto-deploy via Vercel
