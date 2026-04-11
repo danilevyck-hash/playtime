@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   // Upload to Supabase Storage
   const { error: storageErr } = await supabaseAdmin.storage
     .from("backups")
-    .upload(`backup-${today}.json`, jsonBytes, {
+    .upload(`playtime-backup-${today}.json`, jsonBytes, {
       contentType: "application/json",
       upsert: true,
     });
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
 
     if (files && files.length > 30) {
       const sorted = files
-        .filter((f) => f.name.startsWith("backup-"))
+        .filter((f) => f.name.startsWith("playtime-backup-"))
         .sort((a, b) => a.name.localeCompare(b.name));
       const toDelete = sorted.slice(0, sorted.length - 30).map((f) => f.name);
       if (toDelete.length > 0) {
