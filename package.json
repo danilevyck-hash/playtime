@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.48.0",
     "@supabase/supabase-js": "^2.100.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
