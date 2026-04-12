@@ -23,7 +23,7 @@ export const CATEGORIES: { id: Category; label: string; icon: string; descriptio
   { id: 'snacks', label: 'Snack Bar', icon: '\uD83C\uDF7F', description: 'Deliciosos detalles que complementan la experiencia y encantan a grandes y peque\u00f1os.' },
   { id: 'softplay', label: 'Soft Play', icon: '\uD83C\uDFF0', description: 'Espacios dise\u00f1ados cuidadosamente donde los m\u00e1s peque\u00f1os pueden explorar, moverse y jugar con total seguridad.' },
   { id: 'bounces', label: 'Bounces', icon: '\uD83C\uDFAA', description: 'Disponibles en diferentes tama\u00f1os y colores para adaptarse a cada tipo de evento.' },
-  { id: 'ballpit', label: 'Ball Pit & Slides', icon: '\uD83D\uDD35', description: 'Disponibles en una variedad de tama\u00f1os y colores, dise\u00f1ados para brindar diversi\u00f3n, movimiento y exploraci\u00f3n.' },
+
   { id: 'addons', label: 'Add-Ons', icon: '\uD83C\uDF88', description: 'Opciones adicionales que se integran perfectamente para completar tu experiencia.' },
   { id: 'creative', label: 'Creative Studio', icon: '\uD83C\uDFA8', description: 'Una selecci\u00f3n de manualidades dise\u00f1adas por nosotros, con la posibilidad de crear experiencias personalizadas.' },
 ];
@@ -298,38 +298,6 @@ export const PRODUCTS: Product[] = [
     description: 'Dimensiones: 2.5 x 2.5 metros.',
     price: 90,
     image: '/images/products/inflable-mini-1.png',
-  },
-
-  // ═══ BALL PIT & SLIDES ═══
-  {
-    id: 'piscina-bolas',
-    name: 'Piscina de Bolas',
-    category: 'ballpit',
-    description: 'Disponible en diferentes formas y tamaños.',
-    price: 40,
-    image: '/images/products/piscina-redonda-grande.png',
-    variantLabel: 'Modelo',
-    variants: [
-      { id: 'redonda-chica', label: 'Redonda Pequeña · 1.5m', price: 40 },
-      { id: 'colores-60', label: 'Colores · 60"', price: 60 },
-      { id: 'peces', label: 'Peces · 1.3m', price: 85 },
-      { id: 'cuadrada', label: 'Cuadrada Foam · 72"', price: 88 },
-      { id: 'redonda-grande', label: 'Redonda Grande · 3m', price: 100 },
-    ],
-  },
-  {
-    id: 'tunel',
-    name: 'Túnel',
-    category: 'ballpit',
-    description: 'Disponible en blanco y rosado.',
-    price: 40,
-    image: '/images/products/tunel-grande.png',
-    variantLabel: 'Tamaño',
-    variants: [
-      { id: 'chico', label: 'Pequeño · 1.50m', price: 45 },
-      { id: 'grande', label: 'Grande · 2.15m', price: 50 },
-      { id: 'largo', label: 'Largo · 4.26m', price: 40 },
-    ],
   },
 
   // ═══ ADD-ONS ═══

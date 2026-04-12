@@ -9,7 +9,7 @@ import {
   fetchAllCustomProducts,
   fetchSetting,
   fetchProductImages,
-  upsertProductImages,
+
   fetchLogoUrl,
   fetchDBProducts,
   fetchDBProductVariants,
@@ -1054,7 +1054,7 @@ function OrdersTab() {
 }
 
 // ─── PRODUCTS TAB ───
-const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'ballpit', 'addons', 'creative'];
+const ALL_CATEGORIES = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'addons', 'creative'];
 const INPUT_CLS = 'w-full border-2 border-gray-200 rounded-xl py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 function ProductsTab() {
@@ -1135,9 +1135,14 @@ function ProductsTab() {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
         if (imageIndex === 0) {
+          const saved = await apiUpsertProduct({ id: productId, image_url: newUrl });
+          if (!saved) {
+            showToast('Error al guardar imagen. Intenta de nuevo.');
+            return;
+          }
           setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: newUrl } : p));
           setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-          apiUpsertProduct({ id: productId, image_url: newUrl }).then(() => revalidateSite()).catch(e => console.error('Save image error:', e));
+          revalidateSite();
         }
         const currentGallery = [...(imageGalleries[productId] || [])];
         while (currentGallery.length <= imageIndex) currentGallery.push('');
@@ -1147,7 +1152,11 @@ function ProductsTab() {
           currentGallery[0] = product?.image_url || newUrl;
         }
         setImageGalleries(prev => ({ ...prev, [productId]: currentGallery }));
-        upsertProductImages(productId, currentGallery).catch(e => console.error('Save gallery error:', e));
+        const gallerySaved = await apiUpsertSetting(`product_images_${productId}`, currentGallery);
+        if (!gallerySaved) {
+          showToast('Imagen subida pero error al guardar galería.');
+          return;
+        }
         showToast('Foto actualizada');
       } else { showToast('Error al subir foto'); }
     } catch (e) { console.error('Upload error:', e); showToast('Error de conexion'); }

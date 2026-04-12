@@ -10,7 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     'snacks',
     'softplay',
     'bounces',
-    'ballpit',
+
     'addons',
     'creative',
   ]
