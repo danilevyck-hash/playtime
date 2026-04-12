@@ -129,6 +129,7 @@ export function useProducts(): Product[] {
           price: p.price,
           image: p.image_url || undefined,
           featured: p.featured,
+          popular: p.popular ?? false,
           maxQuantity: p.max_quantity ?? undefined,
           variants: variantMap.get(p.id),
           variantLabel: p.variant_label ?? undefined,

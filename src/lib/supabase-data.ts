@@ -191,6 +191,7 @@ export interface DBProduct {
   image_url: string | null;
   active: boolean;
   featured: boolean;
+  popular: boolean;
   max_quantity: number | null;
   variant_label: string | null;
   sort_order: number;

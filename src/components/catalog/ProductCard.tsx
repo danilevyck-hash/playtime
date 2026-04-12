@@ -64,6 +64,11 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" stroke={fav ? '#F27289' : 'white'} fill={fav ? '#F27289' : 'none'} strokeWidth={2} />
           </svg>
         </span>
+        {product.popular && (
+          <span className="absolute bottom-1.5 left-1.5 text-[10px] font-heading font-bold text-white bg-orange px-2 py-0.5 rounded-full shadow-sm z-[1]">
+            Popular
+          </span>
+        )}
         {inCart && (
           <span className="absolute top-1.5 right-1.5 text-[10px] font-heading font-bold text-white bg-teal px-1.5 py-0.5 rounded-full">
             x{inCart.quantity}

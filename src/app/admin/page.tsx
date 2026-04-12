@@ -758,7 +758,7 @@ function OrdersTab() {
   const [error, setError] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
   const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
   const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
     PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
@@ -856,8 +856,9 @@ function OrdersTab() {
   // Filter orders by search + status
   const filteredOrders = useMemo(() => {
     let result = orders;
-    if (statusFilter === 'confirmed') result = result.filter(o => o.confirmed);
-    else if (statusFilter === 'pending') result = result.filter(o => !o.confirmed && getOrderStatus(o) !== 'rechazado');
+    if (statusFilter === 'confirmed') result = result.filter(o => getOrderStatus(o) === 'confirmado');
+    else if (statusFilter === 'realizado') result = result.filter(o => getOrderStatus(o) === 'realizado');
+    else if (statusFilter === 'pending') result = result.filter(o => getOrderStatus(o) === 'pendiente');
     else if (statusFilter === 'rejected') result = result.filter(o => getOrderStatus(o) === 'rechazado');
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -906,12 +907,20 @@ function OrdersTab() {
       });
   }, [orders]);
 
-  const { totalOrders, confirmedOrders, rejectedOrders, confirmedRevenue } = useMemo(() => ({
-    totalOrders: orders.length,
-    confirmedOrders: orders.filter(o => o.confirmed).length,
-    rejectedOrders: orders.filter(o => getOrderStatus(o) === 'rechazado').length,
-    confirmedRevenue: orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0),
-  }), [orders]);
+  const { totalOrders, confirmedOrders, realizadoOrders, rejectedOrders, pendingOrders, confirmedRevenue } = useMemo(() => {
+    const confirmed = orders.filter(o => getOrderStatus(o) === 'confirmado').length;
+    const realizado = orders.filter(o => getOrderStatus(o) === 'realizado').length;
+    const rejected = orders.filter(o => getOrderStatus(o) === 'rechazado').length;
+    const pending = orders.filter(o => getOrderStatus(o) === 'pendiente').length;
+    return {
+      totalOrders: orders.length,
+      confirmedOrders: confirmed,
+      realizadoOrders: realizado,
+      rejectedOrders: rejected,
+      pendingOrders: pending,
+      confirmedRevenue: orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0),
+    };
+  }, [orders]);
 
   return (
     <div>
@@ -954,7 +963,7 @@ function OrdersTab() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${totalOrders - confirmedOrders - rejectedOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
+        {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${pendingOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['realizado', `Realizados (${realizadoOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setStatusFilter(key)} className={`px-3 py-1 rounded-full font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {label}
           </button>
@@ -1064,7 +1073,7 @@ function ProductsTab() {
   const [filter, setFilter] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', desc: '', price: '', cat: '', variant_label: '', featured: false, max_quantity: '' });
+  const [editForm, setEditForm] = useState({ name: '', desc: '', price: '', cat: '', variant_label: '', featured: false, popular: false, max_quantity: '' });
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
@@ -1213,7 +1222,7 @@ function ProductsTab() {
   // ─── START EDITING ───
   const startEdit = (p: DBProduct) => {
     setEditingId(p.id);
-    setEditForm({ name: p.name, desc: p.description, price: String(p.price), cat: p.category, variant_label: p.variant_label || '', featured: p.featured, max_quantity: p.max_quantity ? String(p.max_quantity) : '' });
+    setEditForm({ name: p.name, desc: p.description, price: String(p.price), cat: p.category, variant_label: p.variant_label || '', featured: p.featured, popular: p.popular ?? false, max_quantity: p.max_quantity ? String(p.max_quantity) : '' });
   };
 
   // ─── SAVE EDIT ───
@@ -1230,11 +1239,12 @@ function ProductsTab() {
       category: editForm.cat || product.category,
       variant_label: editForm.variant_label || null,
       featured: editForm.featured,
+      popular: editForm.popular,
       max_quantity: parsedMax,
     };
     setProducts(prev => prev.map(p => p.id === id ? updated : p));
     setEditingId(null);
-    const ok = await apiUpsertProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, max_quantity: updated.max_quantity });
+    const ok = await apiUpsertProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, popular: updated.popular, max_quantity: updated.max_quantity });
     if (ok) revalidateSite();
     showToast(ok ? 'Producto guardado' : 'Error al guardar');
   };
@@ -1243,7 +1253,7 @@ function ProductsTab() {
   const handleAddProduct = async () => {
     if (!newProduct.name.trim()) return;
     const id = `prod-${Date.now()}`;
-    const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
+    const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, popular: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
     const ok = await apiUpsertProduct(product);
     if (ok) revalidateSite();
@@ -1306,7 +1316,7 @@ function ProductsTab() {
     if (!variant || !parent) return;
     // Create new product
     const newId = `prod-${Date.now()}`;
-    const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, max_quantity: null, variant_label: null, sort_order: products.length };
+    const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, popular: false, max_quantity: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, newProd]);
     await apiUpsertProduct(newProd);
     // Remove variant
@@ -1494,6 +1504,7 @@ function ProductsTab() {
                     <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-heading font-semibold text-gray-500">{getCatLabel(product.category)}</span>
                     {prodVariants.length > 0 && <span className="text-[10px] text-purple font-heading font-semibold">{prodVariants.length} var.</span>}
                     {product.featured && <span className="text-[10px] text-orange font-heading font-bold">DEST.</span>}
+                    {product.popular && <span className="text-[10px] text-orange font-heading font-bold">POP.</span>}
                   </div>
                 </div>
               </div>
@@ -1514,6 +1525,12 @@ function ProductsTab() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editForm.featured} onChange={(e) => setEditForm({ ...editForm, featured: e.target.checked })} className="w-4 h-4 accent-purple rounded" />
                       <span className="font-body text-sm text-gray-600">Destacado</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.popular} onChange={(e) => setEditForm({ ...editForm, popular: e.target.checked })} className="w-4 h-4 accent-orange rounded" />
+                      <span className="font-body text-sm text-gray-600">Popular</span>
                     </label>
                   </div>
 

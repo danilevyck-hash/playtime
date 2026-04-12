@@ -26,6 +26,7 @@ export interface Product {
   image?: string;
   maxQuantity?: number;
   featured?: boolean;
+  popular?: boolean;
   variants?: ProductVariant[];
   variantLabel?: string;
 }

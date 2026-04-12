@@ -52,7 +52,14 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-white/20 text-center">
+        {/* Info links */}
+        <div className="mt-8 pt-6 border-t border-white/20 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-6">
+          <a href="/preguntas" className="text-white/60 hover:text-white text-sm transition-colors">Preguntas frecuentes</a>
+          <a href="/como-funciona" className="text-white/60 hover:text-white text-sm transition-colors">Cómo funciona</a>
+          <a href="/nosotros" className="text-white/60 hover:text-white text-sm transition-colors">Nosotros</a>
+        </div>
+
+        <div className="pt-0 text-center">
           <p className="text-white/50 text-xs font-body">
             &copy; {new Date().getFullYear()} PlayTime. Todos los derechos reservados.
           </p>

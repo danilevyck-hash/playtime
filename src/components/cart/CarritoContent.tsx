@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import CartItemComponent from '@/components/cart/CartItem';
@@ -8,10 +8,21 @@ import CartSummary from '@/components/cart/CartSummary';
 import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
+import { useProducts } from '@/lib/useProducts';
+import { formatCurrency } from '@/lib/format';
 
 export default function CarritoContent() {
-  const { items, clearCart } = useCart();
+  const { items, clearCart, addItem } = useCart();
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
+  const allProducts = useProducts();
+
+  const addonSuggestions = useMemo(() => {
+    const cartIds = new Set(items.map(i => i.productId));
+    const addons = allProducts.filter(p => p.category === 'addons' && !cartIds.has(p.id));
+    // Shuffle and pick up to 4
+    const shuffled = [...addons].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 4);
+  }, [allProducts, items]);
 
   useEffect(() => {
     getSiteTexts().then(setTexts);
@@ -50,6 +61,39 @@ export default function CarritoContent() {
           <CartItemComponent key={item.productId} item={item} />
         ))}
       </div>
+
+      {/* Add-on suggestions */}
+      {addonSuggestions.length > 0 && (
+        <div className="mb-8">
+          <h2 className="font-heading font-bold text-sm text-gray-500 mb-3">También piden con esto:</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+            {addonSuggestions.map(p => (
+              <div key={p.id} className="flex-shrink-0 w-[120px] bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                {p.image ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={p.image} alt={p.name} className="w-full h-[80px] object-cover" />
+                ) : (
+                  <div className="w-full h-[80px] bg-gradient-to-br from-purple/5 to-teal/10 flex items-center justify-center">
+                    <span className="text-2xl">{'\uD83C\uDF88'}</span>
+                  </div>
+                )}
+                <div className="p-2">
+                  <p className="font-heading font-semibold text-[11px] text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="font-heading font-bold text-xs text-purple">{formatCurrency(p.price)}</span>
+                    <button
+                      onClick={() => addItem({ productId: p.id, name: p.name, category: p.category, unitPrice: p.price, image: p.image })}
+                      className="w-6 h-6 rounded-full bg-orange text-white flex items-center justify-center text-sm font-bold hover:bg-orange/90 transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <CartSummary />
 
