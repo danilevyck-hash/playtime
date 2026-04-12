@@ -202,6 +202,7 @@ export interface DBProductVariant {
   label: string;
   price: number | null;
   image_url: string | null;
+  description?: string | null;
   sort_order: number;
 }
 

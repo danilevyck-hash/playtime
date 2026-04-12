@@ -215,6 +215,9 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
                   </button>
                 ))}
               </div>
+              {selectedVariant?.description && (
+                <p className="text-sm text-gray-400 mt-1.5 font-body leading-snug">{selectedVariant.description}</p>
+              )}
             </div>
           )}
 

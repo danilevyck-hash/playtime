@@ -114,6 +114,7 @@ export function useProducts(): Product[] {
           label: v.label,
           price: v.price ?? undefined,
           image: v.image_url ?? undefined,
+          description: v.description ?? undefined,
         });
         variantMap.set(v.product_id, arr);
       }

@@ -1577,8 +1577,24 @@ function ProductsTab() {
                           <input type="file" accept="image/*" className="hidden" disabled={!!uploadingVariant} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVariantUpload(product.id, v.id, f); }} />
                           {uploadingVariant === `${product.id}-${v.id}` && <div className="absolute inset-0 bg-white/80 flex items-center justify-center"><div className="w-2 h-2 border-2 border-purple border-t-transparent rounded-full animate-spin" /></div>}
                         </label>
-                        <span className="font-heading text-xs text-gray-700 flex-1 truncate">{v.label}</span>
-                        {v.price !== null && <span className="font-body text-xs text-gray-400">${v.price}</span>}
+                        <div className="flex-1 min-w-0">
+                          <span className="font-heading text-xs text-gray-700 truncate block">{v.label}</span>
+                          <textarea
+                            defaultValue={v.description || ''}
+                            placeholder="Descripción de esta variante (opcional)"
+                            rows={1}
+                            className="w-full border border-gray-200 rounded-md px-1.5 py-0.5 text-[10px] font-body text-gray-500 mt-0.5 resize-none focus:border-purple focus:outline-none"
+                            onBlur={(e) => {
+                              const newDesc = e.target.value.trim();
+                              const oldDesc = v.description || '';
+                              if (newDesc === oldDesc) return;
+                              const updated = { ...v, description: newDesc || null };
+                              setVariants(prev => prev.map(vv => (vv.product_id === v.product_id && vv.id === v.id) ? updated : vv));
+                              apiUpsertVariant(updated).then(ok => { if (ok) revalidateSite(); else showToast('Error al guardar descripción'); });
+                            }}
+                          />
+                        </div>
+                        {v.price !== null && <span className="font-body text-xs text-gray-400 flex-shrink-0">${v.price}</span>}
                         {/* Menu button */}
                         <button onClick={() => setVariantMenu(variantMenu === `${product.id}-${v.id}` ? null : `${product.id}-${v.id}`)} className="text-gray-400 hover:text-gray-600 px-1">
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>

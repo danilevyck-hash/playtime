@@ -14,6 +14,7 @@ export interface ProductVariant {
   label: string;
   price?: number;
   image?: string;
+  description?: string;
 }
 
 export interface Product {
