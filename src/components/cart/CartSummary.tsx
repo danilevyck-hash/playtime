@@ -31,6 +31,7 @@ export default function CartSummary({ showSurcharge, paymentMethod }: CartSummar
         <span className="font-heading font-bold text-lg text-gray-800">Total</span>
         <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(total)}</span>
       </div>
+      <p className="font-body text-xs text-gray-400 mt-3">{'\uD83D\uDE9A'} El transporte se calcula seg&uacute;n tu zona (desde $50).</p>
     </div>
   );
 }

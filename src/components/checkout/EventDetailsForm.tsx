@@ -71,58 +71,31 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         )}
       </div>
 
-      {/* Time — 3 selectors: hour, minutes, AM/PM */}
+      {/* Time — single dropdown with pre-built time slots */}
       <div>
         <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83D\uDD52'} Hora del evento</label>
-        <div className="flex gap-2 items-center">
-          <select
-            value={data.time ? (() => { const h = parseInt(data.time.split(':')[0]); return h === 0 ? '12' : h > 12 ? String(h - 12) : String(h); })() : ''}
-            onChange={(e) => {
-              const hr = parseInt(e.target.value);
-              if (!hr) { onChange({ ...data, time: '' }); return; }
-              const currentMin = data.time ? data.time.split(':')[1] : '00';
-              const currentH = data.time ? parseInt(data.time.split(':')[0]) : 7;
-              const isPM = currentH >= 12;
-              const h24 = isPM ? (hr === 12 ? 12 : hr + 12) : (hr === 12 ? 0 : hr);
-              onChange({ ...data, time: `${String(h24).padStart(2, '0')}:${currentMin}` });
-            }}
-            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
-          >
-            <option value="">Hora</option>
-            {[7,8,9,10,11,12,1,2,3,4,5,6].map(h => <option key={h} value={String(h)}>{h}</option>)}
-          </select>
-          <span className="text-xl text-gray-400 font-bold">:</span>
-          <select
-            value={data.time ? data.time.split(':')[1] : ''}
-            onChange={(e) => {
-              const currentH = data.time ? data.time.split(':')[0] : '07';
-              onChange({ ...data, time: `${currentH}:${e.target.value}` });
-            }}
-            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-body text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
-          >
-            <option value="">Min</option>
-            <option value="00">00</option>
-            <option value="30">30</option>
-          </select>
-          <select
-            value={data.time ? (parseInt(data.time.split(':')[0]) >= 12 ? 'PM' : 'AM') : ''}
-            onChange={(e) => {
-              if (!data.time) return;
-              const [hStr, m] = data.time.split(':');
-              let h = parseInt(hStr);
-              const currentlyPM = h >= 12;
-              const wantPM = e.target.value === 'PM';
-              if (currentlyPM && !wantPM) h = h === 12 ? 0 : h - 12;
-              if (!currentlyPM && wantPM) h = h === 0 ? 12 : h + 12;
-              onChange({ ...data, time: `${String(h).padStart(2, '0')}:${m}` });
-            }}
-            className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-3 font-heading font-bold text-base text-center focus:border-purple focus:outline-none bg-white appearance-none"
-          >
-            <option value="">—</option>
-            <option value="AM">AM</option>
-            <option value="PM">PM</option>
-          </select>
-        </div>
+        <select
+          value={data.time || ''}
+          onChange={(e) => onChange({ ...data, time: e.target.value })}
+          className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
+        >
+          <option value="">Selecciona la hora</option>
+          {(() => {
+            const slots: { label: string; value: string }[] = [];
+            // 7:00 AM to 6:30 PM in 30-min increments
+            for (let h = 7; h <= 18; h++) {
+              for (const m of [0, 30]) {
+                if (h === 18 && m === 30) continue; // stop at 6:30 PM
+                const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const label = `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+                const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                slots.push({ label, value });
+              }
+            }
+            return slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>);
+          })()}
+        </select>
       </div>
 
       {/* Area */}

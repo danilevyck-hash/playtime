@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
+import { CONTACT } from '@/lib/constants';
 
 
 interface HeroProps {
@@ -34,12 +35,17 @@ export default function Hero({ content, logoUrl }: HeroProps) {
           {subtitle}
         </p>
 
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link href="/catalogo">
-            <Button size="lg" className="bg-orange text-white hover:bg-orange/90 shadow-lg rounded-full px-10">
+            <Button size="lg" className="bg-orange text-white hover:bg-orange/90 shadow-lg rounded-full px-10 w-full sm:w-auto">
               {ctaPrimary}
             </Button>
           </Link>
+          <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
+            <Button size="lg" className="bg-[#25D366] text-white hover:bg-[#25D366]/90 shadow-lg rounded-full px-10 w-full sm:w-auto">
+              Escr&iacute;benos {'\uD83D\uDCAC'}
+            </Button>
+          </a>
         </div>
 
         <p className="mt-5 text-sm font-body text-gray-500 flex items-center justify-center gap-1.5">
