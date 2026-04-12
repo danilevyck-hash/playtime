@@ -2,12 +2,15 @@
 
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { CATEGORY_LABELS, CATEGORY_ICONS, Category } from '@/lib/types';
 
 interface MobileMenuProps {
   open: boolean;
   onClose: () => void;
   links: { href: string; label: string }[];
 }
+
+const CATEGORY_ORDER: Category[] = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'addons', 'creative'];
 
 export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -27,13 +30,17 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
 
   if (!open) return null;
 
+  const navLinks = links.filter(l => l.href !== '/admin');
+  const adminLink = links.find(l => l.href === '/admin');
+
   return (
     <div
       className="md:hidden"
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: '#ffffff' }}
       aria-modal="true"
     >
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px' }}>
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <span className="font-heading font-bold text-lg text-gray-800">Menú</span>
         <button
           ref={closeRef}
           onClick={onClose}
@@ -45,17 +52,44 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
           </svg>
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 140px)' }}>
-        {links.map((link) => (
+
+      <div className="overflow-y-auto h-[calc(100%-60px)] px-5 pb-8" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {navLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             onClick={onClose}
-            className={`font-heading font-bold text-2xl active:text-teal transition-colors py-4 ${link.href === '/admin' ? 'text-gray-300 text-sm' : 'text-gray-800'}`}
+            className="flex items-center py-3.5 text-[17px] font-heading font-semibold text-gray-800 active:text-purple transition-colors border-b border-gray-100"
           >
             {link.label}
           </Link>
         ))}
+
+        <p className="text-[13px] font-medium text-gray-400 uppercase tracking-wider mt-6 mb-2 px-1">Categorías</p>
+        <div className="bg-gray-50 rounded-2xl overflow-hidden">
+          {CATEGORY_ORDER.map((catId, i) => (
+            <Link
+              key={catId}
+              href={`/catalogo/${catId}`}
+              onClick={onClose}
+              className={`flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors ${i < CATEGORY_ORDER.length - 1 ? 'border-b border-gray-100' : ''}`}
+            >
+              <span className="text-xl w-8 text-center">{CATEGORY_ICONS[catId]}</span>
+              <span className="flex-1 text-[15px] text-gray-800">{CATEGORY_LABELS[catId]}</span>
+              <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          ))}
+        </div>
+
+        {adminLink && (
+          <div className="pt-6 text-center">
+            <Link href={adminLink.href} onClick={onClose} className="text-[13px] text-gray-300 active:text-gray-500 transition-colors">
+              {adminLink.label}
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
