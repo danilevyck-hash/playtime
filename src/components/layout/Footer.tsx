@@ -7,6 +7,12 @@ export default function Footer() {
   return (
     <footer className="bg-purple text-white pb-safe">
       <div className="max-w-6xl mx-auto px-4 py-12">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-10 pb-6 border-b border-white/20">
+          <a href="/preguntas" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Preguntas frecuentes</a>
+          <a href="/como-funciona" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Cómo funciona</a>
+          <a href="/nosotros" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Nosotros</a>
+          <a href="/terminos" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Términos y condiciones</a>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
@@ -52,15 +58,7 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Info links */}
-        <div className="mt-8 pt-6 border-t border-white/20 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-6">
-          <a href="/preguntas" className="text-white/60 hover:text-white text-sm transition-colors">Preguntas frecuentes</a>
-          <a href="/como-funciona" className="text-white/60 hover:text-white text-sm transition-colors">Cómo funciona</a>
-          <a href="/nosotros" className="text-white/60 hover:text-white text-sm transition-colors">Nosotros</a>
-          <a href="/terminos" className="text-white/60 hover:text-white text-sm transition-colors">Términos y condiciones</a>
-        </div>
-
-        <div className="pt-0 text-center">
+        <div className="mt-8 pt-6 border-t border-white/20 text-center">
           <p className="text-white/50 text-xs font-body">
             &copy; {new Date().getFullYear()} PlayTime. Todos los derechos reservados.
           </p>

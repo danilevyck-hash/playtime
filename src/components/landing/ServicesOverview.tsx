@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { CATEGORIES } from '@/lib/constants';
-import { Category, EVENT_AREAS } from '@/lib/types';
+import { Category } from '@/lib/types';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
 const STARTING_PRICES: Record<Category, string> = {
@@ -65,20 +65,7 @@ export default function ServicesOverview({ content }: ServicesProps) {
         })}
       </div>
 
-      {/* Transport costs by area */}
-      <div className="mt-12 bg-white rounded-2xl border-2 border-teal/20 p-6 md:p-8 max-w-2xl mx-auto">
-        <h3 className="font-heading font-bold text-lg text-purple mb-1 text-center">{'\uD83D\uDE9A'} Costo de transporte por zona</h3>
-        <p className="font-body text-xs text-gray-400 text-center mb-4">Llevamos todo hasta tu puerta</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-          {EVENT_AREAS.filter(a => a.name !== 'Otra área' && a.price > 0).map((area) => (
-            <div key={area.name} className="flex justify-between items-center py-1 border-b border-gray-100">
-              <span className="font-body text-sm text-gray-600">{area.name}</span>
-              <span className="font-heading font-bold text-sm text-orange">${area.price}</span>
-            </div>
-          ))}
-        </div>
-        <p className="font-body text-xs text-gray-400 text-center mt-3">{'\u00bf'}Tu zona no aparece? Escr&iacute;benos y te cotizamos</p>
-      </div>
+      {/* Transport costs removed — available in FAQ and checkout */}
     </section>
   );
 }
