@@ -1,16 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { CONTACT } from '@/lib/constants';
 import WhatsAppIcon from './WhatsAppIcon';
 
 export default function WhatsAppButton() {
   const [minimized, setMinimized] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const stored = sessionStorage.getItem('wa-minimized');
     if (stored === '1') setMinimized(true);
   }, []);
+
+  // Hide when mobile menu is open (body[data-menu-open]) or on cart page (sticky CTA overlaps)
+  useEffect(() => {
+    const check = () => {
+      const menuOpen = document.body.dataset.menuOpen === '1';
+      setHidden(menuOpen);
+    };
+
+    // Use MutationObserver to watch body attributes
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-menu-open'] });
+    check();
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Hide on cart page on mobile (sticky CTA bar overlaps)
+  const isCartPage = pathname === '/carrito';
+
+  if (hidden) return null;
 
   const handleMinimize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -28,7 +51,7 @@ export default function WhatsAppButton() {
     return (
       <button
         onClick={handleExpand}
-        className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white w-9 h-9 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110 opacity-70 hover:opacity-100"
+        className={`fixed bottom-6 right-6 z-50 bg-[#25D366] text-white w-9 h-9 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110 opacity-70 hover:opacity-100 ${isCartPage ? 'sm:flex hidden' : ''}`}
         aria-label="Abrir WhatsApp"
       >
         <WhatsAppIcon className="w-4.5 h-4.5" />
@@ -37,11 +60,11 @@ export default function WhatsAppButton() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className={`fixed bottom-6 right-6 z-50 ${isCartPage ? 'sm:block hidden' : ''}`}>
       <button
         onClick={handleMinimize}
         className="absolute -top-2 -left-2 w-6 h-6 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md transition-colors z-10"
-        aria-label="Minimizar botón de WhatsApp"
+        aria-label="Minimizar bot&oacute;n de WhatsApp"
       >
         &times;
       </button>

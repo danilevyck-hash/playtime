@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { CONTACT } from '@/lib/constants';
 
 interface CTAProps {
   content?: { cta_section_title?: string; cta_section_subtitle?: string };
@@ -18,15 +17,10 @@ export default function CTABanner({ content }: CTAProps) {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/catalogo">
-            <Button variant="secondary" size="lg">
+            <Button size="lg" className="bg-orange text-white hover:bg-orange/90 shadow-lg rounded-full px-10">
               Ver servicios &#10024;
             </Button>
           </Link>
-          <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
-            <Button variant="ghost" size="lg" className="bg-white text-teal hover:bg-white/90 shadow-sm">
-              Hablar con nosotras {'\uD83D\uDCAC'}
-            </Button>
-          </a>
         </div>
       </div>
     </section>

@@ -19,12 +19,14 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
   useEffect(() => {
     if (!open) return;
     document.body.style.overflow = 'hidden';
+    document.body.dataset.menuOpen = '1';
     closeRef.current?.focus();
 
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = '';
+      delete document.body.dataset.menuOpen;
       document.removeEventListener('keydown', handleKey);
     };
   }, [open, onClose]);
@@ -49,7 +51,7 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
         </button>
       </div>
 
-      <div className="overflow-y-auto px-5 pb-8" style={{ height: 'calc(100vh - 60px)', WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-y-auto px-5 pb-8 bg-white" style={{ height: 'calc(100vh - 60px)', WebkitOverflowScrolling: 'touch' }}>
         <div className="bg-gray-50 rounded-2xl overflow-hidden">
           {CATEGORY_ORDER.map((catId, i) => {
             const Doodle = CATEGORY_DOODLES[catId];

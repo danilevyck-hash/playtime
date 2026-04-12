@@ -4,7 +4,6 @@ import Hero from '@/components/landing/Hero';
 import ServicesOverview from '@/components/landing/ServicesOverview';
 import FeaturedProducts from '@/components/landing/FeaturedProducts';
 import Testimonials from '@/components/landing/Testimonials';
-import InstagramFeed from '@/components/landing/InstagramFeed';
 import CTABanner from '@/components/landing/CTABanner';
 
 // Revalidar cada 60 segundos para reflejar cambios del admin sin necesidad de push
@@ -55,7 +54,6 @@ export default async function Home() {
       <div className="bg-white">
         <Testimonials testimonials={testimonials || undefined} />
       </div>
-      <InstagramFeed />
       <CTABanner content={content || undefined} />
     </>
   );

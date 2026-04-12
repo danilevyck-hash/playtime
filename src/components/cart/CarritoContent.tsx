@@ -66,7 +66,7 @@ export default function CarritoContent() {
       {addonSuggestions.length > 0 && (
         <div className="mb-8">
           <h2 className="font-heading font-bold text-sm text-gray-500 mb-3">También piden con esto:</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+          <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
             {addonSuggestions.map(p => (
               <div key={p.id} className="flex-shrink-0 w-[120px] bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 {p.image ? (

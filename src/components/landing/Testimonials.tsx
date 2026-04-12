@@ -1,3 +1,7 @@
+'use client';
+
+import { useState } from 'react';
+
 const DEFAULT_TESTIMONIALS = [
   {
     name: 'Marianela Rodr\u00edguez',
@@ -27,6 +31,8 @@ function getInitials(name: string) {
   return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 }
 
+const MAX_CHARS = 150;
+
 interface TestimonialItem {
   name: string;
   text: string;
@@ -36,6 +42,44 @@ interface TestimonialItem {
 
 interface TestimonialsProps {
   testimonials?: TestimonialItem[];
+}
+
+function TestimonialCard({ t, i }: { t: TestimonialItem; i: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = t.text.length > MAX_CHARS;
+  const displayText = isLong && !expanded ? t.text.slice(0, MAX_CHARS).trimEnd() + '...' : t.text;
+
+  return (
+    <div
+      className={`bg-white rounded-2xl p-6 shadow-sm border border-gray-100 border-l-4 ${t.color || BORDER_COLORS[i % BORDER_COLORS.length]}`}
+    >
+      <div className="flex gap-1 mb-3">
+        {Array.from({ length: 5 }).map((_, j) => (
+          <svg key={j} xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-yellow" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        ))}
+      </div>
+      <p className="font-body text-gray-600 leading-relaxed mb-1">
+        &ldquo;{displayText}&rdquo;
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-teal text-sm font-heading font-semibold mb-3 hover:underline"
+        >
+          {expanded ? 'Ver menos' : 'Leer m\u00e1s'}
+        </button>
+      )}
+      {!isLong && <div className="mb-3" />}
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-heading font-bold text-sm ${AVATAR_BG[i % AVATAR_BG.length]}`}>
+          {getInitials(t.name)}
+        </div>
+        <span className="font-heading font-bold text-sm text-gray-800">{t.name}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function Testimonials({ testimonials }: TestimonialsProps) {
@@ -55,27 +99,7 @@ export default function Testimonials({ testimonials }: TestimonialsProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {items.map((t, i) => (
-            <div
-              key={t.name + i}
-              className={`bg-white rounded-2xl p-6 shadow-sm border border-gray-100 border-l-4 ${t.color || BORDER_COLORS[i % BORDER_COLORS.length]}`}
-            >
-              <div className="flex gap-1 mb-3">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <svg key={j} xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-yellow" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="font-body text-gray-600 leading-relaxed mb-4">
-                &ldquo;{t.text}&rdquo;
-              </p>
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-heading font-bold text-sm ${AVATAR_BG[i % AVATAR_BG.length]}`}>
-                  {getInitials(t.name)}
-                </div>
-                <span className="font-heading font-bold text-sm text-gray-800">{t.name}</span>
-              </div>
-            </div>
+            <TestimonialCard key={t.name + i} t={t} i={i} />
           ))}
         </div>
       </div>

@@ -29,7 +29,8 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-purple mb-3">
-            {content?.featured_title || 'Los M\u00e1s Populares'}
+            <span className="md:hidden">{content?.featured_title ? content.featured_title : 'Lo m\u00e1s pedido'}</span>
+            <span className="hidden md:inline">{content?.featured_title || 'Lo m\u00e1s pedido para eventos este a\u00f1o'}</span>
           </h2>
           <p className="font-body text-gray-500 max-w-md mx-auto">
             {content?.featured_subtitle || 'Los favoritos de nuestros clientes'}
@@ -85,17 +86,17 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                 <p className="font-body font-normal text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">
                   {product.description}
                 </p>
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200 gap-2">
                   {product.price === 0 ? (
-                    <span className="font-heading font-semibold text-lg text-gray-400 italic">Consultar precio</span>
+                    <span className="inline-block bg-gray-100 text-gray-500 font-heading font-semibold text-xs px-3 py-1 rounded-full whitespace-nowrap">Consultar</span>
                   ) : (
-                    <span className="font-heading font-bold text-2xl text-purple">
+                    <span className="font-heading font-bold text-2xl text-purple whitespace-nowrap">
                       {formatCurrency(product.price)}
                     </span>
                   )}
                   {product.price === 0 ? (
                     <a href={`https://wa.me/${CONTACT.whatsapp}?text=${encodeURIComponent(`Hola! Me interesa ${product.name}`)}`} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline">Consultar</Button>
+                      <Button size="sm" variant="outline">Preguntar</Button>
                     </a>
                   ) : (
                     <Button

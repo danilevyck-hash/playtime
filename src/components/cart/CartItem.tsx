@@ -57,8 +57,8 @@ export default function CartItem({ item }: CartItemProps) {
         </button>
       </div>
 
-      <div className="text-right w-20">
-        <p className="font-heading font-bold text-gray-800">{formatCurrency(item.unitPrice * item.quantity)}</p>
+      <div className="text-right min-w-[5rem] flex-shrink-0">
+        <p className="font-heading font-bold text-gray-800 whitespace-nowrap">{formatCurrency(item.unitPrice * item.quantity)}</p>
       </div>
 
       <button
