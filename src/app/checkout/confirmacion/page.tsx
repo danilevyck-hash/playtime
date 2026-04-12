@@ -117,6 +117,36 @@ function ConfirmacionContent() {
           </div>
         )}
 
+        {/* Key policies */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-3 shadow-sm">
+          <h3 className="font-heading font-bold text-sm text-gray-800">Información importante</h3>
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">{'\uD83D\uDCC5'}</span>
+              <p className="font-body text-xs text-gray-600 leading-relaxed">Reserva tu fecha con el 50% de adelanto</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">{'\uD83D\uDE9B'}</span>
+              <p className="font-body text-xs text-gray-600 leading-relaxed">Fines de semana: montamos viernes, recogemos lunes</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">{'\u23F0'}</span>
+              <p className="font-body text-xs text-gray-600 leading-relaxed">El alquiler incluye 3 horas desde la hora indicada</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">{'\uD83D\uDCCB'}</span>
+              <p className="font-body text-xs text-gray-600 leading-relaxed">Cambios o cancelaciones: mínimo 48h antes ($50 penalidad después)</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">{'\uD83D\uDCB3'}</span>
+              <p className="font-body text-xs text-gray-600 leading-relaxed">Datos bancarios: {BANK_INFO.bank} {'\u00b7'} {BANK_INFO.name} {'\u00b7'} Cta. Ahorros {BANK_INFO.accountNumber}</p>
+            </div>
+          </div>
+          <a href="/terminos" target="_blank" rel="noopener noreferrer" className="inline-block font-body text-xs text-purple hover:underline mt-1">
+            Ver todos los términos y condiciones →
+          </a>
+        </div>
+
         <div className="flex flex-col gap-4 justify-center pt-2 max-w-sm mx-auto">
           <a href={waParam || `https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="bg-[#25D366] hover:bg-[#20bd5a] text-white w-full shadow-lg animate-pulse">

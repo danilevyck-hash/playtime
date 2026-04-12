@@ -13,7 +13,7 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Cuál es el depósito para reservar?',
-    a: 'Para asegurar tu fecha, solicitamos un depósito del 50% del total. El saldo restante se paga antes del evento. Aceptamos transferencia bancaria y tarjeta de crédito (con un recargo del 5%).',
+    a: 'Para asegurar tu fecha, se requiere un abono del 50% de la factura. El saldo restante se paga antes del evento. Aceptamos transferencia bancaria (Banco Aliado · Nathalie Levy · Cuenta Ahorros · 1040071392) y tarjeta de crédito (con un recargo del 5%).',
   },
   {
     q: '¿Qué incluye cada paquete?',
@@ -25,7 +25,7 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Qué pasa si llueve o necesito cancelar?',
-    a: 'Si llueve, puedes reprogramar tu evento sin costo adicional con al menos 24 horas de aviso. En caso de cancelación con más de 48 horas de anticipación, devolvemos el 100% del depósito. Con menos de 48 horas, el depósito se mantiene como crédito para una fecha futura.',
+    a: 'Cambios de fecha o cancelaciones deben realizarse con mínimo 48 horas de anticipación. Después de ese plazo se cobra una penalidad de $50. Una vez el material sea transportado o instalado, no se realizan reembolsos por lluvia, fallas eléctricas o falta de espacio.',
   },
   {
     q: '¿Para qué edades son los servicios?',
@@ -37,11 +37,11 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Aceptan tarjeta de crédito?',
-    a: 'Sí, aceptamos transferencia bancaria y tarjeta de crédito. El pago con tarjeta tiene un recargo del 5%. Al momento de hacer tu pedido, puedes elegir tu método de pago preferido.',
+    a: 'Sí, aceptamos transferencia bancaria y tarjeta de crédito. El pago con tarjeta tiene un recargo del 5%. Para transferencia: Banco Aliado · Nathalie Levy · Cuenta Ahorros · 1040071392.',
   },
   {
     q: '¿Cuánto dura la actividad?',
-    a: 'La duración estándar es de 3 a 4 horas, que es lo ideal para una fiesta infantil. Si necesitas más tiempo, podemos coordinar una extensión con un costo adicional. Llegamos aproximadamente 1 hora antes para el montaje.',
+    a: 'El alquiler del equipo incluye 3 horas a partir de la hora indicada. Después de ese tiempo, el personal se retira. Se puede extender con costo adicional por hora. Llegamos antes para el montaje.',
   },
 ];
 

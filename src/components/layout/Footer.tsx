@@ -57,6 +57,7 @@ export default function Footer() {
           <a href="/preguntas" className="text-white/60 hover:text-white text-sm transition-colors">Preguntas frecuentes</a>
           <a href="/como-funciona" className="text-white/60 hover:text-white text-sm transition-colors">Cómo funciona</a>
           <a href="/nosotros" className="text-white/60 hover:text-white text-sm transition-colors">Nosotros</a>
+          <a href="/terminos" className="text-white/60 hover:text-white text-sm transition-colors">Términos y condiciones</a>
         </div>
 
         <div className="pt-0 text-center">

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { OrderCustomer, OrderEvent, PaymentMethod, CartItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function OrderReview({ customer, event, paymentMethod, onPaymentMethodChange, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading, submitLabel, loadingLabel }: Props) {
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const isTransportPending = transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : transportCost;
   const subtotalWithTransport = subtotal + effectiveTransport;
@@ -140,11 +142,27 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
         </div>
       )}
 
+      {/* Terms acceptance */}
+      <label className="flex items-start gap-3 cursor-pointer select-none px-1">
+        <input
+          type="checkbox"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-purple focus:ring-purple accent-purple flex-shrink-0"
+        />
+        <span className="font-body text-xs text-gray-500 leading-relaxed">
+          Acepto los{' '}
+          <a href="/terminos" target="_blank" rel="noopener noreferrer" className="text-purple underline hover:text-purple/80">
+            términos y condiciones
+          </a>
+        </span>
+      </label>
+
       <div className="pt-2 flex gap-3">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1" disabled={loading}>
           Atrás
         </Button>
-        <Button onClick={onSubmit} className="flex-1" size="lg" disabled={loading}>
+        <Button onClick={onSubmit} className="flex-1" size="lg" disabled={loading || !acceptedTerms}>
           {loading ? (loadingLabel || 'Preparando magia... \u2728') : (submitLabel || '\u00a1Reservar mi fiesta! \uD83C\uDF88')}
         </Button>
       </div>

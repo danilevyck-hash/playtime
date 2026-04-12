@@ -29,5 +29,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/preguntas`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/como-funciona`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/nosotros`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${baseUrl}/terminos`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.4 },
   ]
 }
