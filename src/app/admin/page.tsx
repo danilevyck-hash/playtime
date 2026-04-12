@@ -1134,15 +1134,10 @@ function ProductsTab() {
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
+        // Update UI immediately (optimistic)
         if (imageIndex === 0) {
-          const saved = await apiUpsertProduct({ id: productId, image_url: newUrl });
-          if (!saved) {
-            showToast('Error al guardar imagen. Intenta de nuevo.');
-            return;
-          }
           setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: newUrl } : p));
           setImageKeys(prev => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-          revalidateSite();
         }
         const currentGallery = [...(imageGalleries[productId] || [])];
         while (currentGallery.length <= imageIndex) currentGallery.push('');
@@ -1152,11 +1147,16 @@ function ProductsTab() {
           currentGallery[0] = product?.image_url || newUrl;
         }
         setImageGalleries(prev => ({ ...prev, [productId]: currentGallery }));
-        const gallerySaved = await apiUpsertSetting(`product_images_${productId}`, currentGallery);
-        if (!gallerySaved) {
-          showToast('Imagen subida pero error al guardar galería.');
-          return;
+        // Save to DB in background
+        if (imageIndex === 0) {
+          apiUpsertProduct({ id: productId, image_url: newUrl }).then(ok => {
+            if (ok) revalidateSite();
+            else showToast('Foto visible pero no se guardo en la base de datos');
+          });
         }
+        apiUpsertSetting(`product_images_${productId}`, currentGallery).then(ok => {
+          if (!ok) showToast('Galeria no se guardo en la base de datos');
+        });
         showToast('Foto actualizada');
       } else { showToast('Error al subir foto'); }
     } catch (e) { console.error('Upload error:', e); showToast('Error de conexion'); }
