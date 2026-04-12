@@ -20,12 +20,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const product = await request.json();
-    const { error } = await supabaseAdmin
-      .from('pt_products')
-      .upsert(product, { onConflict: 'id' });
+    const { id, ...fields } = product;
+
+    let error;
+    if (id) {
+      // Check if product exists
+      const { data: existing } = await supabaseAdmin
+        .from('pt_products')
+        .select('id')
+        .eq('id', id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        // UPDATE existing product (partial fields OK)
+        ({ error } = await supabaseAdmin
+          .from('pt_products')
+          .update(fields)
+          .eq('id', id));
+      } else {
+        // INSERT new product (needs all fields)
+        ({ error } = await supabaseAdmin
+          .from('pt_products')
+          .insert({ id, ...fields }));
+      }
+    } else {
+      ({ error } = await supabaseAdmin
+        .from('pt_products')
+        .insert(fields));
+    }
+
     if (error) {
       console.error('upsertDBProduct API error:', error);
-      return NextResponse.json({ error: 'Failed to upsert product' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to upsert product: ' + error.message }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
