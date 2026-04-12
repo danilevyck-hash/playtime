@@ -30,7 +30,6 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
 
   if (!open) return null;
 
-  const navLinks = links.filter(l => l.href !== '/admin');
   const adminLink = links.find(l => l.href === '/admin');
 
   return (
@@ -54,18 +53,7 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
       </div>
 
       <div className="overflow-y-auto h-[calc(100%-60px)] px-5 pb-8" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {navLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            onClick={onClose}
-            className="flex items-center py-3.5 text-[17px] font-heading font-semibold text-gray-800 active:text-purple transition-colors border-b border-gray-100"
-          >
-            {link.label}
-          </Link>
-        ))}
-
-        <p className="text-[13px] font-medium text-gray-400 uppercase tracking-wider mt-6 mb-2 px-1">Categorías</p>
+        {/* Categories first — the main content */}
         <div className="bg-gray-50 rounded-2xl overflow-hidden">
           {CATEGORY_ORDER.map((catId, i) => (
             <Link
@@ -75,12 +63,37 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
               className={`flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors ${i < CATEGORY_ORDER.length - 1 ? 'border-b border-gray-100' : ''}`}
             >
               <span className="text-xl w-8 text-center">{CATEGORY_ICONS[catId]}</span>
-              <span className="flex-1 text-[15px] text-gray-800">{CATEGORY_LABELS[catId]}</span>
+              <span className="flex-1 text-[15px] font-medium text-gray-800">{CATEGORY_LABELS[catId]}</span>
               <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </Link>
           ))}
+        </div>
+
+        {/* Navigation links below */}
+        <div className="mt-6 bg-gray-50 rounded-2xl overflow-hidden">
+          <Link href="/" onClick={onClose} className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors border-b border-gray-100">
+            <span className="text-xl w-8 text-center">🏠</span>
+            <span className="flex-1 text-[15px] text-gray-800">Inicio</span>
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <Link href="/catalogo" onClick={onClose} className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors border-b border-gray-100">
+            <span className="text-xl w-8 text-center">🎪</span>
+            <span className="flex-1 text-[15px] text-gray-800">Ver todo el catálogo</span>
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <Link href="/carrito" onClick={onClose} className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors">
+            <span className="text-xl w-8 text-center">🛒</span>
+            <span className="flex-1 text-[15px] text-gray-800">Carrito</span>
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
 
         {adminLink && (
