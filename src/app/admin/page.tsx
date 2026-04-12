@@ -2098,6 +2098,40 @@ function WebsiteTab() {
     finally { setSavingSection(null); }
   };
 
+  // ─── G-bis) TERMS & CONDITIONS ───
+  const [terms, setTerms] = useState<Array<{ icon: string; title: string; text: string }>>([]);
+  const [termsLoaded, setTermsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<Array<{ icon: string; title: string; text: string }>>('terms_conditions').then(d => {
+      if (d && d.length > 0) {
+        setTerms(d);
+      } else {
+        setTerms([
+          { icon: '\uD83D\uDCC5', title: 'Reserva', text: 'Para asegurar la fecha, se requiere un abono del 50% de la factura.' },
+          { icon: '\uD83D\uDE9B', title: 'Entrega y recogida', text: 'Fines de semana: montamos el viernes, recogemos el lunes.\nEntre semana: montamos el d\u00eda del evento, recogemos al d\u00eda siguiente.\nEl espacio debe estar limpio y sin muebles al momento de la instalaci\u00f3n.' },
+          { icon: '\u23F0', title: 'Duraci\u00f3n del servicio', text: 'El alquiler del equipo incluye 3 horas a partir de la hora indicada. Despu\u00e9s de ese tiempo, el personal se retira. Se puede extender con costo adicional por hora.' },
+          { icon: '\uD83C\uDFB5', title: 'Servicios adicionales', text: 'M\u00fasica durante todo el evento y animaci\u00f3n de pi\u00f1ata est\u00e1n disponibles como servicios adicionales. Consulta precios.' },
+          { icon: '\uD83D\uDCCB', title: 'Cambios y cancelaciones', text: 'Cambios de fecha o cancelaciones deben realizarse con m\u00ednimo 48 horas de anticipaci\u00f3n. Despu\u00e9s de ese plazo se cobra una penalidad de $50.' },
+          { icon: '\u26A0\uFE0F', title: 'No reembolsable', text: 'Una vez el material sea transportado o instalado, no se realizan reembolsos por lluvia, fallas el\u00e9ctricas o falta de espacio.' },
+          { icon: '\uD83D\uDCB3', title: 'M\u00e9todos de pago', text: 'Transferencia bancaria: Banco Aliado \u00b7 Nathalie Levy \u00b7 Cuenta Ahorros \u00b7 1040071392\nTarjeta de cr\u00e9dito: disponible con recargo del 5%' },
+        ]);
+      }
+      setTermsLoaded(true);
+    }).catch((e) => { console.error('Load terms error:', e); setTermsLoaded(true); });
+  }, []);
+
+  const saveTerms = async () => {
+    setSavingSection('terms');
+    try {
+      const clean = terms.filter(t => t.title.trim() && t.text.trim());
+      await apiUpsertSetting('terms_conditions', clean);
+      revalidateSite();
+      showToast('T\u00e9rminos guardados');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
+  };
+
   // ─── G) SITE TEXTS ───
   const [siteTexts, setSiteTexts] = useState<SiteTexts>({ ...DEFAULT_SITE_TEXTS });
   const [siteTextsLoaded, setSiteTextsLoaded] = useState(false);
@@ -2296,6 +2330,37 @@ function WebsiteTab() {
               <div className="flex gap-2">
                 <button onClick={() => setTestimonials(prev => prev.length < 6 ? [...prev, { name: '', text: '', avatar: '' }] : prev)} disabled={testimonials.length >= 6} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors disabled:opacity-40">+ Agregar</button>
                 <button onClick={saveTestimonials} disabled={savingSection === 'testimonials'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'testimonials' ? 'Guardando...' : 'Guardar Testimonios'}</button>
+              </div>
+            </div>
+          )}
+          {/* Terms & Conditions */}
+          {termsLoaded && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <p className="font-heading font-bold text-sm text-purple mb-3">T{'é'}rminos y Condiciones</p>
+              <p className="font-body text-gray-500 text-xs mb-3">Secciones que aparecen en la p{'á'}gina de t{'é'}rminos y en la confirmaci{'ó'}n</p>
+              {terms.map((t, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 space-y-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <input value={t.icon} onChange={e => setTerms(prev => prev.map((item, j) => j === i ? { ...item, icon: e.target.value } : item))} placeholder="Emoji" maxLength={4} className="w-12 border border-gray-200 rounded-lg py-1 px-2 font-body text-center text-lg focus:border-purple focus:outline-none" />
+                    <input value={t.title} onChange={e => setTerms(prev => prev.map((item, j) => j === i ? { ...item, title: e.target.value } : item))} placeholder="T&iacute;tulo" className={`flex-1 ${WI_CLS}`} />
+                    {terms.length > 1 && (
+                      <button onClick={() => { if (confirm('¿Eliminar esta sección?')) setTerms(prev => prev.filter((_, j) => j !== i)); }} className="text-gray-400 hover:text-red-500 transition-colors p-1">{'✕'}</button>
+                    )}
+                  </div>
+                  <textarea value={t.text} onChange={e => setTerms(prev => prev.map((item, j) => j === i ? { ...item, text: e.target.value } : item))} placeholder="Texto de la sección (usa Enter para saltos de línea)..." rows={3} className={WI_CLS} />
+                  <div className="flex gap-1">
+                    {i > 0 && (
+                      <button onClick={() => setTerms(prev => { const n = [...prev]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })} className="text-gray-400 hover:text-purple transition-colors p-1 text-xs font-heading">{'▲'}</button>
+                    )}
+                    {i < terms.length - 1 && (
+                      <button onClick={() => setTerms(prev => { const n = [...prev]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; return n; })} className="text-gray-400 hover:text-purple transition-colors p-1 text-xs font-heading">{'▼'}</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <button onClick={() => setTerms(prev => [...prev, { icon: '', title: '', text: '' }])} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">+ Agregar secci{'ó'}n</button>
+                <button onClick={saveTerms} disabled={savingSection === 'terms'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'terms' ? 'Guardando...' : 'Guardar T\u00e9rminos'}</button>
               </div>
             </div>
           )}

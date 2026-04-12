@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { fetchLogoUrl } from '@/lib/supabase-data';
+import { fetchLogoUrl, fetchSetting } from '@/lib/supabase-data';
 import { BANK_INFO, CONTACT } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
@@ -26,9 +26,25 @@ function ConfirmacionContent() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [orderSummary, setOrderSummary] = useState<OrderSummaryData | null>(null);
+  const [policyTerms, setPolicyTerms] = useState<Array<{ icon: string; title: string; text: string }>>([
+    { icon: '\uD83D\uDCC5', title: 'Reserva', text: 'Reserva tu fecha con el 50% de adelanto' },
+    { icon: '\uD83D\uDE9B', title: 'Entrega y recogida', text: 'Fines de semana: montamos viernes, recogemos lunes' },
+    { icon: '\u23F0', title: 'Duraci\u00f3n del servicio', text: 'El alquiler incluye 3 horas desde la hora indicada' },
+    { icon: '\uD83D\uDCCB', title: 'Cambios y cancelaciones', text: 'Cambios o cancelaciones: m\u00ednimo 48h antes ($50 penalidad despu\u00e9s)' },
+    { icon: '\uD83D\uDCB3', title: 'M\u00e9todos de pago', text: `Datos bancarios: ${BANK_INFO.bank} \u00b7 ${BANK_INFO.name} \u00b7 Cta. Ahorros ${BANK_INFO.accountNumber}` },
+  ]);
 
   useEffect(() => {
     fetchLogoUrl().then(u => { if (u) setLogoUrl(u); else setLogoUrl('/logo.png'); }).catch(() => setLogoUrl('/logo.png'));
+    fetchSetting<Array<{ icon: string; title: string; text: string }>>('terms_conditions').then(d => {
+      if (d && d.length > 0) {
+        setPolicyTerms(d.slice(0, 5).map(t => ({
+          icon: t.icon,
+          title: t.title,
+          text: t.text.split('\n')[0].substring(0, 80) + (t.text.length > 80 ? '...' : ''),
+        })));
+      }
+    }).catch(() => {});
     try {
       const raw = sessionStorage.getItem('playtime-order-summary');
       if (raw) setOrderSummary(JSON.parse(raw));
@@ -121,26 +137,12 @@ function ConfirmacionContent() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left max-w-sm mx-auto space-y-3 shadow-sm">
           <h3 className="font-heading font-bold text-sm text-gray-800">Información importante</h3>
           <div className="space-y-2.5">
-            <div className="flex items-start gap-2.5">
-              <span className="text-base flex-shrink-0">{'\uD83D\uDCC5'}</span>
-              <p className="font-body text-xs text-gray-600 leading-relaxed">Reserva tu fecha con el 50% de adelanto</p>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="text-base flex-shrink-0">{'\uD83D\uDE9B'}</span>
-              <p className="font-body text-xs text-gray-600 leading-relaxed">Fines de semana: montamos viernes, recogemos lunes</p>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="text-base flex-shrink-0">{'\u23F0'}</span>
-              <p className="font-body text-xs text-gray-600 leading-relaxed">El alquiler incluye 3 horas desde la hora indicada</p>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="text-base flex-shrink-0">{'\uD83D\uDCCB'}</span>
-              <p className="font-body text-xs text-gray-600 leading-relaxed">Cambios o cancelaciones: mínimo 48h antes ($50 penalidad después)</p>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="text-base flex-shrink-0">{'\uD83D\uDCB3'}</span>
-              <p className="font-body text-xs text-gray-600 leading-relaxed">Datos bancarios: {BANK_INFO.bank} {'\u00b7'} {BANK_INFO.name} {'\u00b7'} Cta. Ahorros {BANK_INFO.accountNumber}</p>
-            </div>
+            {policyTerms.map((term, idx) => (
+              <div key={idx} className="flex items-start gap-2.5">
+                <span className="text-base flex-shrink-0">{term.icon}</span>
+                <p className="font-body text-xs text-gray-600 leading-relaxed">{term.text}</p>
+              </div>
+            ))}
           </div>
           <a href="/terminos" target="_blank" rel="noopener noreferrer" className="inline-block font-body text-xs text-purple hover:underline mt-1">
             Ver todos los términos y condiciones →
