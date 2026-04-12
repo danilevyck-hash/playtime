@@ -33,11 +33,7 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
   const adminLink = links.find(l => l.href === '/admin');
 
   return (
-    <div
-      className="md:hidden"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: '#ffffff' }}
-      aria-modal="true"
-    >
+    <div className="fixed inset-0 z-[9999] bg-white md:hidden" aria-modal="true">
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <span className="font-heading font-bold text-lg text-gray-800">Menú</span>
         <button
@@ -52,8 +48,7 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
         </button>
       </div>
 
-      <div className="overflow-y-auto h-[calc(100%-60px)] px-5 pb-8" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {/* Categories first — the main content */}
+      <div className="overflow-y-auto px-5 pb-8" style={{ height: 'calc(100vh - 60px)', WebkitOverflowScrolling: 'touch' }}>
         <div className="bg-gray-50 rounded-2xl overflow-hidden">
           {CATEGORY_ORDER.map((catId, i) => (
             <Link
@@ -71,7 +66,6 @@ export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
           ))}
         </div>
 
-        {/* Navigation links below */}
         <div className="mt-6 bg-gray-50 rounded-2xl overflow-hidden">
           <Link href="/" onClick={onClose} className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-100 transition-colors border-b border-gray-100">
             <span className="text-xl w-8 text-center">🏠</span>
