@@ -759,7 +759,7 @@ function OrdersTab() {
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
-  const [sortMode, setSortMode] = useState<'created' | 'event'>('created');
+  const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
     PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
   );
