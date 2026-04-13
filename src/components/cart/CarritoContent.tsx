@@ -9,23 +9,35 @@ import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 import { useProducts } from '@/lib/useProducts';
+import { fetchSetting } from '@/lib/supabase-data';
 import { formatCurrency } from '@/lib/format';
 
 export default function CarritoContent() {
   const { items, clearCart, addItem } = useCart();
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
+  const [suggestionIds, setSuggestionIds] = useState<string[]>([]);
   const allProducts = useProducts();
 
   const addonSuggestions = useMemo(() => {
     const cartIds = new Set(items.map(i => i.productId));
+    // If admin configured specific suggestions, use those (preserving order, excluding items already in cart)
+    if (suggestionIds.length > 0) {
+      const byId = new Map(allProducts.map(p => [p.id, p]));
+      return suggestionIds
+        .map(id => byId.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p && !cartIds.has(p.id));
+    }
+    // Fallback: random addons
     const addons = allProducts.filter(p => p.category === 'addons' && !cartIds.has(p.id));
-    // Shuffle and pick up to 4
     const shuffled = [...addons].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
-  }, [allProducts, items]);
+  }, [allProducts, items, suggestionIds]);
 
   useEffect(() => {
     getSiteTexts().then(setTexts);
+    fetchSetting<string[]>('cart_suggestions').then(ids => {
+      if (Array.isArray(ids)) setSuggestionIds(ids);
+    }).catch(() => { /* ignore */ });
   }, []);
 
   if (items.length === 0) {

@@ -1963,22 +1963,31 @@ function WebsiteTab() {
   // ─── B) FEATURED ───
   const [featuredIds, setFeaturedIds] = useState<string[]>([]);
   const [featLoaded, setFeatLoaded] = useState(false);
+  const [cartSuggestIds, setCartSuggestIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetchSetting<string[]>('featured_products').then(d => {
       if (d) setFeaturedIds(d);
       setFeatLoaded(true);
     }).catch((e) => { console.error('Load featured error:', e); setFeatLoaded(true); });
+    fetchSetting<string[]>('cart_suggestions').then(d => {
+      if (Array.isArray(d)) setCartSuggestIds(d);
+    }).catch((e) => console.error('Load cart suggestions error:', e));
   }, []);
 
   const toggleFeatured = (id: string) => {
     setFeaturedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 6 ? [...prev, id] : prev);
   };
 
+  const toggleCartSuggest = (id: string) => {
+    setCartSuggestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 6 ? [...prev, id] : prev);
+  };
+
   const saveFeatured = async () => {
     setSavingSection('featured');
     try {
       await apiUpsertSetting('featured_products', featuredIds);
+      await apiUpsertSetting('cart_suggestions', cartSuggestIds);
       revalidateSite();
       showToast('Productos destacados guardados');
     } catch { showToast('Error al guardar'); }
@@ -2263,27 +2272,55 @@ function WebsiteTab() {
 
       {/* B) Featured Products */}
       {section === 'featured' && featLoaded && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="font-body text-gray-500 text-sm">Selecciona hasta 6 productos para &ldquo;Los M&aacute;s Populares&rdquo;</p>
-            <span className={`font-heading font-bold text-sm ${featuredIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{featuredIds.length}/6</span>
+        <div className="space-y-6">
+          <div>
+            <div className="flex items-center justify-between">
+              <p className="font-body text-gray-500 text-sm">Selecciona hasta 6 productos para &ldquo;Los M&aacute;s Populares&rdquo;</p>
+              <span className={`font-heading font-bold text-sm ${featuredIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{featuredIds.length}/6</span>
+            </div>
+            <div className="space-y-1 max-h-[320px] overflow-y-auto mt-2">
+              {dbProducts.filter(p => p.active).map(p => {
+                const checked = featuredIds.includes(p.id);
+                const disabled = !checked && featuredIds.length >= 6;
+                return (
+                  <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-teal/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleFeatured(p.id)} className="w-4 h-4 accent-teal" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
+                      <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-          <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {dbProducts.filter(p => p.active).map(p => {
-              const checked = featuredIds.includes(p.id);
-              const disabled = !checked && featuredIds.length >= 6;
-              return (
-                <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-teal/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
-                  <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleFeatured(p.id)} className="w-4 h-4 accent-teal" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
-                    <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>
-                  </div>
-                </label>
-              );
-            })}
+
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-heading font-bold text-sm text-purple">&ldquo;Tambi&eacute;n piden con esto&rdquo;</p>
+                <p className="font-body text-gray-500 text-xs mt-0.5">Productos que aparecen en el carrito (hasta 6)</p>
+              </div>
+              <span className={`font-heading font-bold text-sm ${cartSuggestIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{cartSuggestIds.length}/6</span>
+            </div>
+            <div className="space-y-1 max-h-[320px] overflow-y-auto mt-2">
+              {dbProducts.filter(p => p.active).map(p => {
+                const checked = cartSuggestIds.includes(p.id);
+                const disabled = !checked && cartSuggestIds.length >= 6;
+                return (
+                  <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-orange/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleCartSuggest(p.id)} className="w-4 h-4 accent-orange" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
+                      <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-          <button onClick={saveFeatured} disabled={savingSection === 'featured'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'featured' ? 'Guardando...' : 'Guardar Destacados'}</button>
+
+          <button onClick={saveFeatured} disabled={savingSection === 'featured'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'featured' ? 'Guardando...' : 'Guardar cambios'}</button>
         </div>
       )}
 

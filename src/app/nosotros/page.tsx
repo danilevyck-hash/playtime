@@ -15,7 +15,7 @@ export default function NosotrosPage() {
           Nosotros
         </h1>
         <p className="text-center text-gray-600 text-sm md:text-base leading-relaxed max-w-xl mx-auto mb-12">
-          Somos un equipo apasionado por crear momentos inolvidables para los más pequeños. Desde 2022, hemos llevado alegría a más de 600 eventos en Panamá, combinando creatividad, calidad y atención al detalle en cada fiesta.
+          Somos un equipo apasionado por crear momentos inolvidables para los más pequeños. Desde 2015, hemos llevado alegría a más de 600 eventos en Panamá, combinando creatividad, calidad y atención al detalle en cada fiesta.
         </p>
 
         {/* Stats */}

@@ -9,7 +9,7 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Con cuánto tiempo de anticipación debo reservar?',
-    a: 'Recomendamos reservar con al menos 1 a 2 semanas de anticipación para garantizar disponibilidad, especialmente en fines de semana. Para fechas populares (diciembre, carnavales, verano), te sugerimos reservar con un mes de anticipación.',
+    a: 'Recomendamos reservar con 1 a 2 meses de anticipación para garantizar disponibilidad, especialmente en fines de semana. Para fechas populares como diciembre, carnavales o verano, te sugerimos reservar con mínimo 2 meses de anticipación.',
   },
   {
     q: '¿Cuál es el depósito para reservar?',
@@ -17,15 +17,15 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Qué incluye cada paquete?',
-    a: 'Cada paquete incluye el transporte, montaje y desmontaje del equipo, y la supervisión durante el evento. Los detalles específicos varían según el servicio. Puedes ver exactamente qué incluye cada opción en nuestro catálogo.',
+    a: 'Cada paquete incluye la supervisión durante el evento para que todo fluya perfecto. El transporte (que incluye montaje y desmontaje) se cotiza adicional según la ubicación. Consulta el catálogo para ver todos los detalles de cada experiencia.',
   },
   {
     q: '¿Cubren mi zona? ¿Cuánto cuesta el transporte?',
-    a: 'Cubrimos toda la Ciudad de Panamá y áreas cercanas. El costo de transporte varía según la ubicación y se calcula automáticamente al hacer tu pedido. Zonas como Costa del Este, Bella Vista y San Francisco tienen tarifas preferenciales.',
+    a: 'Cubrimos toda la Ciudad de Panamá y áreas cercanas. El costo de transporte varía según la ubicación y se calcula automáticamente al hacer tu pedido.',
   },
   {
     q: '¿Qué pasa si llueve o necesito cancelar?',
-    a: 'Cambios de fecha o cancelaciones deben realizarse con mínimo 48 horas de anticipación. Después de ese plazo se cobra una penalidad de $50. Una vez el material sea transportado o instalado, no se realizan reembolsos por lluvia, fallas eléctricas o falta de espacio.',
+    a: 'Cambios de fecha o cancelaciones deben realizarse con mínimo 7 días (una semana) de anticipación. Después de ese plazo se cobra una penalidad de $50. Una vez el material sea transportado o instalado, no se realizan reembolsos por lluvia, fallas eléctricas o falta de espacio.',
   },
   {
     q: '¿Para qué edades son los servicios?',
