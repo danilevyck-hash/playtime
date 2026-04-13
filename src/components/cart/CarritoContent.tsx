@@ -10,34 +10,27 @@ import EmptyState from '@/components/ui/EmptyState';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 import { useProducts } from '@/lib/useProducts';
 import { fetchSetting } from '@/lib/supabase-data';
+import { getCrossSellRules, buildCrossSellSuggestions, CrossSellRules } from '@/lib/cross-sell';
 import { formatCurrency } from '@/lib/format';
 
 export default function CarritoContent() {
   const { items, clearCart, addItem } = useCart();
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
-  const [suggestionIds, setSuggestionIds] = useState<string[]>([]);
+  const [fallbackIds, setFallbackIds] = useState<string[]>([]);
+  const [rules, setRules] = useState<CrossSellRules>({});
   const allProducts = useProducts();
 
-  const addonSuggestions = useMemo(() => {
-    const cartIds = new Set(items.map(i => i.productId));
-    // If admin configured specific suggestions, use those (preserving order, excluding items already in cart)
-    if (suggestionIds.length > 0) {
-      const byId = new Map(allProducts.map(p => [p.id, p]));
-      return suggestionIds
-        .map(id => byId.get(id))
-        .filter((p): p is NonNullable<typeof p> => !!p && !cartIds.has(p.id));
-    }
-    // Fallback: random addons
-    const addons = allProducts.filter(p => p.category === 'addons' && !cartIds.has(p.id));
-    const shuffled = [...addons].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 4);
-  }, [allProducts, items, suggestionIds]);
+  const { products: addonSuggestions, anchorName } = useMemo(
+    () => buildCrossSellSuggestions(items, allProducts, rules, fallbackIds, 6),
+    [items, allProducts, rules, fallbackIds],
+  );
 
   useEffect(() => {
     getSiteTexts().then(setTexts);
     fetchSetting<string[]>('cart_suggestions').then(ids => {
-      if (Array.isArray(ids)) setSuggestionIds(ids);
+      if (Array.isArray(ids)) setFallbackIds(ids);
     }).catch(() => { /* ignore */ });
+    getCrossSellRules().then(setRules).catch(() => { /* ignore */ });
   }, []);
 
   if (items.length === 0) {
@@ -77,7 +70,9 @@ export default function CarritoContent() {
       {/* Add-on suggestions */}
       {addonSuggestions.length > 0 && (
         <div className="mb-8">
-          <h2 className="font-heading font-bold text-sm text-gray-500 mb-3">También piden con esto:</h2>
+          <h2 className="font-heading font-bold text-sm text-gray-500 mb-3">
+            {anchorName ? `Como pediste ${anchorName}, súmale:` : 'También piden con esto:'}
+          </h2>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
             {addonSuggestions.map(p => (
               <div key={p.id} className="flex-shrink-0 w-[120px] bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -94,7 +89,17 @@ export default function CarritoContent() {
                   <div className="flex items-center justify-between">
                     <span className="font-heading font-bold text-xs text-purple">{formatCurrency(p.price)}</span>
                     <button
-                      onClick={() => addItem({ productId: p.id, name: p.name, category: p.category, unitPrice: p.price, image: p.image })}
+                      onClick={() => addItem({
+                        productId: p.id,
+                        name: p.name,
+                        category: p.category,
+                        unitPrice: p.price,
+                        image: p.image,
+                        maxQuantity: p.maxQuantity,
+                        minQuantity: p.minQuantity,
+                        quantityStep: p.quantityStep,
+                        quantity: p.minQuantity || 1,
+                      })}
                       className="w-6 h-6 rounded-full bg-orange text-white flex items-center justify-center text-sm font-bold hover:bg-orange/90 transition-colors"
                     >
                       +

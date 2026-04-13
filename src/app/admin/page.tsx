@@ -1092,20 +1092,35 @@ function ProductsTab() {
   const [allCategories, setAllCategories] = useState<string[]>(ALL_CATEGORIES);
   const [variantMenu, setVariantMenu] = useState<string | null>(null);
 
+  // Cross-sell rules — loaded once, edited per-product, saved as one map
+  const [crossSellRules, setCrossSellRules] = useState<Record<string, string[]>>({});
+  const [crossSellLoaded, setCrossSellLoaded] = useState(false);
+  const [crossSellPicker, setCrossSellPicker] = useState<string | null>(null); // product id whose picker is open
+  const [savingCrossSell, setSavingCrossSell] = useState(false);
+
   // ─── LOAD from pt_products + pt_product_variants ───
   useEffect(() => {
     async function load() {
       try {
-        const [dbProducts, dbVariants, customCats] = await Promise.all([
+        const [dbProducts, dbVariants, customCats, rulesData] = await Promise.all([
           fetchDBProducts(),
           fetchDBProductVariants(),
           fetchSetting<Array<{ id: string; label: string; icon: string; description: string }>>('custom_categories'),
+          fetchSetting<Record<string, string[]>>('cross_sell_rules'),
         ]);
         setProducts(dbProducts);
         setVariants(dbVariants);
         if (customCats && customCats.length > 0) {
           setAllCategories([...ALL_CATEGORIES, ...customCats.map(c => c.id)]);
         }
+        if (rulesData && typeof rulesData === 'object') {
+          setCrossSellRules(rulesData);
+        } else {
+          // Lazy import default rules
+          const { DEFAULT_CROSS_SELL_RULES } = await import('@/lib/default-cross-sell-rules');
+          setCrossSellRules({ ...DEFAULT_CROSS_SELL_RULES });
+        }
+        setCrossSellLoaded(true);
 
         // Load gallery images
         const galleries: Record<string, string[]> = {};
@@ -1116,10 +1131,36 @@ function ProductsTab() {
         setImageGalleries(galleries);
       } catch (e) {
         console.error('Load products error:', e);
+        setCrossSellLoaded(true);
       }
     }
     load();
   }, []);
+
+  const toggleCrossSell = (productId: string, suggestId: string) => {
+    setCrossSellRules(prev => {
+      const current = prev[productId] || [];
+      const next = current.includes(suggestId)
+        ? current.filter(x => x !== suggestId)
+        : current.length < 6 ? [...current, suggestId] : current;
+      return { ...prev, [productId]: next };
+    });
+  };
+
+  const saveCrossSellRules = async () => {
+    setSavingCrossSell(true);
+    try {
+      // Strip empty arrays
+      const clean: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(crossSellRules)) {
+        if (Array.isArray(v) && v.length > 0) clean[k] = v;
+      }
+      await apiUpsertSetting('cross_sell_rules', clean);
+      revalidateSite();
+      showToast('Sugerencias guardadas');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingCrossSell(false); }
+  };
 
   const getVariants = useCallback((productId: string) => {
     return variants.filter(v => v.product_id === productId).sort((a, b) => a.sort_order - b.sort_order);
@@ -1416,6 +1457,11 @@ function ProductsTab() {
         <div className="flex gap-2">
           {!combineMode && (
             <>
+              {crossSellLoaded && (
+                <button onClick={saveCrossSellRules} disabled={savingCrossSell} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-orange/10 text-orange hover:bg-orange/20 transition-colors disabled:opacity-50">
+                  {savingCrossSell ? 'Guardando...' : '\uD83D\uDCBE Guardar sugerencias'}
+                </button>
+              )}
               <button onClick={() => { setCombineMode(true); setCombineSelected(new Set()); }} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Combinar</button>
               <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-3 py-2 rounded-xl text-xs transition-colors ${reorderMode ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
@@ -1577,6 +1623,54 @@ function ProductsTab() {
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* Cross-sell rules section */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Sugeridos al agregar</p>
+                      <span className="font-heading font-bold text-[10px] text-orange">
+                        {(crossSellRules[product.id] || []).length}/6
+                      </span>
+                    </div>
+                    {(crossSellRules[product.id] || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {(crossSellRules[product.id] || []).map(sid => {
+                          const sp = products.find(x => x.id === sid);
+                          return (
+                            <span key={sid} className="inline-flex items-center gap-1 bg-orange/10 text-orange px-2 py-0.5 rounded-full text-[10px] font-heading font-semibold">
+                              {sp?.name || sid}
+                              <button
+                                onClick={() => toggleCrossSell(product.id, sid)}
+                                className="hover:text-red-500"
+                                aria-label="Quitar sugerido"
+                              >{'\u00d7'}</button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setCrossSellPicker(crossSellPicker === product.id ? null : product.id)}
+                      className="text-[10px] font-heading font-semibold text-purple hover:text-purple-light"
+                    >
+                      {crossSellPicker === product.id ? '\u2191 Cerrar' : '+ Agregar producto sugerido'}
+                    </button>
+                    {crossSellPicker === product.id && (
+                      <div className="mt-2 max-h-[200px] overflow-y-auto bg-gray-50 rounded-lg p-2 space-y-0.5">
+                        {products.filter(p => p.active && p.id !== product.id).map(p => {
+                          const checked = (crossSellRules[product.id] || []).includes(p.id);
+                          const disabled = !checked && (crossSellRules[product.id] || []).length >= 6;
+                          return (
+                            <label key={p.id} className={`flex items-center gap-2 p-1 rounded cursor-pointer text-xs ${checked ? 'bg-orange/10' : 'hover:bg-white'} ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}>
+                              <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleCrossSell(product.id, p.id)} className="w-3 h-3 accent-orange" />
+                              <span className="font-body text-gray-700 truncate flex-1">{p.name}</span>
+                              <span className="font-body text-gray-400 text-[10px]">{formatCurrency(p.price)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Variants section */}

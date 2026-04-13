@@ -9,6 +9,7 @@ import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { fetchSetting } from '@/lib/supabase-data';
 import { useProducts } from '@/lib/useProducts';
 import { useCart } from '@/context/CartContext';
+import { getCrossSellRules, buildCrossSellSuggestions, CrossSellRules } from '@/lib/cross-sell';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -29,25 +30,22 @@ interface Props {
 
 export default function OrderReview({ customer, event, paymentMethod, onPaymentMethodChange, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading, submitLabel, loadingLabel }: Props) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [suggestionIds, setSuggestionIds] = useState<string[]>([]);
+  const [fallbackIds, setFallbackIds] = useState<string[]>([]);
+  const [rules, setRules] = useState<CrossSellRules>({});
   const allProducts = useProducts();
   const { addItem } = useCart();
 
   useEffect(() => {
     fetchSetting<string[]>('checkout_suggestions').then(ids => {
-      if (Array.isArray(ids)) setSuggestionIds(ids);
+      if (Array.isArray(ids)) setFallbackIds(ids);
     }).catch(() => { /* ignore */ });
+    getCrossSellRules().then(setRules).catch(() => { /* ignore */ });
   }, []);
 
-  const suggestions = useMemo(() => {
-    if (suggestionIds.length === 0) return [];
-    const cartIds = new Set(items.map(i => i.productId));
-    const byId = new Map(allProducts.map(p => [p.id, p]));
-    return suggestionIds
-      .map(id => byId.get(id))
-      .filter((p): p is NonNullable<typeof p> => !!p && !cartIds.has(p.id))
-      .slice(0, 6);
-  }, [suggestionIds, allProducts, items]);
+  const { products: suggestions, anchorName } = useMemo(
+    () => buildCrossSellSuggestions(items, allProducts, rules, fallbackIds, 6),
+    [items, allProducts, rules, fallbackIds],
+  );
 
   const isTransportPending = transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : transportCost;
@@ -113,7 +111,9 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
       {/* Last-chance suggestions */}
       {suggestions.length > 0 && (
         <div className="bg-white rounded-xl p-4 border border-orange/20">
-          <h3 className="font-heading font-bold text-sm text-orange mb-1">{'\u2728'} Antes de terminar...</h3>
+          <h3 className="font-heading font-bold text-sm text-orange mb-1">
+            {anchorName ? `${'\u2728'} Para tu ${anchorName}, agrega:` : `${'\u2728'} Antes de terminar...`}
+          </h3>
           <p className="font-body text-xs text-gray-500 mb-3">Otros clientes agregaron esto a su fiesta</p>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
             {suggestions.map(p => (
