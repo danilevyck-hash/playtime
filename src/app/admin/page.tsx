@@ -1937,7 +1937,7 @@ function WebsiteTab() {
 
   // ─── A) HOMEPAGE ───
   const [hp, setHp] = useState({
-    hero_title: '', hero_subtitle: '', hero_cta_primary: '', hero_cta_secondary: '', social_proof_text: '',
+    hero_title: '', hero_subtitle: '', hero_cta_primary: '', social_proof_text: '',
     services_title: '', services_subtitle: '', featured_title: '', featured_subtitle: '',
     cta_section_title: '', cta_section_subtitle: '',
   });
@@ -2017,15 +2017,6 @@ function WebsiteTab() {
     finally { setSavingSection(null); }
   };
 
-  // ─── D) REELS (inline) ───
-  const [reelUrls, setReelUrls] = useState(['', '', '']);
-
-  useEffect(() => {
-    fetchSetting<Array<{ url: string; id: string }>>('reels').then(d => {
-      if (d && d.length > 0) setReelUrls([d[0]?.url || '', d[1]?.url || '', d[2]?.url || '']);
-    }).catch((e) => console.error('Load reels error:', e));
-  }, []);
-
   // ─── E) LOGO ───
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -2061,19 +2052,6 @@ function WebsiteTab() {
     setLogoUrl(null);
     revalidateSite();
     showToast('Logo tipogr\u00e1fico restaurado');
-  };
-
-  const extractReelIdLocal = (url: string) => { const m = url.match(/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; };
-
-  const saveReels = async () => {
-    setSavingSection('reels');
-    try {
-      const reels = reelUrls.filter(Boolean).map(url => { const id = extractReelIdLocal(url); return id ? { url, id } : null; }).filter(Boolean);
-      await apiUpsertSetting('reels', reels);
-      revalidateSite();
-      showToast('Reels guardados');
-    } catch { showToast('Error al guardar'); }
-    finally { setSavingSection(null); }
   };
 
   // ─── F) TESTIMONIALS ───
@@ -2256,17 +2234,6 @@ function WebsiteTab() {
             )}
           </div>
 
-          {/* Reels merged here */}
-          <div className="border-t border-gray-200 pt-4 mt-4">
-            <p className="font-heading font-bold text-sm text-purple mb-3">Instagram Reels</p>
-            <p className="font-body text-gray-500 text-xs mb-3">Links de los 3 reels para la p{'á'}gina principal</p>
-            {reelUrls.map((url, i) => (
-              <div key={i} className="mb-2">
-                <input type="url" value={url} onChange={e => { const u = [...reelUrls]; u[i] = e.target.value; setReelUrls(u); }} placeholder={`Reel ${i + 1} — https://instagram.com/reel/...`} className={WI_CLS} />
-              </div>
-            ))}
-            <button onClick={saveReels} disabled={savingSection === 'reels'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'reels' ? 'Guardando...' : 'Guardar Reels'}</button>
-          </div>
         </div>
       )}
 

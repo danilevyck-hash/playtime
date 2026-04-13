@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/format';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 
 interface CartSummaryProps {
   showSurcharge?: boolean;
@@ -11,8 +13,13 @@ interface CartSummaryProps {
 
 export default function CartSummary({ showSurcharge, paymentMethod }: CartSummaryProps) {
   const { subtotal, itemCount } = useCart();
+  const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
   const surcharge = paymentMethod === 'credit_card' ? subtotal * CREDIT_CARD_SURCHARGE : 0;
   const total = subtotal + surcharge;
+
+  useEffect(() => {
+    getSiteTexts().then(setTexts);
+  }, []);
 
   return (
     <div className="bg-cream rounded-2xl p-6">
@@ -31,7 +38,7 @@ export default function CartSummary({ showSurcharge, paymentMethod }: CartSummar
         <span className="font-heading font-bold text-lg text-gray-800">Total</span>
         <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(total)}</span>
       </div>
-      <p className="font-body text-xs text-gray-400 mt-3">{'\uD83D\uDE9A'} El transporte se calcula seg&uacute;n tu zona (desde $50).</p>
+      <p className="font-body text-xs text-gray-400 mt-3">{texts.cart_transport_message}</p>
     </div>
   );
 }

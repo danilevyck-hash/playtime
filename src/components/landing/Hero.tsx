@@ -10,7 +10,6 @@ interface HeroProps {
     hero_title?: string;
     hero_subtitle?: string;
     hero_cta_primary?: string;
-    hero_cta_secondary?: string;
     social_proof_text?: string;
   };
   logoUrl?: string | null;

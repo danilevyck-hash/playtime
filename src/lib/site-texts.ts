@@ -18,7 +18,6 @@ export interface SiteTexts {
 
   // General
   catalog_cta: string;
-  whatsapp_fallback: string;
 }
 
 export const DEFAULT_SITE_TEXTS: SiteTexts = {
@@ -34,7 +33,6 @@ export const DEFAULT_SITE_TEXTS: SiteTexts = {
   checkout_submit: '¡Reservar mi fiesta! 🎈',
   checkout_loading: 'Preparando magia... ✨',
   catalog_cta: '¡Arma tu fiesta! 🎉',
-  whatsapp_fallback: '¿No tienes WhatsApp?',
 };
 
 export const SITE_TEXT_LABELS: Record<keyof SiteTexts, string> = {
@@ -50,7 +48,6 @@ export const SITE_TEXT_LABELS: Record<keyof SiteTexts, string> = {
   checkout_submit: 'Botón reservar',
   checkout_loading: 'Texto de carga',
   catalog_cta: 'Botón CTA catálogo',
-  whatsapp_fallback: 'Texto fallback WhatsApp',
 };
 
 let _cached: SiteTexts | null = null;

@@ -19,9 +19,10 @@ export function useCategories(): CategoryItem[] {
   useEffect(() => {
     async function load() {
       try {
-        const [custom, savedOrder] = await Promise.all([
+        const [custom, savedOrder, overrides] = await Promise.all([
           fetchSetting<CategoryItem[]>('custom_categories'),
           fetchSetting<string[]>('category_order'),
+          fetchSetting<Record<string, { name?: string; subtitle?: string; emoji?: string }>>('category_overrides'),
         ]);
 
         let cats = [...CATEGORIES] as CategoryItem[];
@@ -30,6 +31,19 @@ export function useCategories(): CategoryItem[] {
           const ids = new Set(cats.map(c => c.id));
           const newOnes = custom.filter(c => !ids.has(c.id));
           cats = [...cats, ...newOnes];
+        }
+
+        if (overrides && typeof overrides === 'object') {
+          cats = cats.map(c => {
+            const o = overrides[c.id];
+            if (!o) return c;
+            return {
+              ...c,
+              ...(o.name ? { label: o.name } : {}),
+              ...(o.emoji ? { icon: o.emoji } : {}),
+              ...(o.subtitle !== undefined ? { subtitle: o.subtitle } : {}),
+            };
+          });
         }
 
         if (savedOrder && savedOrder.length > 0) {
