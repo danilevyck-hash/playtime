@@ -11,6 +11,8 @@ interface CartItemProps {
 
 export default function CartItem({ item }: CartItemProps) {
   const { updateQuantity, removeItem } = useCart();
+  const stepQty = Math.max(1, item.quantityStep || 1);
+  const minQty = Math.max(1, item.minQuantity || 1);
 
   return (
     <div className="bg-white rounded-xl px-3 py-3">
@@ -47,10 +49,11 @@ export default function CartItem({ item }: CartItemProps) {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => {
-              if (item.quantity === 1) {
+              const next = item.quantity - stepQty;
+              if (next < minQty) {
                 if (window.confirm(`\u00bfEliminar "${item.name}" del carrito?`)) removeItem(item.productId);
               } else {
-                updateQuantity(item.productId, item.quantity - 1);
+                updateQuantity(item.productId, next);
               }
             }}
             className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
@@ -60,7 +63,7 @@ export default function CartItem({ item }: CartItemProps) {
           </button>
           <span className="w-8 text-center font-heading font-semibold text-gray-800">{item.quantity}</span>
           <button
-            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+            onClick={() => updateQuantity(item.productId, item.quantity + stepQty)}
             className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
             aria-label={`Aumentar cantidad de ${item.name}`}
           >
@@ -69,6 +72,9 @@ export default function CartItem({ item }: CartItemProps) {
         </div>
         <p className="font-heading font-bold text-gray-800">{formatCurrency(item.unitPrice * item.quantity)}</p>
       </div>
+      {stepQty > 1 && (
+        <p className="text-[10px] font-body text-orange/70 pl-[68px] mt-1">Se vende de {stepQty} en {stepQty}</p>
+      )}
     </div>
   );
 }

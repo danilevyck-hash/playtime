@@ -193,6 +193,8 @@ export interface DBProduct {
   featured: boolean;
   popular: boolean;
   max_quantity: number | null;
+  min_quantity: number | null;
+  quantity_step: number | null;
   variant_label: string | null;
   sort_order: number;
 }

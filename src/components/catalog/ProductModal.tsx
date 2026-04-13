@@ -54,12 +54,14 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
     ...(extraImages || []).slice(1), // skip index 0 since main image is already included
   ].filter(Boolean) : [];
 
-  const [quantity, setQuantity] = useState(1);
+  const minQty = Math.max(1, product?.minQuantity || 1);
+  const stepQty = Math.max(1, product?.quantityStep || 1);
+  const [quantity, setQuantity] = useState(minQty);
 
   useEffect(() => {
     setActiveIndex(0);
     setSelectedVariant(null);
-    setQuantity(1);
+    setQuantity(Math.max(1, product?.minQuantity || 1));
   }, [product]);
 
   useEffect(() => {
@@ -197,6 +199,18 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
           </p>
 
           {/* Variant selector */}
+          {(stepQty > 1 || minQty > 1) && (
+            <div className="mb-4 bg-orange/10 border border-orange/20 rounded-xl px-4 py-2.5">
+              <p className="font-heading font-semibold text-xs text-orange">
+                {stepQty > 1 && minQty > 1
+                  ? `Se vende en paquetes de ${stepQty} (mínimo ${minQty})`
+                  : stepQty > 1
+                  ? `Se agregan de ${stepQty} en ${stepQty}`
+                  : `Mínimo ${minQty} unidades`}
+              </p>
+            </div>
+          )}
+
           {hasVariants && (
             <div className="mb-6">
               <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2.5">{product.variantLabel}</p>
@@ -230,18 +244,18 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
               {/* Quantity stepper */}
               <div className="flex items-center bg-gray-100 rounded-full">
                 <button
-                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                  onClick={() => setQuantity(q => Math.max(minQty, q - stepQty))}
                   className="min-h-[44px] w-10 flex items-center justify-center rounded-l-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors disabled:opacity-30"
-                  disabled={quantity <= 1}
+                  disabled={quantity <= minQty}
                   aria-label="Reducir cantidad"
                 >
                   −
                 </button>
                 <span className="min-w-[28px] text-center font-heading font-bold text-base text-purple select-none">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(q => q + 1)}
+                  onClick={() => setQuantity(q => q + stepQty)}
                   className="min-h-[44px] w-10 flex items-center justify-center rounded-r-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors disabled:opacity-30"
-                  disabled={product.maxQuantity !== undefined && product.maxQuantity !== null && quantity >= product.maxQuantity}
+                  disabled={product.maxQuantity !== undefined && product.maxQuantity !== null && quantity + stepQty > product.maxQuantity}
                   aria-label="Aumentar cantidad"
                 >
                   +
@@ -261,8 +275,11 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
                       unitPrice: activePrice,
                       image: product.image,
                       quantity,
+                      maxQuantity: product.maxQuantity,
+                      minQuantity: product.minQuantity,
+                      quantityStep: product.quantityStep,
                     });
-                    setQuantity(1);
+                    setQuantity(minQty);
                     setTimeout(() => onClose(), 300);
                   }}
                 >

@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { OrderCustomer, OrderEvent, PaymentMethod, CartItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { fetchSetting } from '@/lib/supabase-data';
+import { useProducts } from '@/lib/useProducts';
+import { useCart } from '@/context/CartContext';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -25,6 +29,26 @@ interface Props {
 
 export default function OrderReview({ customer, event, paymentMethod, onPaymentMethodChange, items, subtotal, transportCost, onBack, onSubmit, onEditStep, loading, submitLabel, loadingLabel }: Props) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [suggestionIds, setSuggestionIds] = useState<string[]>([]);
+  const allProducts = useProducts();
+  const { addItem } = useCart();
+
+  useEffect(() => {
+    fetchSetting<string[]>('checkout_suggestions').then(ids => {
+      if (Array.isArray(ids)) setSuggestionIds(ids);
+    }).catch(() => { /* ignore */ });
+  }, []);
+
+  const suggestions = useMemo(() => {
+    if (suggestionIds.length === 0) return [];
+    const cartIds = new Set(items.map(i => i.productId));
+    const byId = new Map(allProducts.map(p => [p.id, p]));
+    return suggestionIds
+      .map(id => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p && !cartIds.has(p.id))
+      .slice(0, 6);
+  }, [suggestionIds, allProducts, items]);
+
   const isTransportPending = transportCost < 0;
   const effectiveTransport = isTransportPending ? 0 : transportCost;
   const subtotalWithTransport = subtotal + effectiveTransport;
@@ -85,6 +109,50 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
           </div>
         </div>
       </div>
+
+      {/* Last-chance suggestions */}
+      {suggestions.length > 0 && (
+        <div className="bg-white rounded-xl p-4 border border-orange/20">
+          <h3 className="font-heading font-bold text-sm text-orange mb-1">{'\u2728'} Antes de terminar...</h3>
+          <p className="font-body text-xs text-gray-500 mb-3">Otros clientes agregaron esto a su fiesta</p>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+            {suggestions.map(p => (
+              <div key={p.id} className="flex-shrink-0 w-[120px] bg-cream rounded-xl overflow-hidden">
+                {p.image ? (
+                  <Image src={p.image} alt={p.name} width={120} height={80} className="w-full h-[80px] object-cover" />
+                ) : (
+                  <div className="w-full h-[80px] bg-gradient-to-br from-purple/5 to-teal/10 flex items-center justify-center">
+                    <span className="text-2xl">{'\uD83C\uDF88'}</span>
+                  </div>
+                )}
+                <div className="p-2">
+                  <p className="font-heading font-semibold text-[11px] text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="font-heading font-bold text-xs text-purple">{formatCurrency(p.price)}</span>
+                    <button
+                      onClick={() => addItem({
+                        productId: p.id,
+                        name: p.name,
+                        category: p.category,
+                        unitPrice: p.price,
+                        image: p.image,
+                        maxQuantity: p.maxQuantity,
+                        minQuantity: p.minQuantity,
+                        quantityStep: p.quantityStep,
+                        quantity: p.minQuantity || 1,
+                      })}
+                      className="w-6 h-6 rounded-full bg-orange text-white flex items-center justify-center text-sm font-bold hover:bg-orange/90 transition-colors"
+                      aria-label={`Agregar ${p.name}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Payment method inline toggle */}
       {onPaymentMethodChange && (

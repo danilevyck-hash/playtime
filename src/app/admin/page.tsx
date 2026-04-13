@@ -1073,7 +1073,7 @@ function ProductsTab() {
   const [filter, setFilter] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', desc: '', price: '', cat: '', variant_label: '', featured: false, popular: false, max_quantity: '' });
+  const [editForm, setEditForm] = useState({ name: '', desc: '', price: '', cat: '', variant_label: '', featured: false, popular: false, max_quantity: '', min_quantity: '', quantity_step: '' });
   const [showAdd, setShowAdd] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', cat: 'planes', price: '', desc: '' });
   const [uploading, setUploading] = useState('');
@@ -1222,7 +1222,18 @@ function ProductsTab() {
   // ─── START EDITING ───
   const startEdit = (p: DBProduct) => {
     setEditingId(p.id);
-    setEditForm({ name: p.name, desc: p.description, price: String(p.price), cat: p.category, variant_label: p.variant_label || '', featured: p.featured, popular: p.popular ?? false, max_quantity: p.max_quantity ? String(p.max_quantity) : '' });
+    setEditForm({
+      name: p.name,
+      desc: p.description,
+      price: String(p.price),
+      cat: p.category,
+      variant_label: p.variant_label || '',
+      featured: p.featured,
+      popular: p.popular ?? false,
+      max_quantity: p.max_quantity ? String(p.max_quantity) : '',
+      min_quantity: p.min_quantity ? String(p.min_quantity) : '',
+      quantity_step: p.quantity_step ? String(p.quantity_step) : '',
+    });
   };
 
   // ─── SAVE EDIT ───
@@ -1231,6 +1242,8 @@ function ProductsTab() {
     if (!product) return;
     const parsedPrice = parseFloat(editForm.price);
     const parsedMax = editForm.max_quantity ? parseInt(editForm.max_quantity) : null;
+    const parsedMin = editForm.min_quantity ? parseInt(editForm.min_quantity) : null;
+    const parsedStep = editForm.quantity_step ? parseInt(editForm.quantity_step) : null;
     const updated: DBProduct = {
       ...product,
       name: editForm.name || product.name,
@@ -1241,10 +1254,12 @@ function ProductsTab() {
       featured: editForm.featured,
       popular: editForm.popular,
       max_quantity: parsedMax,
+      min_quantity: parsedMin,
+      quantity_step: parsedStep,
     };
     setProducts(prev => prev.map(p => p.id === id ? updated : p));
     setEditingId(null);
-    const ok = await apiUpsertProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, popular: updated.popular, max_quantity: updated.max_quantity });
+    const ok = await apiUpsertProduct({ id, name: updated.name, description: updated.description, price: updated.price, category: updated.category, variant_label: updated.variant_label, featured: updated.featured, popular: updated.popular, max_quantity: updated.max_quantity, min_quantity: updated.min_quantity, quantity_step: updated.quantity_step });
     if (ok) revalidateSite();
     showToast(ok ? 'Producto guardado' : 'Error al guardar');
   };
@@ -1253,7 +1268,7 @@ function ProductsTab() {
   const handleAddProduct = async () => {
     if (!newProduct.name.trim()) return;
     const id = `prod-${Date.now()}`;
-    const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, popular: false, max_quantity: null, variant_label: null, sort_order: products.length };
+    const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, popular: false, max_quantity: null, min_quantity: null, quantity_step: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
     const ok = await apiUpsertProduct(product);
     if (ok) revalidateSite();
@@ -1316,7 +1331,7 @@ function ProductsTab() {
     if (!variant || !parent) return;
     // Create new product
     const newId = `prod-${Date.now()}`;
-    const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, popular: false, max_quantity: null, variant_label: null, sort_order: products.length };
+    const newProd: DBProduct = { id: newId, name: variant.label, category: parent.category, price: variant.price ?? parent.price, description: '', image_url: variant.image_url, active: true, featured: false, popular: false, max_quantity: null, min_quantity: null, quantity_step: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, newProd]);
     await apiUpsertProduct(newProd);
     // Remove variant
@@ -1520,14 +1535,17 @@ function ProductsTab() {
                       {allCategories.map(c => <option key={c} value={c}>{getCatLabel(c)}</option>)}
                     </select>
                   </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="number" min="1" value={editForm.min_quantity} onChange={(e) => setEditForm({ ...editForm, min_quantity: e.target.value })} placeholder="Min. unidades" className={INPUT_CLS} />
+                    <input type="number" min="1" value={editForm.quantity_step} onChange={(e) => setEditForm({ ...editForm, quantity_step: e.target.value })} placeholder="Paquete de" className={INPUT_CLS} />
+                    <input type="number" value={editForm.max_quantity} onChange={(e) => setEditForm({ ...editForm, max_quantity: e.target.value })} placeholder="Max. unidades" className={INPUT_CLS} />
+                  </div>
+                  <p className="font-body text-[10px] text-gray-400 -mt-1">Ejemplo silla: min=8, paquete=8 → suma de 8 en 8</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <input type="number" value={editForm.max_quantity} onChange={(e) => setEditForm({ ...editForm, max_quantity: e.target.value })} placeholder="Cant. maxima (opc)" className={INPUT_CLS} />
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editForm.featured} onChange={(e) => setEditForm({ ...editForm, featured: e.target.checked })} className="w-4 h-4 accent-purple rounded" />
                       <span className="font-body text-sm text-gray-600">Destacado</span>
                     </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editForm.popular} onChange={(e) => setEditForm({ ...editForm, popular: e.target.checked })} className="w-4 h-4 accent-orange rounded" />
                       <span className="font-body text-sm text-gray-600">Popular</span>
@@ -1964,6 +1982,7 @@ function WebsiteTab() {
   const [featuredIds, setFeaturedIds] = useState<string[]>([]);
   const [featLoaded, setFeatLoaded] = useState(false);
   const [cartSuggestIds, setCartSuggestIds] = useState<string[]>([]);
+  const [checkoutSuggestIds, setCheckoutSuggestIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetchSetting<string[]>('featured_products').then(d => {
@@ -1973,6 +1992,9 @@ function WebsiteTab() {
     fetchSetting<string[]>('cart_suggestions').then(d => {
       if (Array.isArray(d)) setCartSuggestIds(d);
     }).catch((e) => console.error('Load cart suggestions error:', e));
+    fetchSetting<string[]>('checkout_suggestions').then(d => {
+      if (Array.isArray(d)) setCheckoutSuggestIds(d);
+    }).catch((e) => console.error('Load checkout suggestions error:', e));
   }, []);
 
   const toggleFeatured = (id: string) => {
@@ -1983,11 +2005,16 @@ function WebsiteTab() {
     setCartSuggestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 6 ? [...prev, id] : prev);
   };
 
+  const toggleCheckoutSuggest = (id: string) => {
+    setCheckoutSuggestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 6 ? [...prev, id] : prev);
+  };
+
   const saveFeatured = async () => {
     setSavingSection('featured');
     try {
       await apiUpsertSetting('featured_products', featuredIds);
       await apiUpsertSetting('cart_suggestions', cartSuggestIds);
+      await apiUpsertSetting('checkout_suggestions', checkoutSuggestIds);
       revalidateSite();
       showToast('Productos destacados guardados');
     } catch { showToast('Error al guardar'); }
@@ -2265,7 +2292,7 @@ function WebsiteTab() {
           <div className="pt-4 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-heading font-bold text-sm text-purple">&ldquo;Tambi&eacute;n piden con esto&rdquo;</p>
+                <p className="font-heading font-bold text-sm text-purple">&ldquo;Tambi&eacute;n piden con esto&rdquo; (carrito)</p>
                 <p className="font-body text-gray-500 text-xs mt-0.5">Productos que aparecen en el carrito (hasta 6)</p>
               </div>
               <span className={`font-heading font-bold text-sm ${cartSuggestIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{cartSuggestIds.length}/6</span>
@@ -2277,6 +2304,31 @@ function WebsiteTab() {
                 return (
                   <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-orange/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
                     <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleCartSuggest(p.id)} className="w-4 h-4 accent-orange" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
+                      <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-heading font-bold text-sm text-purple">&ldquo;Antes de terminar&rdquo; (checkout)</p>
+                <p className="font-body text-gray-500 text-xs mt-0.5">Upsells de \u00faltimo momento en el resumen del checkout (hasta 6)</p>
+              </div>
+              <span className={`font-heading font-bold text-sm ${checkoutSuggestIds.length >= 6 ? 'text-orange' : 'text-purple'}`}>{checkoutSuggestIds.length}/6</span>
+            </div>
+            <div className="space-y-1 max-h-[320px] overflow-y-auto mt-2">
+              {dbProducts.filter(p => p.active).map(p => {
+                const checked = checkoutSuggestIds.includes(p.id);
+                const disabled = !checked && checkoutSuggestIds.length >= 6;
+                return (
+                  <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-teal/10' : 'hover:bg-gray-50'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleCheckoutSuggest(p.id)} className="w-4 h-4 accent-teal" />
                     <div className="flex-1 min-w-0">
                       <span className="font-heading font-semibold text-sm text-gray-800 truncate block">{p.name}</span>
                       <span className="font-body text-xs text-gray-400">{p.category} {'·'} {formatCurrency(p.price)}</span>

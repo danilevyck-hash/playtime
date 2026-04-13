@@ -25,6 +25,8 @@ export interface Product {
   price: number;
   image?: string;
   maxQuantity?: number;
+  minQuantity?: number;
+  quantityStep?: number;
   featured?: boolean;
   popular?: boolean;
   variants?: ProductVariant[];
@@ -38,6 +40,8 @@ export interface CartItem {
   unitPrice: number;
   quantity: number;
   image?: string;
+  minQuantity?: number;
+  quantityStep?: number;
 }
 
 export interface OrderCustomer {

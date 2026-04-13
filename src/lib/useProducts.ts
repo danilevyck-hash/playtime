@@ -131,6 +131,8 @@ export function useProducts(): Product[] {
           featured: p.featured,
           popular: p.popular ?? false,
           maxQuantity: p.max_quantity ?? undefined,
+          minQuantity: p.min_quantity ?? undefined,
+          quantityStep: p.quantity_step ?? undefined,
           variants: variantMap.get(p.id),
           variantLabel: p.variant_label ?? undefined,
         }));

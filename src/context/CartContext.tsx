@@ -10,7 +10,7 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number } }
+  | { type: 'ADD_ITEM'; payload: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number; minQuantity?: number; quantityStep?: number } }
   | { type: 'REMOVE_ITEM'; payload: { productId: string } }
   | { type: 'UPDATE_QUANTITY'; payload: { productId: string; quantity: number } }
   | { type: 'CLEAR_CART' }
@@ -49,6 +49,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
             unitPrice: action.payload.unitPrice,
             quantity: qty,
             image: action.payload.image,
+            minQuantity: action.payload.minQuantity,
+            quantityStep: action.payload.quantityStep,
           },
         ],
       };
@@ -83,7 +85,7 @@ interface CartContextValue {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number }) => void;
+  addItem: (item: { productId: string; name: string; category: Category; unitPrice: number; quantity?: number; image?: string; maxQuantity?: number; minQuantity?: number; quantityStep?: number }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
