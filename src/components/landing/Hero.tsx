@@ -1,8 +1,11 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import ConfettiBackground from '@/components/ui/ConfettiBackground';
-import { CONTACT } from '@/lib/constants';
+import { getContactInfo, DEFAULT_CONTACT_INFO } from '@/lib/contact-info';
 
 
 interface HeroProps {
@@ -19,6 +22,11 @@ export default function Hero({ content, logoUrl }: HeroProps) {
   const title = content?.hero_title || 'Fiestas que los ni\u00f1os nunca olvidan';
   const subtitle = content?.hero_subtitle || 'Animaci\u00f3n, alquiler y manualidades. Todo incluido, hasta tu puerta.';
   const ctaPrimary = content?.hero_cta_primary || '\u00a1Arma tu fiesta! \uD83C\uDF89';
+  const [whatsapp, setWhatsapp] = useState(DEFAULT_CONTACT_INFO.whatsapp);
+
+  useEffect(() => {
+    getContactInfo().then(c => setWhatsapp(c.whatsapp));
+  }, []);
 
   return (
     <ConfettiBackground className="bg-beige">
@@ -41,7 +49,7 @@ export default function Hero({ content, logoUrl }: HeroProps) {
             </Button>
           </Link>
           <a
-            href={`https://wa.me/${CONTACT.whatsapp}`}
+            href={`https://wa.me/${whatsapp}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm font-heading font-semibold text-[#25D366] hover:text-[#20BD5A] transition-colors sm:border sm:border-[#25D366] sm:rounded-full sm:px-5 sm:py-2"

@@ -1,12 +1,30 @@
-import Link from 'next/link';
+'use client';
 
-const STATS = [
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { fetchSetting } from '@/lib/supabase-data';
+
+const DEFAULT_STATS = [
   { value: '+600', label: 'Eventos realizados' },
   { value: '+400', label: 'Familias felices' },
   { value: '8', label: 'Servicios disponibles' },
 ];
 
+const DEFAULT_INTRO = 'Somos un equipo apasionado por crear momentos inolvidables para los más pequeños. Desde 2015, hemos llevado alegría a más de 600 eventos en Panamá, combinando creatividad, calidad y atención al detalle en cada fiesta.';
+
 export default function NosotrosPage() {
+  const [stats, setStats] = useState(DEFAULT_STATS);
+  const [intro, setIntro] = useState(DEFAULT_INTRO);
+
+  useEffect(() => {
+    fetchSetting<{ value: string; label: string }[]>('about_stats').then(d => {
+      if (Array.isArray(d) && d.length > 0) setStats(d);
+    }).catch(() => { /* ignore */ });
+    fetchSetting<string>('about_intro').then(d => {
+      if (d && typeof d === 'string') setIntro(d);
+    }).catch(() => { /* ignore */ });
+  }, []);
+
   return (
     <div className="bg-cream min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12 md:py-20">
@@ -14,13 +32,13 @@ export default function NosotrosPage() {
         <h1 className="font-heading font-bold text-2xl md:text-3xl text-purple text-center mb-6">
           Nosotros
         </h1>
-        <p className="text-center text-gray-600 text-sm md:text-base leading-relaxed max-w-xl mx-auto mb-12">
-          Somos un equipo apasionado por crear momentos inolvidables para los más pequeños. Desde 2015, hemos llevado alegría a más de 600 eventos en Panamá, combinando creatividad, calidad y atención al detalle en cada fiesta.
+        <p className="text-center text-gray-600 text-sm md:text-base leading-relaxed max-w-xl mx-auto mb-12 whitespace-pre-line">
+          {intro}
         </p>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-12">
-          {STATS.map((stat, i) => (
+          {stats.map((stat, i) => (
             <div key={i} className="bg-white rounded-2xl shadow-sm p-5 text-center">
               <span className="block font-heading font-bold text-2xl md:text-3xl text-purple">{stat.value}</span>
               <span className="text-xs md:text-sm text-gray-500 mt-1">{stat.label}</span>

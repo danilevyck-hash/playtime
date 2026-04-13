@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { fetchSetting } from '@/lib/supabase-data';
 
-const FAQ_ITEMS = [
+const DEFAULT_FAQ_ITEMS = [
   {
     q: '¿Cómo funciona el servicio?',
     a: 'Es muy sencillo: exploras nuestro catálogo, eliges los servicios que más te gusten y nos escribes por WhatsApp para coordinar tu evento. Nosotros nos encargamos de llevar todo, montarlo y recogerlo. Tú solo disfrutas.',
@@ -75,6 +76,14 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 }
 
 export default function PreguntasPage() {
+  const [items, setItems] = useState(DEFAULT_FAQ_ITEMS);
+
+  useEffect(() => {
+    fetchSetting<{ q: string; a: string }[]>('faq_items').then(d => {
+      if (Array.isArray(d) && d.length > 0) setItems(d);
+    }).catch(() => { /* ignore */ });
+  }, []);
+
   return (
     <div className="bg-cream min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-12 md:py-20">
@@ -86,7 +95,7 @@ export default function PreguntasPage() {
         </p>
 
         <div className="bg-white rounded-2xl shadow-sm p-4 md:p-6">
-          {FAQ_ITEMS.map((item, i) => (
+          {items.map((item, i) => (
             <FAQItem key={i} q={item.q} a={item.a} />
           ))}
         </div>

@@ -1947,7 +1947,7 @@ function revalidateSite() {
 
 function WebsiteTab() {
   const { showToast } = useToast();
-  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'logo'>('homepage');
+  const [section, setSection] = useState<'homepage' | 'featured' | 'areas' | 'logo' | 'faq'>('homepage');
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [dbProducts, setDbProducts] = useState<DBProduct[]>([]);
 
@@ -2040,6 +2040,36 @@ function WebsiteTab() {
       setAreas(clean);
       revalidateSite();
       showToast('\u00c1reas guardadas');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
+  };
+
+  // ─── CONTACT INFO ───
+  const [contactInfo, setContactInfo] = useState({
+    whatsapp: '50764332724',
+    phone: '(+507) 6433-2724',
+    email: 'playtimekidspty@gmail.com',
+    instagram: '@playtimekids',
+    bank_name: 'Banco Aliado',
+    bank_holder: 'Nathalie Levy',
+    bank_account_type: 'Cuenta Ahorros',
+    bank_account_number: '1040071392',
+  });
+  const [contactLoaded, setContactLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<typeof contactInfo>('contact_info').then(d => {
+      if (d) setContactInfo(prev => ({ ...prev, ...d }));
+      setContactLoaded(true);
+    }).catch(() => setContactLoaded(true));
+  }, []);
+
+  const saveContact = async () => {
+    setSavingSection('contact');
+    try {
+      await apiUpsertSetting('contact_info', contactInfo);
+      revalidateSite();
+      showToast('Contacto guardado');
     } catch { showToast('Error al guardar'); }
     finally { setSavingSection(null); }
   };
@@ -2175,10 +2205,67 @@ function WebsiteTab() {
     finally { setSavingSection(null); }
   };
 
+  // ─── ABOUT ───
+  const [aboutIntro, setAboutIntro] = useState('Somos un equipo apasionado por crear momentos inolvidables para los m\u00e1s peque\u00f1os. Desde 2015, hemos llevado alegr\u00eda a m\u00e1s de 600 eventos en Panam\u00e1, combinando creatividad, calidad y atenci\u00f3n al detalle en cada fiesta.');
+  const [aboutStats, setAboutStats] = useState([
+    { value: '+600', label: 'Eventos realizados' },
+    { value: '+400', label: 'Familias felices' },
+    { value: '8', label: 'Servicios disponibles' },
+  ]);
+  const [aboutLoaded, setAboutLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetchSetting<string>('about_intro'),
+      fetchSetting<{ value: string; label: string }[]>('about_stats'),
+    ]).then(([intro, stats]) => {
+      if (intro && typeof intro === 'string') setAboutIntro(intro);
+      if (Array.isArray(stats) && stats.length > 0) setAboutStats(stats);
+      setAboutLoaded(true);
+    }).catch(() => setAboutLoaded(true));
+  }, []);
+
+  const saveAbout = async () => {
+    setSavingSection('about');
+    try {
+      await apiUpsertSetting('about_intro', aboutIntro);
+      await apiUpsertSetting('about_stats', aboutStats);
+      revalidateSite();
+      showToast('Nosotros guardado');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
+  };
+
+  // ─── FAQ ───
+  const [faqItems, setFaqItems] = useState<{ q: string; a: string }[]>([]);
+  const [faqLoaded, setFaqLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchSetting<{ q: string; a: string }[]>('faq_items').then(d => {
+      if (Array.isArray(d) && d.length > 0) setFaqItems(d);
+      else setFaqItems([
+        { q: '\u00bfC\u00f3mo funciona el servicio?', a: 'Es muy sencillo: exploras nuestro cat\u00e1logo, eliges los servicios que m\u00e1s te gusten y nos escribes por WhatsApp para coordinar tu evento.' },
+      ]);
+      setFaqLoaded(true);
+    }).catch(() => setFaqLoaded(true));
+  }, []);
+
+  const saveFaq = async () => {
+    setSavingSection('faq');
+    try {
+      const clean = faqItems.filter(f => f.q.trim() && f.a.trim());
+      await apiUpsertSetting('faq_items', clean);
+      revalidateSite();
+      showToast('FAQ guardadas');
+    } catch { showToast('Error al guardar'); }
+    finally { setSavingSection(null); }
+  };
+
   const SUB_TABS: { key: typeof section; label: string }[] = [
     { key: 'homepage', label: 'Textos' },
     { key: 'logo', label: 'Logo & Media' },
     { key: 'featured', label: 'Destacados' },
+    { key: 'faq', label: 'FAQ' },
     { key: 'areas', label: 'Config' },
   ];
 
@@ -2229,6 +2316,28 @@ function WebsiteTab() {
                 </div>
               ))}
               <button onClick={saveSiteTexts} disabled={savingSection === 'textos'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'textos' ? 'Guardando...' : 'Guardar Textos'}</button>
+            </>
+          )}
+
+          {/* Nosotros — intro + stats */}
+          {aboutLoaded && (
+            <>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <p className="font-heading font-bold text-sm text-purple mb-3">P\u00e1gina &ldquo;Nosotros&rdquo;</p>
+              </div>
+              <div>
+                <label className="block font-heading font-semibold text-xs text-gray-500 mb-1">Texto de introducci\u00f3n</label>
+                <textarea value={aboutIntro} onChange={e => setAboutIntro(e.target.value)} rows={3} className={`${WI_CLS} resize-none`} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {aboutStats.map((s, i) => (
+                  <div key={i} className="space-y-1">
+                    <input value={s.value} onChange={e => setAboutStats(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} placeholder="+600" className={WI_CLS} />
+                    <input value={s.label} onChange={e => setAboutStats(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="Eventos" className={WI_CLS} />
+                  </div>
+                ))}
+              </div>
+              <button onClick={saveAbout} disabled={savingSection === 'about'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'about' ? 'Guardando...' : 'Guardar Nosotros'}</button>
             </>
           )}
         </div>
@@ -2343,10 +2452,72 @@ function WebsiteTab() {
         </div>
       )}
 
+      {/* FAQ Editor */}
+      {section === 'faq' && faqLoaded && (
+        <div className="space-y-3">
+          <p className="font-body text-gray-500 text-sm">Preguntas frecuentes que aparecen en la p\u00e1gina /preguntas</p>
+          {faqItems.map((item, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-bold text-xs text-gray-400">Pregunta {i + 1}</span>
+                <button
+                  onClick={() => setFaqItems(prev => prev.filter((_, j) => j !== i))}
+                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  aria-label="Eliminar pregunta"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <input
+                value={item.q}
+                onChange={e => setFaqItems(prev => prev.map((p, j) => j === i ? { ...p, q: e.target.value } : p))}
+                placeholder="\u00bfPregunta?"
+                className={WI_CLS}
+              />
+              <textarea
+                value={item.a}
+                onChange={e => setFaqItems(prev => prev.map((p, j) => j === i ? { ...p, a: e.target.value } : p))}
+                placeholder="Respuesta"
+                rows={3}
+                className={`${WI_CLS} resize-none`}
+              />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <button onClick={() => setFaqItems(prev => [...prev, { q: '', a: '' }])} className="bg-gray-100 text-gray-600 font-heading font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">+ Agregar pregunta</button>
+            <button onClick={saveFaq} disabled={savingSection === 'faq'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'faq' ? 'Guardando...' : 'Guardar FAQ'}</button>
+          </div>
+        </div>
+      )}
+
       {/* C) Areas */}
       {section === 'areas' && areasLoaded && (
-        <div className="space-y-4">
-          <p className="font-body text-gray-500 text-sm">&Aacute;reas de cobertura con precio de transporte</p>
+        <div className="space-y-6">
+          {/* Contact info */}
+          {contactLoaded && (
+            <div className="space-y-3">
+              <p className="font-heading font-bold text-sm text-purple">Datos de contacto</p>
+              <p className="font-body text-gray-500 text-xs -mt-2">Se usan en footer, hero, WhatsApp y datos bancarios</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={contactInfo.whatsapp} onChange={e => setContactInfo({ ...contactInfo, whatsapp: e.target.value })} placeholder="WhatsApp (50764332724)" className={WI_CLS} />
+                <input value={contactInfo.phone} onChange={e => setContactInfo({ ...contactInfo, phone: e.target.value })} placeholder="Tel\u00e9fono" className={WI_CLS} />
+                <input value={contactInfo.email} onChange={e => setContactInfo({ ...contactInfo, email: e.target.value })} placeholder="Email" className={WI_CLS} />
+                <input value={contactInfo.instagram} onChange={e => setContactInfo({ ...contactInfo, instagram: e.target.value })} placeholder="@instagram" className={WI_CLS} />
+              </div>
+              <p className="font-heading font-bold text-sm text-purple pt-2">Datos bancarios</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={contactInfo.bank_name} onChange={e => setContactInfo({ ...contactInfo, bank_name: e.target.value })} placeholder="Banco" className={WI_CLS} />
+                <input value={contactInfo.bank_holder} onChange={e => setContactInfo({ ...contactInfo, bank_holder: e.target.value })} placeholder="Titular" className={WI_CLS} />
+                <input value={contactInfo.bank_account_type} onChange={e => setContactInfo({ ...contactInfo, bank_account_type: e.target.value })} placeholder="Tipo de cuenta" className={WI_CLS} />
+                <input value={contactInfo.bank_account_number} onChange={e => setContactInfo({ ...contactInfo, bank_account_number: e.target.value })} placeholder="N\u00famero de cuenta" className={WI_CLS} />
+              </div>
+              <button onClick={saveContact} disabled={savingSection === 'contact'} className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors text-sm disabled:opacity-50">{savingSection === 'contact' ? 'Guardando...' : 'Guardar contacto'}</button>
+            </div>
+          )}
+
+          <div className="border-t border-gray-100 pt-4">
+            <p className="font-body text-gray-500 text-sm">&Aacute;reas de cobertura con precio de transporte</p>
+          </div>
           <div className="space-y-2">
             {areas.map((area, i) => (
               <div key={i} className="flex gap-2 items-center">
