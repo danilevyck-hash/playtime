@@ -20,7 +20,7 @@ export default function CarritoContent() {
   const [rules, setRules] = useState<CrossSellRules>({});
   const allProducts = useProducts();
 
-  const { products: addonSuggestions, anchorName } = useMemo(
+  const { products: addonSuggestions } = useMemo(
     () => buildCrossSellSuggestions(items, allProducts, rules, fallbackIds, 6),
     [items, allProducts, rules, fallbackIds],
   );

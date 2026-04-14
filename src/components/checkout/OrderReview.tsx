@@ -42,7 +42,7 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
     getCrossSellRules().then(setRules).catch(() => { /* ignore */ });
   }, []);
 
-  const { products: suggestions, anchorName } = useMemo(
+  const { products: suggestions } = useMemo(
     () => buildCrossSellSuggestions(items, allProducts, rules, fallbackIds, 6),
     [items, allProducts, rules, fallbackIds],
   );
