@@ -112,7 +112,7 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
       {suggestions.length > 0 && (
         <div className="bg-white rounded-xl p-4 border border-orange/20">
           <h3 className="font-heading font-bold text-sm text-orange mb-1">
-            {anchorName ? `${'\u2728'} Para tu ${anchorName}, agrega:` : `${'\u2728'} Antes de terminar...`}
+            {'\u2728'} Completa tu experiencia con:
           </h3>
           <p className="font-body text-xs text-gray-500 mb-3">Otros clientes agregaron esto a su fiesta</p>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">

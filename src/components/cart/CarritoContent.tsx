@@ -71,7 +71,7 @@ export default function CarritoContent() {
       {addonSuggestions.length > 0 && (
         <div className="mb-8">
           <h2 className="font-heading font-bold text-sm text-gray-500 mb-3">
-            {anchorName ? `Como pediste ${anchorName}, súmale:` : 'También piden con esto:'}
+            Completa tu experiencia con:
           </h2>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
             {addonSuggestions.map(p => (
