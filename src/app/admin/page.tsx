@@ -759,6 +759,7 @@ function OrdersTab() {
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
+  const [eventMonthFilter, setEventMonthFilter] = useState<string>('all'); // 'all' or 'YYYY-MM'
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
     PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
@@ -853,13 +854,16 @@ function OrdersTab() {
     URL.revokeObjectURL(url);
   };
 
-  // Filter orders by search + status
+  // Filter orders by search + status + event month
   const filteredOrders = useMemo(() => {
     let result = orders;
     if (statusFilter === 'confirmed') result = result.filter(o => getOrderStatus(o) === 'confirmado');
     else if (statusFilter === 'realizado') result = result.filter(o => getOrderStatus(o) === 'realizado');
     else if (statusFilter === 'pending') result = result.filter(o => getOrderStatus(o) === 'pendiente');
     else if (statusFilter === 'rejected') result = result.filter(o => getOrderStatus(o) === 'rechazado');
+    if (eventMonthFilter !== 'all') {
+      result = result.filter(o => (o.event_date || '').startsWith(eventMonthFilter));
+    }
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter(o =>
@@ -867,8 +871,17 @@ function OrdersTab() {
         String(o.order_number).includes(q) || (o.customer_phone && o.customer_phone.includes(q))
       );
     }
-    return result;
-  }, [orders, search, statusFilter]);
+    // Sort: upcoming events first (asc from today), past events at the bottom (reverse chrono)
+    const today = new Date().toISOString().split('T')[0];
+    return [...result].sort((a, b) => {
+      const aFuture = (a.event_date || '') >= today;
+      const bFuture = (b.event_date || '') >= today;
+      if (aFuture && !bFuture) return -1;
+      if (!aFuture && bFuture) return 1;
+      if (aFuture && bFuture) return (a.event_date || '').localeCompare(b.event_date || '');
+      return (b.event_date || '').localeCompare(a.event_date || '');
+    });
+  }, [orders, search, statusFilter, eventMonthFilter]);
 
   // Group by event date for "by event" view
   const groupedByEvent = useMemo(() => {
@@ -887,24 +900,53 @@ function OrdersTab() {
     return groups;
   }, [filteredOrders, sortMode]);
 
-  // Monthly summary — only confirmed orders (confirmado/realizado)
+  // Monthly summary — grouped by EVENT date (solo confirmados)
+  // Próximos meses arriba, pasados al final
   const monthlySummary = useMemo(() => {
     const confirmedOnly = orders.filter(o => o.confirmed);
     const months: Record<string, { total: number; count: number }> = {};
     for (const o of confirmedOnly) {
-      const date = new Date(o.created_at);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!o.event_date) continue;
+      const key = o.event_date.substring(0, 7); // 'YYYY-MM'
       if (!months[key]) months[key] = { total: 0, count: 0 };
       months[key].total += o.total;
       months[key].count += 1;
     }
-    return Object.entries(months)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([month, data]) => {
-        const [y, m] = month.split('-');
-        const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-        return { label: `${MESES[Number(m) - 1]} ${y}`, ...data };
-      });
+    const todayKey = new Date().toISOString().substring(0, 7);
+    const entries = Object.entries(months).sort(([a], [b]) => {
+      const aFuture = a >= todayKey;
+      const bFuture = b >= todayKey;
+      if (aFuture && !bFuture) return -1;
+      if (!aFuture && bFuture) return 1;
+      if (aFuture && bFuture) return a.localeCompare(b); // próximos ascendente
+      return b.localeCompare(a); // pasados reverse
+    });
+    return entries.map(([month, data]) => {
+      const [y, m] = month.split('-');
+      const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      return { key: month, label: `${MESES[Number(m) - 1]} ${y}`, isFuture: month >= todayKey, ...data };
+    });
+  }, [orders]);
+
+  // Event months available for the dropdown filter (all months that have orders)
+  const eventMonthOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of orders) {
+      if (o.event_date) set.add(o.event_date.substring(0, 7));
+    }
+    const todayKey = new Date().toISOString().substring(0, 7);
+    return Array.from(set).sort((a, b) => {
+      const aFuture = a >= todayKey;
+      const bFuture = b >= todayKey;
+      if (aFuture && !bFuture) return -1;
+      if (!aFuture && bFuture) return 1;
+      if (aFuture && bFuture) return a.localeCompare(b);
+      return b.localeCompare(a);
+    }).map(month => {
+      const [y, m] = month.split('-');
+      const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      return { key: month, label: `${MESES[Number(m) - 1]} ${y}` };
+    });
   }, [orders]);
 
   const { totalOrders, confirmedOrders, realizadoOrders, rejectedOrders, pendingOrders, confirmedRevenue } = useMemo(() => {
@@ -943,17 +985,21 @@ function OrdersTab() {
         </div>
       )}
 
-      {/* Monthly Summary — compact collapsible, hidden for vendedora */}
+      {/* Monthly Summary — agrupa por MES DE EVENTO, hidden for vendedora */}
       {_adminRole === 'admin' && monthlySummary.length > 0 && (
         <details className="bg-white rounded-2xl border border-gray-100 mb-5 group">
           <summary className="flex items-center justify-between p-4 cursor-pointer select-none">
-            <span className="font-heading font-bold text-sm text-purple">Resumen mensual</span>
+            <span className="font-heading font-bold text-sm text-purple">Cumpleaños por mes</span>
             <span className="font-heading font-bold text-sm text-purple">{formatCurrency(confirmedRevenue)}</span>
           </summary>
           <div className="px-4 pb-4 space-y-1.5">
             {monthlySummary.map((m) => (
-              <div key={m.label} className="flex items-center justify-between py-1.5 text-sm">
-                <span className="font-heading text-gray-700">{m.label} <span className="text-gray-400 text-xs">({m.count})</span></span>
+              <div key={m.key} className="flex items-center justify-between py-1.5 text-sm">
+                <span className="font-heading text-gray-700">
+                  {m.label}
+                  {m.isFuture && <span className="ml-1.5 text-[9px] font-bold text-orange bg-orange/10 px-1.5 py-0.5 rounded-full">PRÓXIMO</span>}
+                  <span className="text-gray-400 text-xs ml-1">({m.count} {m.count === 1 ? 'cumpleaños' : 'cumpleaños'})</span>
+                </span>
                 <span className="font-heading font-bold text-purple">{formatCurrency(m.total)}</span>
               </div>
             ))}
@@ -977,6 +1023,26 @@ function OrdersTab() {
           {loading ? '...' : '\u21BB'}
         </button>
       </div>
+
+      {/* Event month filter */}
+      {eventMonthOptions.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="font-heading font-semibold text-xs text-gray-500">Mes del evento:</span>
+          <select
+            value={eventMonthFilter}
+            onChange={(e) => setEventMonthFilter(e.target.value)}
+            className="flex-1 bg-gray-100 text-gray-700 font-heading font-semibold text-xs rounded-full px-3 py-1.5 border-0 focus:outline-none focus:ring-2 focus:ring-purple/30"
+          >
+            <option value="all">Todos los meses</option>
+            {eventMonthOptions.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+          {eventMonthFilter !== 'all' && (
+            <button onClick={() => setEventMonthFilter('all')} className="text-gray-400 hover:text-purple text-xs font-heading font-semibold">Limpiar</button>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative mb-4">
