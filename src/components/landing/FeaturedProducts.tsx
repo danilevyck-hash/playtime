@@ -73,24 +73,24 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
               </button>
 
               {/* Content */}
-              <div className="p-5 flex flex-col flex-1">
-                <div className="text-xs font-heading font-semibold text-teal uppercase tracking-wider mb-2">
+              <div className="p-3 sm:p-5 flex flex-col flex-1">
+                <div className="text-[10px] sm:text-xs font-heading font-semibold text-teal uppercase tracking-wider mb-1 sm:mb-2">
                   {CATEGORIES.find(c => c.id === product.category)?.label || product.category}
                 </div>
                 <h3
-                  className="font-heading font-bold text-lg text-gray-800 mb-1 line-clamp-2 cursor-pointer hover:text-purple transition-colors"
+                  className="font-heading font-bold text-sm sm:text-lg text-gray-800 mb-0.5 sm:mb-1 line-clamp-2 cursor-pointer hover:text-purple transition-colors leading-tight"
                   onClick={() => setSelectedProduct(product)}
                 >
                   {product.name}
                 </h3>
-                <p className="font-body font-normal text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">
+                <p className="font-body font-normal text-xs sm:text-sm text-gray-500 mb-2 sm:mb-4 leading-relaxed line-clamp-2">
                   {product.description}
                 </p>
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200 gap-2">
+                <div className="flex items-center justify-between mt-auto pt-2 sm:pt-4 border-t border-gray-200 gap-1 sm:gap-2 overflow-hidden">
                   {product.price === 0 ? (
-                    <span className="inline-block bg-gray-100 text-gray-500 font-heading font-semibold text-xs px-3 py-1 rounded-full whitespace-nowrap">Consultar</span>
+                    <span className="inline-block bg-gray-100 text-gray-500 font-heading font-semibold text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">Consultar</span>
                   ) : (
-                    <span className="font-heading font-bold text-2xl text-purple whitespace-nowrap">
+                    <span className="font-heading font-bold text-base sm:text-2xl text-purple whitespace-nowrap">
                       {formatCurrency(product.price)}
                     </span>
                   )}
@@ -99,8 +99,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                       <Button size="sm" variant="outline">Preguntar</Button>
                     </a>
                   ) : (
-                    <Button
-                      size="sm"
+                    <button
                       onClick={() =>
                         addItem({
                           productId: product.id,
@@ -110,9 +109,10 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                           image: product.image,
                         })
                       }
+                      className="bg-orange text-white font-heading font-bold text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full hover:bg-orange/90 transition-colors whitespace-nowrap shrink-0"
                     >
-                      {'\u00a1'}Lo quiero!
-                    </Button>
+                      + Agregar
+                    </button>
                   )}
                 </div>
               </div>
