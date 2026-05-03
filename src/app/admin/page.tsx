@@ -493,7 +493,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             {ORDER_STATUSES.map(s => (
               <button key={s.key} onClick={() => onSetStatus(order.id, s.key)}
                 disabled={savingAction === 'status'}
-                className={`flex-1 py-1.5 rounded-lg text-[11px] font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                className={`flex-1 py-2 min-h-[40px] rounded-lg text-xs font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
               >{s.label}</button>
             ))}
           </div>
@@ -504,8 +504,8 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               WhatsApp
             </a>
-            {!isEditing && <button onClick={() => startEditOrder()} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Editar</button>}
-            {isEditing && <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">Cancelar</button>}
+            {!isEditing && <button onClick={() => startEditOrder()} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">Editar</button>}
+            {isEditing && <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">Cancelar</button>}
             <button onClick={async () => {
               const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
               const logoUrl = await fetchLogoUrl().catch(() => null);
@@ -515,10 +515,10 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               const pdfTotal = pdfBase + pdfSurch;
               await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
               showToast('PDF descargado');
-            }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">PDF</button>
+            }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">PDF</button>
             {/* Overflow menu with delete */}
             <div className="relative ml-auto">
-              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
+              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
               </button>
               {showMoreMenu && (
@@ -551,7 +551,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                     value={ef.event_time || ''}
                     onChange={e => setEditForm(p => ({ ...p, event_time: e.target.value }))}
                     placeholder="Ej: 4:00 pm"
-                    className="border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none w-32"
+                    className="border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none w-32 min-h-[44px]"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
@@ -561,7 +561,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                   </select>
                   <input value={ef.event_address || ''} onChange={e => setEditForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
                 </div>
-                <div className="grid grid-cols-3 gap-2 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                   <input value={ef.birthday_child_name || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
                   <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
                   <input value={ef.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
@@ -602,19 +602,21 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             {/* Items */}
             <div className="divide-y divide-gray-100">
               {order.items.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between px-3 py-2.5 text-sm gap-2">
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2.5 text-sm gap-2">
                   {isEditingItems && item.id ? (
                     <>
-                      <span className="flex-1 truncate text-gray-700 text-xs">{item.product_name}</span>
-                      <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" min="1" />
-                      <span className="text-gray-400 text-xs">x</span>
-                      <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right text-xs" min="0" step="0.01" />
-                      <span className="text-xs text-gray-400 w-16 text-right">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
-                      <button onClick={() => handleRemoveItem(item.id!)} className="text-gray-300 hover:text-red-500 ml-1"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      <span className="flex-1 truncate text-gray-700 text-sm">{item.product_name}</span>
+                      <div className="flex items-center gap-2 sm:gap-1">
+                        <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-full sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-center text-sm" min="1" />
+                        <span className="text-gray-500 text-sm">x</span>
+                        <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-full sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-right text-sm" min="0" step="0.01" />
+                        <span className="text-sm text-gray-500 w-20 text-right shrink-0">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
+                        <button onClick={() => handleRemoveItem(item.id!)} className="text-gray-400 hover:text-red-500 min-h-[40px] min-w-[40px] flex items-center justify-center"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
+                      <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-500">x{item.quantity}</span></span>
                       <span className="font-heading font-semibold">{formatCurrency(item.line_total)}</span>
                     </>
                   )}
@@ -625,17 +627,17 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             {isEditingItems && (
               <div className="border-t border-gray-200 px-3 py-2.5 bg-gray-50/50 space-y-2">
                 <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
-                <div className="flex gap-1">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-1">
                   <div className="flex-1 relative">
                     <input type="text" value={newItemForm.name}
                       onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8) as typeof PRODUCTS); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
                       onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                      placeholder="Buscar producto..." className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs font-body" />
+                      placeholder="Buscar producto..." className="w-full min-h-[44px] border border-gray-200 rounded px-3 py-2 text-sm font-body" />
                     {showSuggestions && productSuggestions.length > 0 && (
                       <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-48 overflow-y-auto">
                         {productSuggestions.map(p => (
-                          <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-xs font-body flex justify-between gap-2 min-h-[44px] items-center">
+                          <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-sm font-body flex justify-between gap-2 min-h-[44px] items-center">
                             <span className="truncate text-gray-700">{p.name}</span>
                             <span className="text-purple font-heading font-semibold shrink-0">${p.price}</span>
                           </button>
@@ -643,9 +645,11 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                       </div>
                     )}
                   </div>
-                  <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="w-12 border border-gray-200 rounded px-1 py-1.5 text-center text-xs" min="1" />
-                  <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="w-20 border border-gray-200 rounded px-1 py-1.5 text-right text-xs" min="0" step="0.01" />
-                  <button onClick={() => handleAddItem()} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-2.5 py-1.5 rounded text-xs disabled:opacity-40">+</button>
+                  <div className="flex gap-2 sm:gap-1">
+                    <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="flex-1 sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-center text-sm" min="1" />
+                    <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="flex-1 sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-right text-sm" min="0" step="0.01" />
+                    <button onClick={() => handleAddItem()} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-4 min-h-[44px] min-w-[44px] rounded text-sm disabled:opacity-40">+</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -661,7 +665,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                 {liveDisc > 0 ? (
                   <div className="flex items-center gap-1.5">
                     <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
-                    <button onClick={() => { saveDiscount(0, 'fixed'); }} className="text-gray-300 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                    <button onClick={() => { saveDiscount(0, 'fixed'); }} className="text-gray-400 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
@@ -680,13 +684,13 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                 {order.transport_cost_confirmed !== null && !isEditingTransport ? (
                   <div className="flex items-center gap-1.5">
                     <span className={`font-heading font-semibold ${liveTrans > 0 ? 'text-gray-700' : 'text-gray-400'}`}>{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
-                    <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-300 hover:text-orange"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                    <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
                     <input type="number" value={transportInput || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInput(e.target.value)} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
                     <button onClick={() => { saveTransport(); setIsEditingTransport(false); }} disabled={!transportInput || savingAction === 'transport'} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === 'transport' ? '...' : 'Confirmar'}</button>
-                    {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-300 hover:text-gray-500"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                    {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-500"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
                   </div>
                 )}
               </div>
@@ -732,7 +736,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                         <span className="font-body text-gray-600">{d.date}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                          <button onClick={() => removeDeposit(i)} className="text-gray-300 hover:text-red-500 text-xs">{'\u2715'}</button>
+                          <button onClick={() => removeDeposit(i)} className="text-gray-400 hover:text-red-500 text-xs">{'\u2715'}</button>
                         </div>
                       </div>
                     ))}
@@ -1029,16 +1033,16 @@ function OrdersTab() {
       {/* Filters */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${pendingOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['realizado', `Realizados (${realizadoOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setStatusFilter(key)} className={`px-3 py-1 rounded-full font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <button key={key} onClick={() => setStatusFilter(key)} className={`px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {label}
           </button>
         ))}
-        <span className="mx-1 text-gray-200">|</span>
-        <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="px-3 py-1 rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
+        <span className="mx-1 text-gray-200 self-center">|</span>
+        <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
           {sortMode === 'created' ? 'Por evento' : 'Por fecha'}
         </button>
-        <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-3 py-1 rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
-        <button onClick={fetchOrders} disabled={loading} className="px-3 py-1 rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto">
+        <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
+        <button onClick={fetchOrders} disabled={loading} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto">
           {loading ? '...' : '\u21BB'}
         </button>
       </div>
@@ -2089,7 +2093,7 @@ function CatalogTab() {
               className={`bg-white rounded-xl border border-gray-100 overflow-hidden transition-all ${catDragging === cat.id ? 'opacity-40 scale-95' : ''} ${catDragOver === cat.id && catDragging !== cat.id ? 'border-t-2 border-t-purple' : ''}`}
             >
               <div className="flex items-center">
-                <div className="px-2 cursor-grab active:cursor-grabbing text-gray-300 hover:text-purple select-none text-lg">{'\u2807'}</div>
+                <div className="px-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg">{'\u2807'}</div>
                 <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="flex-1 text-left p-4 pl-0 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">

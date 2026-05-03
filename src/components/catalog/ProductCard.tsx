@@ -57,7 +57,7 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
           tabIndex={0}
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggle(product.id); }}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); toggle(product.id); } }}
-          className="absolute top-1.5 left-1.5 z-[1] w-7 h-7 flex items-center justify-center"
+          className="absolute top-0 left-0 z-[1] w-11 h-11 flex items-center justify-center"
           aria-label={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" style={{ filter: fav ? 'none' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))' }}>
@@ -101,7 +101,7 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
                 });
               }
             }}
-            className="rounded-full bg-orange text-white px-3 py-1.5 font-heading font-semibold text-[10px] sm:text-xs hover:bg-orange/90 transition-colors shrink-0"
+            className="rounded-full bg-orange text-white px-4 py-2.5 min-h-[44px] font-heading font-semibold text-xs sm:text-sm hover:bg-orange/90 transition-colors shrink-0"
           >
             Lo quiero
           </button>

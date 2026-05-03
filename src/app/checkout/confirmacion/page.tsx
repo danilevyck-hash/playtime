@@ -159,9 +159,11 @@ function ConfirmacionContent() {
           <Link href="/">
             <Button variant="ghost" size="md" className="w-full">Volver al inicio</Button>
           </Link>
-          <button
+          <Button
             type="button"
-            className="text-sm text-gray-500 hover:text-purple transition-colors font-body underline"
+            variant="outline"
+            size="md"
+            className="w-full min-h-[44px]"
             onClick={() => {
               const eventDate = orderSummary?.date || '';
               const rawTime = (orderSummary?.time || '').trim();
@@ -219,14 +221,14 @@ function ConfirmacionContent() {
             }}
           >
             Agregar al calendario
-          </button>
+          </Button>
         </div>
 
         <p className="font-body text-sm text-gray-500">
           {'\u00bf'}No tienes WhatsApp? Ll&aacute;manos al {CONTACT.phone}
         </p>
 
-        <p className="font-body text-sm text-gray-400">
+        <p className="font-body text-sm text-gray-500">
           Tambi&eacute;n puedes enviarnos el comprobante de pago a {CONTACT.email}
         </p>
       </div>
@@ -236,7 +238,7 @@ function ConfirmacionContent() {
 
 export default function ConfirmacionPage() {
   return (
-    <Suspense fallback={<div className="min-h-[70vh] flex items-center justify-center"><p className="font-body text-gray-400">Cargando...</p></div>}>
+    <Suspense fallback={<div className="min-h-[70vh] flex items-center justify-center"><p className="font-body text-gray-500">Cargando...</p></div>}>
       <ConfirmacionContent />
     </Suspense>
   );

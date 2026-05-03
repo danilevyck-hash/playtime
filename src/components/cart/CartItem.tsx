@@ -30,13 +30,13 @@ export default function CartItem({ item }: CartItemProps) {
         <div className="flex-1 min-w-0">
           <h3 className="font-heading font-semibold text-sm text-gray-800 leading-tight">{item.name.includes(' — ') ? item.name.split(' — ')[0] : item.name}</h3>
           {item.name.includes(' — ') && (
-            <span className="inline-block text-[10px] font-heading font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mt-0.5">{item.name.split(' — ')[1]}</span>
+            <span className="inline-block text-xs font-heading font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mt-0.5">{item.name.split(' — ')[1]}</span>
           )}
-          <p className="text-xs font-body text-gray-400 mt-0.5">{formatCurrency(item.unitPrice)} c/u</p>
+          <p className="text-xs font-body text-gray-500 mt-0.5">{formatCurrency(item.unitPrice)} c/u</p>
         </div>
         <button
           onClick={() => removeItem(item.productId)}
-          className="p-2 text-gray-300 hover:text-pink transition-colors flex-shrink-0"
+          className="p-2 text-gray-400 hover:text-pink transition-colors flex-shrink-0"
           aria-label={`Eliminar ${item.name}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -56,7 +56,7 @@ export default function CartItem({ item }: CartItemProps) {
                 updateQuantity(item.productId, next);
               }
             }}
-            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
+            className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
             aria-label={`Disminuir cantidad de ${item.name}`}
           >
             -
@@ -64,7 +64,7 @@ export default function CartItem({ item }: CartItemProps) {
           <span className="w-8 text-center font-heading font-semibold text-gray-800">{item.quantity}</span>
           <button
             onClick={() => updateQuantity(item.productId, item.quantity + stepQty)}
-            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
+            className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"
             aria-label={`Aumentar cantidad de ${item.name}`}
           >
             +
@@ -73,7 +73,7 @@ export default function CartItem({ item }: CartItemProps) {
         <p className="font-heading font-bold text-gray-800">{formatCurrency(item.unitPrice * item.quantity)}</p>
       </div>
       {stepQty > 1 && (
-        <p className="text-[10px] font-body text-orange/70 pl-[68px] mt-1">Se vende de {stepQty} en {stepQty}</p>
+        <p className="text-xs font-body text-orange pl-[68px] mt-1">Se vende de {stepQty} en {stepQty}</p>
       )}
     </div>
   );

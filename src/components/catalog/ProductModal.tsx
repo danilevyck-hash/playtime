@@ -255,7 +255,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
             </div>
           )}
 
-          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 py-4 flex items-center justify-between gap-3">
+          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3">
             <div className="shrink-0">
               <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(activePrice)}</span>
               {inCart && <span className="text-xs font-heading font-semibold text-teal ml-2">{inCart.quantity} en carrito</span>}

@@ -59,7 +59,7 @@ export default function Navbar() {
             {/* Price hidden on mobile — only badge shows */}
             <Badge count={itemCount} />
           </Link>
-          <button onClick={() => setMenuOpen(true)} className="p-1" aria-label="Abrir men\u00fa">
+          <button onClick={() => setMenuOpen(true)} className="p-3 -mr-3" aria-label="Abrir men\u00fa">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>

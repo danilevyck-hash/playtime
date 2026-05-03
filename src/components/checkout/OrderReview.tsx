@@ -126,7 +126,7 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
                   </div>
                 )}
                 <div className="p-2">
-                  <p className="font-heading font-semibold text-[11px] text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
+                  <p className="font-heading font-semibold text-xs text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
                   <div className="flex items-center justify-between">
                     <span className="font-heading font-bold text-xs text-purple">{formatCurrency(p.price)}</span>
                     <button
@@ -141,7 +141,7 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
                         quantityStep: p.quantityStep,
                         quantity: p.minQuantity || 1,
                       })}
-                      className="w-6 h-6 rounded-full bg-orange text-white flex items-center justify-center text-sm font-bold hover:bg-orange/90 transition-colors"
+                      className="w-9 h-9 rounded-full bg-orange text-white flex items-center justify-center text-base font-bold hover:bg-orange/90 transition-colors"
                       aria-label={`Agregar ${p.name}`}
                     >
                       +
@@ -200,7 +200,7 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
           </span>
         </div>
         {isTransportPending && (
-          <p className="text-xs text-gray-400 font-body mt-1">*El costo de transporte se confirma por WhatsApp antes de proceder con el pago</p>
+          <p className="text-xs text-gray-500 font-body mt-1">*El costo de transporte se confirma por WhatsApp antes de proceder con el pago</p>
         )}
       </div>
 

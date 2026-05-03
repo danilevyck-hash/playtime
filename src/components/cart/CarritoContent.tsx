@@ -85,7 +85,7 @@ export default function CarritoContent() {
                   </div>
                 )}
                 <div className="p-2">
-                  <p className="font-heading font-semibold text-[11px] text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
+                  <p className="font-heading font-semibold text-xs text-gray-800 line-clamp-2 leading-tight mb-1">{p.name}</p>
                   <div className="flex items-center justify-between">
                     <span className="font-heading font-bold text-xs text-purple">{formatCurrency(p.price)}</span>
                     <button
@@ -100,7 +100,7 @@ export default function CarritoContent() {
                         quantityStep: p.quantityStep,
                         quantity: p.minQuantity || 1,
                       })}
-                      className="w-6 h-6 rounded-full bg-orange text-white flex items-center justify-center text-sm font-bold hover:bg-orange/90 transition-colors"
+                      className="w-9 h-9 rounded-full bg-orange text-white flex items-center justify-center text-base font-bold hover:bg-orange/90 transition-colors"
                     >
                       +
                     </button>
@@ -117,7 +117,7 @@ export default function CarritoContent() {
       <div className="mt-6 text-center">
         <button
           onClick={() => { if (window.confirm('\u00bfSegura que quieres empezar de nuevo? Se borrar\u00e1 todo lo que seleccionaste.')) clearCart(); }}
-          className="text-xs font-body text-gray-400 hover:text-pink transition-colors"
+          className="text-xs font-body text-gray-500 hover:text-pink transition-colors"
         >
           {texts.cart_clear_label}
         </button>
