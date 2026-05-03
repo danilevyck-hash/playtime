@@ -56,7 +56,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
   ].filter(Boolean) : [];
 
   const minQty = Math.max(1, product?.minQuantity || 1);
-  const stepQty = Math.max(1, product?.quantityStep || 1);
+  const stepQty = 1;
   const [quantity, setQuantity] = useState(minQty);
 
   useEffect(() => {
@@ -230,19 +230,6 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
           <p className="font-body text-gray-500 leading-relaxed mb-6">
             {product.description}
           </p>
-
-          {/* Variant selector */}
-          {(stepQty > 1 || minQty > 1) && (
-            <div className="mb-4 bg-orange/10 border border-orange/20 rounded-xl px-4 py-2.5">
-              <p className="font-heading font-semibold text-xs text-orange">
-                {stepQty > 1 && minQty > 1
-                  ? `Se vende en paquetes de ${stepQty} (mínimo ${minQty})`
-                  : stepQty > 1
-                  ? `Se agregan de ${stepQty} en ${stepQty}`
-                  : `Mínimo ${minQty} unidades`}
-              </p>
-            </div>
-          )}
 
           {hasVariants && (
             <div className="mb-6">

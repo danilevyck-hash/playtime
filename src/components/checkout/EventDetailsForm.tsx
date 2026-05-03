@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { OrderEvent, EVENT_AREAS } from '@/lib/types';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -12,6 +12,215 @@ interface Props {
   onBack: () => void;
   areasLoaded?: boolean;
   eventAreas?: { name: string; price: number }[];
+}
+
+// ─── iOS-style drum-roll TimePicker ───
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1..12
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,...,55
+const AMPM = ['AM', 'PM'] as const;
+const ITEM_HEIGHT = 36;
+const VISIBLE_ITEMS = 5;
+const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
+const PADDING = ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2);
+
+function parseTime(value: string, defaultHour: number, defaultMinute: number, defaultAmpm: 'AM' | 'PM') {
+  if (!value) return { hour: defaultHour, minute: defaultMinute, ampm: defaultAmpm };
+  const trimmed = value.trim().toLowerCase();
+  const m = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(trimmed);
+  if (!m) return { hour: defaultHour, minute: defaultMinute, ampm: defaultAmpm };
+  let hour = Number(m[1]);
+  const rawMinute = Number(m[2]);
+  const ampmRaw = m[3]?.toUpperCase() as 'AM' | 'PM' | undefined;
+  let ampm: 'AM' | 'PM';
+  if (ampmRaw) {
+    ampm = ampmRaw;
+  } else {
+    ampm = hour >= 12 ? 'PM' : 'AM';
+    if (hour === 0) hour = 12;
+    else if (hour > 12) hour -= 12;
+  }
+  if (hour < 1 || hour > 12 || Number.isNaN(rawMinute)) return { hour: defaultHour, minute: defaultMinute, ampm: defaultAmpm };
+  // Snap to nearest 5
+  const minute = MINUTES.reduce((closest, m) => Math.abs(m - rawMinute) < Math.abs(closest - rawMinute) ? m : closest, MINUTES[0]);
+  return { hour, minute, ampm };
+}
+
+function formatTime(hour: number, minute: number, ampm: 'AM' | 'PM') {
+  return `${hour}:${String(minute).padStart(2, '0')} ${ampm.toLowerCase()}`;
+}
+
+interface ColumnProps<T> {
+  items: readonly T[];
+  selectedIndex: number;
+  onChange: (index: number) => void;
+  render: (item: T) => string;
+  ariaLabel: string;
+}
+
+function PickerColumn<T>({ items, selectedIndex, onChange, render, ariaLabel }: ColumnProps<T>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const lastReportedIndex = useRef(selectedIndex);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync external selectedIndex into scroll position
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (lastReportedIndex.current === selectedIndex) {
+      const target = selectedIndex * ITEM_HEIGHT;
+      if (Math.abs(el.scrollTop - target) > 1) {
+        el.scrollTop = target;
+      }
+      return;
+    }
+    lastReportedIndex.current = selectedIndex;
+    const target = selectedIndex * ITEM_HEIGHT;
+    if (Math.abs(el.scrollTop - target) > 1) {
+      el.scrollTo({ top: target, behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
+
+  // Initial position on mount
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTop = selectedIndex * ITEM_HEIGHT;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (scrollTimer.current) clearTimeout(scrollTimer.current);
+    scrollTimer.current = setTimeout(() => {
+      const idx = Math.round(el.scrollTop / ITEM_HEIGHT);
+      const clamped = Math.max(0, Math.min(items.length - 1, idx));
+      const target = clamped * ITEM_HEIGHT;
+      if (Math.abs(el.scrollTop - target) > 1) {
+        el.scrollTo({ top: target, behavior: 'smooth' });
+      }
+      if (clamped !== lastReportedIndex.current) {
+        lastReportedIndex.current = clamped;
+        onChange(clamped);
+      }
+    }, 90);
+  }, [items.length, onChange]);
+
+  useEffect(() => () => { if (scrollTimer.current) clearTimeout(scrollTimer.current); }, []);
+
+  return (
+    <div className="relative w-20 select-none" role="listbox" aria-label={ariaLabel}>
+      {/* Highlight band */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 right-0 bg-purple/10 rounded-lg"
+        style={{ top: PADDING, height: ITEM_HEIGHT }}
+      />
+      <div
+        ref={ref}
+        onScroll={handleScroll}
+        className="overflow-y-auto scrollbar-hide snap-y snap-mandatory"
+        style={{ height: PICKER_HEIGHT, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+      >
+        <div style={{ paddingTop: PADDING, paddingBottom: PADDING }}>
+          {items.map((item, idx) => {
+            const distance = Math.abs(idx - selectedIndex);
+            const isSelected = idx === selectedIndex;
+            const opacity = isSelected ? 1 : Math.max(0.25, 1 - distance * 0.3);
+            const scale = isSelected ? 1 : Math.max(0.7, 1 - distance * 0.12);
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onChange(idx)}
+                aria-selected={isSelected}
+                role="option"
+                className="block w-full text-center font-heading snap-center transition-all"
+                style={{
+                  height: ITEM_HEIGHT,
+                  lineHeight: `${ITEM_HEIGHT}px`,
+                  opacity,
+                  transform: `scale(${scale})`,
+                  color: isSelected ? '#580459' : '#9ca3af',
+                  fontWeight: isSelected ? 700 : 500,
+                  fontSize: isSelected ? 18 : 16,
+                }}
+              >
+                {render(item)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface TimePickerProps {
+  value: string;
+  onChange: (val: string) => void;
+  defaultHour: number;
+  defaultMinute: number;
+  defaultAmpm: 'AM' | 'PM';
+}
+
+function TimePicker({ value, onChange, defaultHour, defaultMinute, defaultAmpm }: TimePickerProps) {
+  const parsed = parseTime(value, defaultHour, defaultMinute, defaultAmpm);
+  const [hour, setHour] = useState(parsed.hour);
+  const [minute, setMinute] = useState(parsed.minute);
+  const [ampm, setAmpm] = useState<'AM' | 'PM'>(parsed.ampm);
+  const initialized = useRef(false);
+
+  // Initialize stored value if empty
+  useEffect(() => {
+    if (!initialized.current && !value) {
+      initialized.current = true;
+      onChange(formatTime(parsed.hour, parsed.minute, parsed.ampm));
+    } else if (!initialized.current) {
+      initialized.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const update = (h: number, m: number, ap: 'AM' | 'PM') => {
+    setHour(h);
+    setMinute(m);
+    setAmpm(ap);
+    onChange(formatTime(h, m, ap));
+  };
+
+  const hourIdx = HOURS.indexOf(hour);
+  const minuteIdx = MINUTES.indexOf(minute);
+  const ampmIdx = AMPM.indexOf(ampm);
+
+  return (
+    <div className="bg-white border-2 border-gray-200 rounded-xl p-2">
+      <div className="flex items-center justify-center gap-2">
+        <PickerColumn
+          items={HOURS}
+          selectedIndex={hourIdx >= 0 ? hourIdx : 0}
+          onChange={(idx) => update(HOURS[idx], minute, ampm)}
+          render={(h) => String(h)}
+          ariaLabel="Hora"
+        />
+        <span className="font-heading font-bold text-purple text-lg" aria-hidden="true">:</span>
+        <PickerColumn
+          items={MINUTES}
+          selectedIndex={minuteIdx >= 0 ? minuteIdx : 0}
+          onChange={(idx) => update(hour, MINUTES[idx], ampm)}
+          render={(m) => String(m).padStart(2, '0')}
+          ariaLabel="Minutos"
+        />
+        <PickerColumn
+          items={AMPM as unknown as readonly string[]}
+          selectedIndex={ampmIdx >= 0 ? ampmIdx : 0}
+          onChange={(idx) => update(hour, minute, AMPM[idx])}
+          render={(a) => a}
+          ariaLabel="AM o PM"
+        />
+      </div>
+    </div>
+  );
 }
 
 // ─── MAIN FORM ───
@@ -44,7 +253,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-w-md mx-auto" noValidate>
-      <h2 className="font-heading font-bold text-xl text-purple">Cu&eacute;ntanos de tu fiesta {'\uD83C\uDF82'}</h2>
+      <h2 className="font-heading font-bold text-xl text-purple">Cu&eacute;ntanos de tu fiesta {'🎂'}</h2>
 
       {errors.length > 0 && (
         <div className="bg-pink/10 border border-pink/30 rounded-xl p-3">
@@ -58,7 +267,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
       {/* Date — simple native input */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'\uD83D\uDCC5'} Fecha del evento</label>
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📅'} Fecha del evento</label>
         <input
           type="date"
           value={data.date}
@@ -71,33 +280,33 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         )}
       </div>
 
-      {/* Time — free-text input */}
+      {/* Hora de inicio de la fiesta */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83D\uDD52'} Hora de inicio de la fiesta</label>
-        <input
-          type="text"
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'🕒'} Hora de inicio de la fiesta</label>
+        <TimePicker
           value={data.time || ''}
-          onChange={(e) => onChange({ ...data, time: e.target.value })}
-          placeholder="Ej: 4:00 pm"
-          className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
+          onChange={(v) => onChange({ ...data, time: v })}
+          defaultHour={4}
+          defaultMinute={0}
+          defaultAmpm="PM"
         />
       </div>
 
-      {/* Hora del show / animaci{'\u00F3'}n */}
+      {/* Hora del show / animación — opcional */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83C\uDFAD'} Hora del show / animaci{'\u00F3'}n <span className="text-gray-300 font-normal">{'\u2014'} opcional</span></label>
-        <input
-          type="text"
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'🎭'} Hora del show / animaci{'ó'}n <span className="text-gray-300 font-normal">{'—'} opcional</span></label>
+        <TimePicker
           value={data.showTime || ''}
-          onChange={(e) => onChange({ ...data, showTime: e.target.value })}
-          placeholder="Ej: 5:30 pm"
-          className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
+          onChange={(v) => onChange({ ...data, showTime: v })}
+          defaultHour={5}
+          defaultMinute={0}
+          defaultAmpm="PM"
         />
       </div>
 
       {/* Area */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'\uD83D\uDCCD'} Área del evento</label>
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📍'} Área del evento</label>
         <select
           value={data.area}
           onChange={(e) => onChange({ ...data, area: e.target.value })}
@@ -110,26 +319,26 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         </select>
         {data.area && (() => {
           const selectedArea = areas.find(a => a.name === data.area);
-          if (data.area === 'Otra \u00e1rea' || !selectedArea) {
-            return <p className="font-body text-sm text-teal mt-1 ml-1">{'\uD83D\uDE9A'} Transporte: se confirma por WhatsApp</p>;
+          if (data.area === 'Otra área' || !selectedArea) {
+            return <p className="font-body text-sm text-teal mt-1 ml-1">{'🚚'} Transporte: se confirma por WhatsApp</p>;
           }
           if (selectedArea.price === 0) {
-            return <p className="font-body text-sm text-teal mt-1 ml-1">{'\uD83D\uDE9A'} Transporte gratuito</p>;
+            return <p className="font-body text-sm text-teal mt-1 ml-1">{'🚚'} Transporte gratuito</p>;
           }
-          return <p className="font-body text-sm text-orange mt-1 ml-1">{'\uD83D\uDE9A'} Transporte: ${selectedArea.price}</p>;
+          return <p className="font-body text-sm text-orange mt-1 ml-1">{'🚚'} Transporte: ${selectedArea.price}</p>;
         })()}
       </div>
 
       {/* Address — auto-detect area */}
       <Input
-        label={'\uD83D\uDCCD Lugar del evento'}
+        label={'📍 Lugar del evento'}
         value={data.address}
         onChange={(e) => {
           const val = e.target.value;
           onChange({ ...data, address: val });
           // Auto-detect area from address text
           if (!data.area && val.length > 3) {
-            const match = areas.find(a => a.name !== 'Otra \u00e1rea' && val.toLowerCase().includes(a.name.toLowerCase()));
+            const match = areas.find(a => a.name !== 'Otra área' && val.toLowerCase().includes(a.name.toLowerCase()));
             if (match) onChange({ ...data, address: val, area: match.name });
           }
         }}
@@ -138,7 +347,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
       {/* Birthday child — always visible, optional */}
       <div className="space-y-3 pt-2">
-        <p className="font-heading font-semibold text-sm text-gray-400">{'\uD83C\uDF82'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
+        <p className="font-heading font-semibold text-sm text-gray-400">{'🎂'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
         <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumpleañero/a" />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
@@ -149,7 +358,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onBack} className="flex-1">Atrás</Button>
         <Button type="submit" className="flex-1" size="lg" disabled={!areasLoaded}>
-          {areasLoaded ? 'Continuar \u2192' : 'Preparando magia... \u2728'}
+          {areasLoaded ? 'Continuar →' : 'Preparando magia... ✨'}
         </Button>
       </div>
     </form>
