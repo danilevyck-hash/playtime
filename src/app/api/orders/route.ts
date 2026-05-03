@@ -375,7 +375,7 @@ export async function PATCH(request: NextRequest) {
       }
       // addItem: { product_name, quantity, unit_price }
       const lineTotal = round2(qty * price);
-      await db.from('pt_order_items').insert({
+      const { error: insertError } = await db.from('pt_order_items').insert({
         order_id: orderId,
         product_id: `manual-${Date.now()}`,
         product_name: addItem.product_name.trim(),
@@ -384,17 +384,33 @@ export async function PATCH(request: NextRequest) {
         unit_price: price,
         line_total: lineTotal,
       });
+      if (insertError) {
+        console.error('addItem insert error:', insertError);
+        return NextResponse.json({ error: insertError.message || 'Error al guardar item' }, { status: 500 });
+      }
       // Recalculate totals
-      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (itemsErr) {
+        console.error('addItem refetch items error:', itemsErr);
+        return NextResponse.json({ ok: true, warning: 'Item agregado pero no se pudieron recalcular los totales' });
+      }
       if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
+        const { data: orderData, error: orderErr } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
+        if (orderErr) {
+          console.error('addItem fetch order error:', orderErr);
+          return NextResponse.json({ ok: true, warning: 'Item agregado pero no se pudo recalcular el total' });
+        }
         const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
           transport: orderData?.transport_cost_confirmed ?? 0,
           discount: orderData?.discount ?? 0,
           discountType: orderData?.discount_type ?? 'fixed',
           paymentMethod: orderData?.payment_method ?? '',
         });
-        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+        const { error: updateErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+        if (updateErr) {
+          console.error('addItem update totals error:', updateErr);
+          return NextResponse.json({ ok: true, warning: 'Item agregado pero el total puede estar desactualizado' });
+        }
       }
       return NextResponse.json({ ok: true });
     }

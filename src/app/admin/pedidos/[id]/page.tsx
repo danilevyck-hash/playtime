@@ -191,14 +191,25 @@ export default function PedidoDetailPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const patchOrder = useCallback(async (body: Record<string, unknown>) => {
-    const res = await fetch('/api/orders', {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify({ orderId, ...body }),
-    });
-    return res.ok;
-  }, [authHeaders, orderId]);
+  const patchOrder = useCallback(async (body: Record<string, unknown>): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ orderId, ...body }),
+      });
+      if (res.ok) return { ok: true };
+      if (res.status === 401) {
+        router.push('/admin');
+        return { ok: false, error: 'Sesión expirada' };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || `Error ${res.status}` };
+    } catch (e) {
+      console.error('patchOrder network error:', e);
+      return { ok: false, error: 'Error de conexión' };
+    }
+  }, [authHeaders, orderId, router]);
 
   // Computed
   const liveItemsTotal = useMemo(() => {
@@ -252,10 +263,11 @@ export default function PedidoDetailPage() {
   const setStatus = async (s: OrderStatus) => {
     setSavingAction('status');
     try {
-      if (await patchOrder({ status: s })) {
+      const result = await patchOrder({ status: s });
+      if (result.ok) {
         setOrder(o => o ? { ...o, status: s, confirmed: s === 'confirmado' || s === 'realizado' } : o);
         showToast(`Estado: ${s}`);
-      } else { showToast('Error al cambiar estado'); }
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -292,11 +304,12 @@ export default function PedidoDetailPage() {
         birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
         notes: f.notes,
       };
-      if (await patchOrder({ editFields })) {
-        await loadOrder();
+      const result = await patchOrder({ editFields });
+      if (result.ok) {
         setIsEditing(false);
         showToast('Pedido actualizado');
-      } else { showToast('Error al guardar'); }
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -317,11 +330,12 @@ export default function PedidoDetailPage() {
     }));
     setSavingAction('items');
     try {
-      if (await patchOrder({ editItems })) {
-        await loadOrder();
+      const result = await patchOrder({ editItems });
+      if (result.ok) {
         setIsEditingItems(false);
         showToast('Items actualizados');
-      } else { showToast('Error'); }
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -332,13 +346,18 @@ export default function PedidoDetailPage() {
     if (!name || Number.isNaN(price)) return;
     setSavingAction('additem');
     try {
-      if (await patchOrder({ addItem: { product_name: name, quantity: qty, unit_price: price } })) {
-        await loadOrder();
+      const result = await patchOrder({ addItem: { product_name: name, quantity: qty, unit_price: price } });
+      if (result.ok) {
+        // Reset UI inmediatamente, ANTES de re-fetch
         setNewItemForm({ name: '', qty: '1', price: '' });
         setShowSuggestions(false);
         setOpenSections(prev => ({ ...prev, invoice: true }));
         showToast('✅ Item agregado');
-      } else { showToast('Error al agregar'); }
+        // Reload en background — no bloquea el botón
+        loadOrder();
+      } else {
+        showToast('❌ ' + result.error);
+      }
     } finally { setSavingAction(null); }
   };
 
@@ -346,7 +365,9 @@ export default function PedidoDetailPage() {
     if (!window.confirm('¿Eliminar este item?')) return;
     setSavingAction('removeitem');
     try {
-      if (await patchOrder({ removeItem: itemId })) { await loadOrder(); showToast('Item eliminado'); }
+      const result = await patchOrder({ removeItem: itemId });
+      if (result.ok) { showToast('Item eliminado'); loadOrder(); }
+      else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -356,11 +377,12 @@ export default function PedidoDetailPage() {
     if (Number.isNaN(v) || v < 0) return;
     setSavingAction('discount');
     try {
-      if (await patchOrder({ discount: v, discountType: t })) {
-        await loadOrder();
+      const result = await patchOrder({ discount: v, discountType: t });
+      if (result.ok) {
         setDiscountInput('');
         showToast('Descuento aplicado');
-      }
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -369,12 +391,13 @@ export default function PedidoDetailPage() {
     if (Number.isNaN(val) || val < 0) return;
     setSavingAction('transport');
     try {
-      if (await patchOrder({ transportCostConfirmed: val })) {
-        await loadOrder();
+      const result = await patchOrder({ transportCostConfirmed: val });
+      if (result.ok) {
         setTransportInput('');
         setIsEditingTransport(false);
         showToast('Transporte confirmado');
-      }
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
@@ -386,30 +409,33 @@ export default function PedidoDetailPage() {
     const total = newDeposits.reduce((s, d) => s + d.amount, 0);
     setSavingAction('deposit');
     try {
-      if (await patchOrder({ deposits: newDeposits, depositAmount: total })) {
-        await loadOrder();
+      const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+      if (result.ok) {
         setDepositInput('');
         showToast('Depósito agregado');
-      }
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
   const removeDeposit = async (idx: number) => {
     const newDeposits = (order.deposits || []).filter((_, i) => i !== idx);
     const total = newDeposits.reduce((s, d) => s + d.amount, 0);
-    if (await patchOrder({ deposits: newDeposits, depositAmount: total })) {
-      await loadOrder();
+    const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+    if (result.ok) {
       showToast('Depósito eliminado');
-    }
+      loadOrder();
+    } else { showToast('❌ ' + result.error); }
   };
 
   const saveNote = async () => {
     const text = noteInput.trim();
     if (text === (order.internal_note || '')) return;
-    if (await patchOrder({ internalNote: text })) {
+    const result = await patchOrder({ internalNote: text });
+    if (result.ok) {
       setOrder(o => o ? { ...o, internal_note: text } : o);
       showToast('Nota guardada');
-    }
+    } else { showToast('❌ ' + result.error); }
   };
 
   const handleDelete = async () => {
@@ -648,51 +674,84 @@ export default function PedidoDetailPage() {
               </div>
 
               {isEditingItems && (
-                <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
-                  <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={newItemForm.name}
-                        onChange={e => {
-                          const q = e.target.value;
-                          setNewItemForm(p => ({ ...p, name: q }));
-                          if (q.trim().length >= 2) {
-                            setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8));
-                            setShowSuggestions(true);
-                          } else {
-                            setShowSuggestions(false);
-                          }
-                        }}
-                        onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
-                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                        placeholder="Producto"
-                        className="w-full min-h-[44px] border border-gray-200 rounded px-3 text-sm font-body focus:border-purple focus:outline-none"
-                      />
-                      {showSuggestions && productSuggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
-                          {productSuggestions.map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onMouseDown={() => {
-                                setNewItemForm({ name: p.name, qty: '1', price: String(p.price) });
-                                setShowSuggestions(false);
-                              }}
-                              className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-sm font-body flex items-center justify-between gap-2 min-h-[44px]"
-                            >
-                              <span className="truncate text-gray-700">{p.name}</span>
-                              <span className="text-gray-400 font-heading font-semibold shrink-0">${p.price}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 text-center text-sm" min="1" />
-                    <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 text-right text-sm" min="0" step="0.01" />
-                    <button onClick={handleAddItem} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-4 min-h-[44px] rounded text-sm disabled:opacity-40">+</button>
+                <div className="border-t border-gray-100 pt-4 mt-2 space-y-3">
+                  <p className="text-xs font-heading font-semibold text-gray-400 uppercase tracking-wider">Agregar item</p>
+
+                  {/* Nombre con autocomplete (full width) */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={newItemForm.name}
+                      onChange={e => {
+                        const q = e.target.value;
+                        setNewItemForm(p => ({ ...p, name: q }));
+                        if (q.trim().length >= 2) {
+                          setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8));
+                          setShowSuggestions(true);
+                        } else {
+                          setShowSuggestions(false);
+                        }
+                      }}
+                      onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      placeholder="Buscar producto..."
+                      className="w-full min-h-[44px] border border-gray-200 rounded-xl px-4 text-sm font-body focus:border-purple focus:outline-none"
+                    />
+                    {showSuggestions && productSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                        {productSuggestions.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={() => {
+                              setNewItemForm({ name: p.name, qty: '1', price: String(p.price) });
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-purple/5 text-sm font-body flex items-center justify-between gap-2 min-h-[44px]"
+                          >
+                            <span className="truncate text-gray-700">{p.name}</span>
+                            <span className="text-gray-400 font-heading font-semibold shrink-0">${p.price}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Qty + Precio en una fila */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-heading font-semibold text-gray-400 uppercase tracking-wider mb-1">Cantidad</label>
+                      <input
+                        type="number"
+                        value={newItemForm.qty}
+                        onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))}
+                        placeholder="1"
+                        className="w-full min-h-[44px] border border-gray-200 rounded-xl px-3 text-center text-sm font-body focus:border-purple focus:outline-none"
+                        min="1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-heading font-semibold text-gray-400 uppercase tracking-wider mb-1">Precio</label>
+                      <input
+                        type="number"
+                        value={newItemForm.price}
+                        onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))}
+                        placeholder="$0.00"
+                        className="w-full min-h-[44px] border border-gray-200 rounded-xl px-3 text-right text-sm font-body focus:border-purple focus:outline-none"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botón full-width */}
+                  <button
+                    onClick={handleAddItem}
+                    disabled={!newItemForm.name.trim() || savingAction === 'additem'}
+                    className="w-full bg-purple text-white font-heading font-semibold py-3 min-h-[48px] rounded-xl text-sm disabled:opacity-50 transition-opacity"
+                  >
+                    {savingAction === 'additem' ? 'Guardando...' : 'Agregar a la factura'}
+                  </button>
                 </div>
               )}
 
