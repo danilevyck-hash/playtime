@@ -109,7 +109,7 @@ export default function PedidoDetailPage() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ event: true });
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
-  const [isEditingItems, setIsEditingItems] = useState(false);
+  const [isEditingItems] = useState(true);
   const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
   const [newItemForm, setNewItemForm] = useState({ name: '', qty: '1', price: '' });
   const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>([]);
@@ -169,6 +169,16 @@ export default function PedidoDetailPage() {
 
   useEffect(() => { loadOrder(); }, [loadOrder]);
 
+  // Sync itemEdits with current order items (so "no pending changes" is the default state)
+  useEffect(() => {
+    if (!order) return;
+    const sync: Record<number, { quantity: string; unit_price: string }> = {};
+    for (const i of order.items) {
+      if (i.id) sync[i.id] = { quantity: String(i.quantity), unit_price: String(i.unit_price) };
+    }
+    setItemEdits(sync);
+  }, [order]);
+
   // Load all products for autocomplete
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +231,18 @@ export default function PedidoDetailPage() {
       return s + i.unit_price * i.quantity;
     }, 0);
   }, [order, isEditingItems, itemEdits]);
+
+  const hasPendingItemEdits = useMemo(() => {
+    if (!order) return false;
+    for (const i of order.items) {
+      if (!i.id) continue;
+      const edit = itemEdits[i.id];
+      if (!edit) continue;
+      if (Number(edit.quantity) !== i.quantity) return true;
+      if (Number(edit.unit_price) !== i.unit_price) return true;
+    }
+    return false;
+  }, [order, itemEdits]);
 
   const liveDiscRaw = order?.discount || 0;
   const liveDisc = order?.discount_type === 'percent'
@@ -313,15 +335,6 @@ export default function PedidoDetailPage() {
     } finally { setSavingAction(null); }
   };
 
-  const startEditItems = () => {
-    setIsEditingItems(true);
-    const edits: Record<number, { quantity: string; unit_price: string }> = {};
-    for (const i of order.items) {
-      if (i.id) edits[i.id] = { quantity: String(i.quantity), unit_price: String(i.unit_price) };
-    }
-    setItemEdits(edits);
-  };
-
   const saveItemEdits = async () => {
     const editItems = Object.entries(itemEdits).map(([id, v]) => ({
       id: Number(id),
@@ -332,7 +345,6 @@ export default function PedidoDetailPage() {
     try {
       const result = await patchOrder({ editItems });
       if (result.ok) {
-        setIsEditingItems(false);
         showToast('Items actualizados');
         loadOrder();
       } else { showToast('❌ ' + result.error); }
@@ -806,16 +818,25 @@ export default function PedidoDetailPage() {
                 </div>
               </div>
 
-              <div className="pt-3">
-                {isEditingItems ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => setIsEditingItems(false)} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm">Cancelar</button>
-                    <button onClick={saveItemEdits} disabled={savingAction === 'items'} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{savingAction === 'items' ? 'Guardando...' : 'Guardar'}</button>
-                  </div>
-                ) : (
-                  <button onClick={startEditItems} className="w-full border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm hover:bg-gray-50">Editar factura</button>
-                )}
-              </div>
+              {hasPendingItemEdits && (
+                <div className="pt-3 flex gap-2">
+                  <button
+                    onClick={() => {
+                      // Reset itemEdits a los valores actuales del order
+                      if (!order) return;
+                      const sync: Record<number, { quantity: string; unit_price: string }> = {};
+                      for (const i of order.items) {
+                        if (i.id) sync[i.id] = { quantity: String(i.quantity), unit_price: String(i.unit_price) };
+                      }
+                      setItemEdits(sync);
+                    }}
+                    className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2 rounded-xl text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button onClick={saveItemEdits} disabled={savingAction === 'items'} className="flex-1 bg-purple text-white font-heading font-semibold py-2 rounded-xl text-sm disabled:opacity-50">{savingAction === 'items' ? 'Guardando...' : 'Guardar'}</button>
+                </div>
+              )}
             </div>
           )}
         </div>
