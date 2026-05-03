@@ -8,8 +8,7 @@ import { fetchProductImages } from '@/lib/supabase-data';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
-
-const CATEGORY_PALETTE = ['#580459', '#84D9D0', '#F27405', '#F27289', '#49B3BF', '#F2C84B'];
+import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
 export default function CatalogoContent() {
   const products = useProducts();
@@ -96,17 +95,17 @@ export default function CatalogoContent() {
           className={`bg-white rounded-2xl border p-4 flex flex-col items-center gap-2 transition-all hover:shadow-md active:scale-[0.98] ${category === 'all' ? 'border-2 border-purple' : 'border border-gray-100'}`}
         >
           <span
-            className="flex items-center justify-center text-2xl"
-            style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: '#580459', color: 'white' }}
+            className="flex items-center justify-center text-2xl bg-white"
+            style={{ width: 56, height: 56, borderRadius: 14 }}
             aria-hidden="true"
           >
             ✨
           </span>
           <span className="font-heading font-medium text-sm text-center text-gray-800">Todos</span>
         </button>
-        {categories.map((cat, idx) => {
+        {categories.map((cat) => {
           const isActive = category === cat.id;
-          const bg = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
+          const Doodle = CATEGORY_DOODLES[cat.id];
           return (
             <button
               key={cat.id}
@@ -114,11 +113,11 @@ export default function CatalogoContent() {
               className={`bg-white rounded-2xl border p-4 flex flex-col items-center gap-2 transition-all hover:shadow-md active:scale-[0.98] ${isActive ? 'border-2 border-purple' : 'border border-gray-100'}`}
             >
               <span
-                className="flex items-center justify-center text-2xl"
-                style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: bg, color: 'white' }}
+                className="flex items-center justify-center bg-white"
+                style={{ width: 56, height: 56, borderRadius: 14 }}
                 aria-hidden="true"
               >
-                {cat.icon}
+                {Doodle ? <Doodle className="w-10 h-10" /> : <span className="text-2xl">{cat.icon}</span>}
               </span>
               <span className="font-heading font-medium text-sm text-center text-gray-800">{cat.label}</span>
             </button>
