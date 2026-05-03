@@ -8,6 +8,7 @@ import { Category } from './types';
 interface CategoryItem {
   id: Category;
   label: string;
+  shortLabel?: string;
   icon: string;
   description: string;
   subtitle?: string;

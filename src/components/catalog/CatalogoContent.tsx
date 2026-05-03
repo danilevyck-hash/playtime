@@ -117,48 +117,51 @@ export default function CatalogoContent() {
         </div>
       </div>
 
-      {/* Sidebar (72px) + productos */}
+      {/* Sidebar (64px) + productos */}
       <div className="flex" style={{ minHeight: 'calc(100vh - 200px)' }}>
         {/* Sidebar izquierdo */}
-        <aside
-          className="bg-gray-50 border-r border-gray-100 overflow-y-auto scrollbar-hide flex-shrink-0"
-          style={{ width: 72 }}
-        >
+        <aside className="bg-gray-50 border-r border-gray-100 overflow-y-auto scrollbar-hide flex-shrink-0 w-16">
           {/* Todos */}
           <button
             onClick={() => handleCategoryChange('all')}
-            className={`w-full flex flex-col items-center gap-1 py-3 transition-colors ${
+            className={`w-16 flex flex-col items-center gap-1 py-3 transition-colors ${
               !isSearching && category === 'all'
-                ? 'bg-white border-r-2 border-purple text-purple'
-                : 'text-gray-500 hover:bg-white/60'
+                ? 'bg-purple/10 border-r-2 border-purple text-purple font-semibold'
+                : 'text-gray-400 hover:bg-white/60'
             }`}
-            style={{ width: 72 }}
             aria-label="Todos"
           >
-            <span className="w-8 h-8 flex items-center justify-center text-xl" aria-hidden="true">✨</span>
-            <span className="text-[10px] font-heading font-medium text-center px-1 leading-tight line-clamp-2">Todos</span>
+            <span className="w-7 h-7 flex items-center justify-center" aria-hidden="true">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="#888" strokeWidth="1.8" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="#888" strokeWidth="1.8" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="#888" strokeWidth="1.8" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="#888" strokeWidth="1.8" />
+              </svg>
+            </span>
+            <span className="text-[9px] font-heading text-center px-1 leading-tight line-clamp-1">Todos</span>
           </button>
 
           {/* Categorías */}
           {categories.map((cat) => {
             const isActive = !isSearching && category === cat.id;
             const Doodle = CATEGORY_DOODLES[cat.id];
+            const shortLabel = cat.shortLabel || cat.label;
             return (
               <button
                 key={cat.id}
                 onClick={() => handleCategoryChange(cat.id)}
-                className={`w-full flex flex-col items-center gap-1 py-3 transition-colors ${
+                className={`w-16 flex flex-col items-center gap-1 py-3 transition-colors ${
                   isActive
-                    ? 'bg-white border-r-2 border-purple text-purple'
-                    : 'text-gray-500 hover:bg-white/60'
+                    ? 'bg-purple/10 border-r-2 border-purple text-purple font-semibold'
+                    : 'text-gray-400 hover:bg-white/60'
                 }`}
-                style={{ width: 72 }}
                 aria-label={cat.label}
               >
-                <span className="w-8 h-8 flex items-center justify-center" aria-hidden="true">
-                  {Doodle ? <Doodle className="w-8 h-8" /> : <span className="text-xl">{cat.icon}</span>}
+                <span className="w-7 h-7 flex items-center justify-center" aria-hidden="true">
+                  {Doodle ? <Doodle className="w-7 h-7" /> : <span className="text-lg">{cat.icon}</span>}
                 </span>
-                <span className="text-[10px] font-heading font-medium text-center px-1 leading-tight line-clamp-2">{cat.label}</span>
+                <span className="text-[9px] font-heading text-center px-1 leading-tight line-clamp-1">{shortLabel}</span>
               </button>
             );
           })}

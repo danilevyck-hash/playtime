@@ -16,16 +16,16 @@ export const CONTACT = {
   instagram: '@playtimekids',
 };
 
-export const CATEGORIES: { id: Category; label: string; icon: string; description: string; subtitle?: string }[] = [
-  { id: 'planes', label: 'Experiences', icon: '\uD83C\uDF89', description: 'Combinaciones dise\u00f1adas cuidadosamente para crear un evento completo y elevado.' },
-  { id: 'spa', label: 'Spa Experience', icon: '\uD83D\uDC85', description: 'Un espacio dise\u00f1ado para consentir, relajar y hacerlas sentir especiales.', subtitle: 'Maquillaje/pinta carita, glitter bar, peinado, manicure' },
-  { id: 'show', label: 'Show & Personajes', icon: '\uD83C\uDFAD', description: 'Personajes, shows y din\u00e1micas que hacen de cada celebraci\u00f3n una experiencia \u00fanica.' },
-  { id: 'snacks', label: 'Snack Bar', icon: '\uD83C\uDF7F', description: 'Deliciosos detalles que complementan la experiencia y encantan a grandes y peque\u00f1os.' },
-  { id: 'softplay', label: 'Soft Play', icon: '\uD83C\uDFF0', description: 'Espacios dise\u00f1ados cuidadosamente donde los m\u00e1s peque\u00f1os pueden explorar, moverse y jugar con total seguridad.' },
-  { id: 'bounces', label: 'Bounces', icon: '\uD83C\uDFAA', description: 'Disponibles en diferentes tama\u00f1os y colores para adaptarse a cada tipo de evento.' },
+export const CATEGORIES: { id: Category; label: string; shortLabel: string; icon: string; description: string; subtitle?: string }[] = [
+  { id: 'planes', label: 'Experiences', shortLabel: 'Planes', icon: '\uD83C\uDF89', description: 'Combinaciones dise\u00f1adas cuidadosamente para crear un evento completo y elevado.' },
+  { id: 'spa', label: 'Spa Experience', shortLabel: 'Spa', icon: '\uD83D\uDC85', description: 'Un espacio dise\u00f1ado para consentir, relajar y hacerlas sentir especiales.', subtitle: 'Maquillaje/pinta carita, glitter bar, peinado, manicure' },
+  { id: 'show', label: 'Show & Personajes', shortLabel: 'Show', icon: '\uD83C\uDFAD', description: 'Personajes, shows y din\u00e1micas que hacen de cada celebraci\u00f3n una experiencia \u00fanica.' },
+  { id: 'snacks', label: 'Snack Bar', shortLabel: 'Snacks', icon: '\uD83C\uDF7F', description: 'Deliciosos detalles que complementan la experiencia y encantan a grandes y peque\u00f1os.' },
+  { id: 'softplay', label: 'Soft Play', shortLabel: 'Soft Play', icon: '\uD83C\uDFF0', description: 'Espacios dise\u00f1ados cuidadosamente donde los m\u00e1s peque\u00f1os pueden explorar, moverse y jugar con total seguridad.' },
+  { id: 'bounces', label: 'Bounces', shortLabel: 'Bounces', icon: '\uD83C\uDFAA', description: 'Disponibles en diferentes tama\u00f1os y colores para adaptarse a cada tipo de evento.' },
 
-  { id: 'addons', label: 'Add-Ons', icon: '\uD83C\uDF88', description: 'Opciones adicionales que se integran perfectamente para completar tu experiencia.' },
-  { id: 'creative', label: 'Creative Studio', icon: '\uD83C\uDFA8', description: 'Una selecci\u00f3n de manualidades dise\u00f1adas por nosotros, con la posibilidad de crear experiencias personalizadas.' },
+  { id: 'addons', label: 'Add-Ons', shortLabel: 'Add-Ons', icon: '\uD83C\uDF88', description: 'Opciones adicionales que se integran perfectamente para completar tu experiencia.' },
+  { id: 'creative', label: 'Creative Studio', shortLabel: 'Creative', icon: '\uD83C\uDFA8', description: 'Una selecci\u00f3n de manualidades dise\u00f1adas por nosotros, con la posibilidad de crear experiencias personalizadas.' },
 ];
 
 export const PRODUCTS: Product[] = [
