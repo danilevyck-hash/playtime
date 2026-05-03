@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { EVENT_AREAS } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { downloadOrderPDF } from '@/lib/pdf-order';
-import { fetchLogoUrl } from '@/lib/supabase-data';
+import { fetchLogoUrl, fetchProductOverrides, fetchAllCustomProducts } from '@/lib/supabase-data';
+import { PRODUCTS } from '@/lib/constants';
 import { useToast } from '@/context/ToastContext';
 
 type OrderStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
@@ -111,6 +112,9 @@ export default function PedidoDetailPage() {
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
   const [newItemForm, setNewItemForm] = useState({ name: '', qty: '1', price: '' });
+  const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [productSuggestions, setProductSuggestions] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [transportInput, setTransportInput] = useState('');
@@ -164,6 +168,28 @@ export default function PedidoDetailPage() {
   }, [authReady, orderId, authHeaders, router, showToast]);
 
   useEffect(() => { loadOrder(); }, [loadOrder]);
+
+  // Load all products for autocomplete
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAllProducts() {
+      try {
+        const [overrides, custom] = await Promise.all([fetchProductOverrides(), fetchAllCustomProducts()]);
+        if (cancelled) return;
+        const ovMap = new Map(overrides.map(o => [o.id, o]));
+        const merged = PRODUCTS.map(p => {
+          const ov = ovMap.get(p.id);
+          return { id: p.id, name: ov?.name_override || p.name, price: ov?.price_override ?? p.price };
+        });
+        const customMapped = custom.map(cp => ({ id: cp.id, name: cp.name, price: cp.price }));
+        setAllProducts([...merged, ...customMapped]);
+      } catch {
+        if (!cancelled) setAllProducts(PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price })));
+      }
+    }
+    loadAllProducts();
+    return () => { cancelled = true; };
+  }, []);
 
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
@@ -309,7 +335,9 @@ export default function PedidoDetailPage() {
       if (await patchOrder({ addItem: { product_name: name, quantity: qty, unit_price: price } })) {
         await loadOrder();
         setNewItemForm({ name: '', qty: '1', price: '' });
-        showToast('Item agregado');
+        setShowSuggestions(false);
+        setOpenSections(prev => ({ ...prev, invoice: true }));
+        showToast('✅ Item agregado');
       } else { showToast('Error al agregar'); }
     } finally { setSavingAction(null); }
   };
@@ -623,7 +651,44 @@ export default function PedidoDetailPage() {
                 <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
                   <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <input type="text" value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Producto" className="flex-1 min-h-[44px] border border-gray-200 rounded px-3 text-sm" />
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={newItemForm.name}
+                        onChange={e => {
+                          const q = e.target.value;
+                          setNewItemForm(p => ({ ...p, name: q }));
+                          if (q.trim().length >= 2) {
+                            setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8));
+                            setShowSuggestions(true);
+                          } else {
+                            setShowSuggestions(false);
+                          }
+                        }}
+                        onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        placeholder="Producto"
+                        className="w-full min-h-[44px] border border-gray-200 rounded px-3 text-sm font-body focus:border-purple focus:outline-none"
+                      />
+                      {showSuggestions && productSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                          {productSuggestions.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setNewItemForm({ name: p.name, qty: '1', price: String(p.price) });
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-sm font-body flex items-center justify-between gap-2 min-h-[44px]"
+                            >
+                              <span className="truncate text-gray-700">{p.name}</span>
+                              <span className="text-gray-400 font-heading font-semibold shrink-0">${p.price}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 text-center text-sm" min="1" />
                     <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 text-right text-sm" min="0" step="0.01" />
                     <button onClick={handleAddItem} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-4 min-h-[44px] rounded text-sm disabled:opacity-40">+</button>
