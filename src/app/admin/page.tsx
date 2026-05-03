@@ -651,14 +651,14 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
           ) : (
             <div>
               <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Evento</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
                 <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
                 {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">{'\u00c1'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
                 <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
-                <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
-                {order.birthday_child_name && <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
-                {order.notes && <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
+                <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
+                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
+                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
               </div>
             </div>
           )}
@@ -1263,11 +1263,9 @@ function ProductsTab() {
   const [allCategories, setAllCategories] = useState<string[]>(ALL_CATEGORIES);
   const [variantMenu, setVariantMenu] = useState<string | null>(null);
 
-  // Cross-sell rules — loaded once, edited per-product, saved as one map
+  // Cross-sell rules — loaded once, edited per-product, autosaved on toggle
   const [crossSellRules, setCrossSellRules] = useState<Record<string, string[]>>({});
-  const [crossSellLoaded, setCrossSellLoaded] = useState(false);
-  const [crossSellPicker, setCrossSellPicker] = useState<string | null>(null); // product id whose picker is open
-  const [savingCrossSell, setSavingCrossSell] = useState(false);
+  const [crossSellPicker, setCrossSellPicker] = useState<string | null>(null);
 
   // ─── LOAD from pt_products + pt_product_variants ───
   useEffect(() => {
@@ -1291,7 +1289,6 @@ function ProductsTab() {
           const { DEFAULT_CROSS_SELL_RULES } = await import('@/lib/default-cross-sell-rules');
           setCrossSellRules({ ...DEFAULT_CROSS_SELL_RULES });
         }
-        setCrossSellLoaded(true);
 
         // Load gallery images
         const galleries: Record<string, string[]> = {};
@@ -1302,7 +1299,6 @@ function ProductsTab() {
         setImageGalleries(galleries);
       } catch (e) {
         console.error('Load products error:', e);
-        setCrossSellLoaded(true);
       }
     }
     load();
@@ -1314,23 +1310,15 @@ function ProductsTab() {
       const next = current.includes(suggestId)
         ? current.filter(x => x !== suggestId)
         : current.length < 6 ? [...current, suggestId] : current;
-      return { ...prev, [productId]: next };
-    });
-  };
-
-  const saveCrossSellRules = async () => {
-    setSavingCrossSell(true);
-    try {
-      // Strip empty arrays
+      const updated = { ...prev, [productId]: next };
+      // Auto-save (no manual button anymore)
       const clean: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(crossSellRules)) {
+      for (const [k, v] of Object.entries(updated)) {
         if (Array.isArray(v) && v.length > 0) clean[k] = v;
       }
-      await apiUpsertSetting('cross_sell_rules', clean);
-      revalidateSite();
-      showToast('Sugerencias guardadas');
-    } catch { showToast('Error al guardar'); }
-    finally { setSavingCrossSell(false); }
+      apiUpsertSetting('cross_sell_rules', clean).then(() => revalidateSite()).catch(() => showToast('Error al guardar sugerencias'));
+      return updated;
+    });
   };
 
   const getVariants = useCallback((productId: string) => {
@@ -1620,25 +1608,24 @@ function ProductsTab() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading font-bold text-xl text-purple mb-0.5">Productos</h2>
-          <p className="font-body text-gray-500 text-xs">{products.length} productos en la base de datos</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            <h2 className="font-heading font-bold text-xl text-purple">Productos</h2>
+            {!combineMode && (
+              <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold w-9 h-9 rounded-full text-base hover:bg-purple-light transition-colors flex items-center justify-center flex-shrink-0" aria-label="Nuevo producto">
+                {showAdd ? '\u00D7' : '+'}
+              </button>
+            )}
+          </div>
+          <p className="font-body text-gray-500 text-xs mt-0.5">{products.length} productos en la base de datos</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           {!combineMode && (
             <>
-              {crossSellLoaded && (
-                <button onClick={saveCrossSellRules} disabled={savingCrossSell} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-orange/10 text-orange hover:bg-orange/20 transition-colors disabled:opacity-50">
-                  {savingCrossSell ? 'Guardando...' : '\uD83D\uDCBE Guardar sugerencias'}
-                </button>
-              )}
               <button onClick={() => { setCombineMode(true); setCombineSelected(new Set()); }} className="font-heading font-bold px-3 py-2 rounded-xl text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Combinar</button>
               <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-3 py-2 rounded-xl text-xs transition-colors ${reorderMode ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
-              </button>
-              <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold w-8 h-8 rounded-full text-base hover:bg-purple-light transition-colors flex items-center justify-center" aria-label="Nuevo producto">
-                {showAdd ? '\u00D7' : '+'}
               </button>
             </>
           )}
@@ -1681,9 +1668,9 @@ function ProductsTab() {
       </div>
 
       {/* Product list */}
-      {!filter && !productSearch ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-6">
-          <p className="font-body text-sm text-gray-400">Selecciona una categoria o busca un producto</p>
+          <p className="font-body text-sm text-gray-400">No hay productos que coincidan</p>
         </div>
       ) : (
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">

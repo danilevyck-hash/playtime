@@ -32,8 +32,10 @@ export default function WhatsAppButton() {
 
   // Hide on cart page on mobile (sticky CTA bar overlaps)
   const isCartPage = pathname === '/carrito';
+  // Never show in admin
+  const isAdminPage = pathname.startsWith('/admin');
 
-  if (hidden) return null;
+  if (hidden || isAdminPage) return null;
 
   const handleMinimize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -51,7 +53,7 @@ export default function WhatsAppButton() {
     return (
       <button
         onClick={handleExpand}
-        className={`fixed bottom-6 right-6 z-50 bg-[#25D366] text-white w-9 h-9 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110 opacity-70 hover:opacity-100 ${isCartPage ? 'sm:flex hidden' : ''}`}
+        className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-50 mb-4 bg-[#25D366] text-white w-9 h-9 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110 opacity-70 hover:opacity-100 ${isCartPage ? 'sm:flex hidden' : ''}`}
         aria-label="Abrir WhatsApp"
       >
         <WhatsAppIcon className="w-4.5 h-4.5" />
@@ -60,10 +62,10 @@ export default function WhatsAppButton() {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 ${isCartPage ? 'sm:block hidden' : ''}`}>
+    <div className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-50 mb-4 ${isCartPage ? 'sm:block hidden' : ''}`}>
       <button
         onClick={handleMinimize}
-        className="absolute -top-2 -left-2 w-6 h-6 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md transition-colors z-10"
+        className="absolute -top-3 -left-3 w-8 h-8 bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center justify-center text-base font-bold shadow-md transition-colors z-10"
         aria-label="Minimizar bot&oacute;n de WhatsApp"
       >
         &times;
