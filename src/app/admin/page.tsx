@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
@@ -219,6 +220,7 @@ interface OrderCardProps {
 
 const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, patchOrder, fetchOrders, onDeleteOrder, onSetStatus, onUpdateOrder, allProducts }: OrderCardProps) {
   const { showToast } = useToast();
+  const router = useRouter();
 
   // Local state (previously in OrdersTab, keyed by orderId)
   const [isEditing, setIsEditing] = useState(false);
@@ -489,7 +491,19 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       {/* ─── HEADER (collapsed card) ─── */}
-      <button onClick={() => { onToggleExpand(); if (isEditing) setIsEditing(false); setShowMoreMenu(false); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+      <button
+        onClick={() => {
+          try {
+            router.push(`/admin/pedidos/${order.id}`);
+          } catch {
+            // Fallback: expand inline
+            onToggleExpand();
+            if (isEditing) setIsEditing(false);
+            setShowMoreMenu(false);
+          }
+        }}
+        className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
+      >
         <div className="flex items-center gap-3">
           {/* Avatar with initials */}
           <div
@@ -2919,6 +2933,21 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo'>('pedidos');
   const [pushEnabled, setPushEnabled] = useState(false);
 
+  // Restore session from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const savedToken = sessionStorage.getItem('adminToken');
+      const savedPin = sessionStorage.getItem('adminPin');
+      const savedRole = sessionStorage.getItem('adminRole');
+      if (savedToken && savedPin) {
+        _adminToken = savedToken;
+        _adminPin = savedPin;
+        _adminRole = (savedRole === 'vendedora' ? 'vendedora' : 'admin');
+        setAuthenticated(true);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.ready.then(reg => {
@@ -2970,6 +2999,11 @@ export default function AdminPage() {
         _adminPin = pin;
         _adminToken = data.token || '';
         _adminRole = data.role || 'admin';
+        try {
+          sessionStorage.setItem('adminToken', _adminToken);
+          sessionStorage.setItem('adminPin', _adminPin);
+          sessionStorage.setItem('adminRole', _adminRole);
+        } catch {}
         setAuthenticated(true);
       } else {
         setError(data.error || 'PIN incorrecto');
