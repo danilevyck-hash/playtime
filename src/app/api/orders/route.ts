@@ -375,7 +375,8 @@ export async function PATCH(request: NextRequest) {
       }
       // addItem: { product_name, quantity, unit_price }
       const lineTotal = round2(qty * price);
-      const { error: insertError } = await db.from('pt_order_items').insert({
+      console.log('ORDER ID:', orderId, typeof orderId);
+      const insertResult = await db.from('pt_order_items').insert({
         order_id: orderId,
         product_id: `manual-${Date.now()}`,
         product_name: addItem.product_name.trim(),
@@ -384,6 +385,8 @@ export async function PATCH(request: NextRequest) {
         unit_price: price,
         line_total: lineTotal,
       });
+      console.log('INSERT RESULT:', JSON.stringify(insertResult));
+      const { error: insertError } = insertResult;
       if (insertError) {
         console.error('addItem insert error:', insertError);
         return NextResponse.json({ error: insertError.message || 'Error al guardar item' }, { status: 500 });
