@@ -869,14 +869,16 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
 
 function OrdersTab() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
   const [eventMonthFilter, setEventMonthFilter] = useState<string>('all'); // 'all' or 'YYYY-MM'
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
     PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
   );
@@ -943,7 +945,7 @@ function OrdersTab() {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
       const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
-      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); setExpandedOrder(null); showToast('Pedido eliminado'); }
+      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); showToast('Pedido eliminado'); }
       else { showToast('Error al eliminar pedido'); }
     } catch (e) {
       console.error('Delete order error:', e);
@@ -1080,169 +1082,291 @@ function OrdersTab() {
     };
   }, [orders]);
 
+  // Keep callbacks alive (used by detail page; reserved for inline expand fallback)
+  void OrderCard; void deleteOrder; void patchOrder; void updateOrder; void setOrderStatus; void monthlySummary; void allProducts;
+
+  const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
+
   return (
-    <div>
-      {/* Compact dashboard — hidden for vendedora */}
-      {_adminRole === 'admin' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="font-heading font-bold text-xl text-purple">{totalOrders}</span>
-              <span className="text-gray-400 text-xs font-body ml-1">pedidos</span>
-              <span className="mx-2 text-gray-200">|</span>
-              <span className="font-heading font-bold text-xl text-teal">{confirmedOrders}</span>
-              <span className="text-gray-400 text-xs font-body ml-1">confirmados</span>
-            </div>
-            <div className="text-right">
-              <p className="font-heading font-bold text-lg text-purple">{formatCurrency(confirmedRevenue)}</p>
-              <p className="text-[10px] font-body text-gray-400">ingresos confirmados</p>
-            </div>
-          </div>
+    <div className="bg-white -mx-4 px-4 -my-6 py-6 min-h-[60vh]">
+      {/* ─── HEADER ─── */}
+      <div className="flex items-start justify-between mb-5">
+        <div className="min-w-0">
+          <h1 className="font-heading font-bold text-2xl text-gray-900">Pedidos</h1>
+          <p className="font-body text-sm text-gray-400 mt-0.5">
+            {totalOrders} pedido{totalOrders !== 1 ? 's' : ''}
+            {_adminRole === 'admin' && ` · ${formatCurrency(confirmedRevenue)} confirmados`}
+          </p>
         </div>
-      )}
-
-      {/* Monthly Summary — agrupa por MES DE EVENTO, hidden for vendedora */}
-      {_adminRole === 'admin' && monthlySummary.length > 0 && (
-        <details className="bg-white rounded-2xl border border-gray-100 mb-5 group">
-          <summary className="flex items-center justify-between p-4 cursor-pointer select-none">
-            <span className="font-heading font-bold text-sm text-purple">Cumpleaños por mes</span>
-            <span className="font-heading font-bold text-sm text-purple">{formatCurrency(confirmedRevenue)}</span>
-          </summary>
-          <div className="px-4 pb-4 space-y-1.5">
-            {monthlySummary.map((m) => (
-              <div key={m.key} className="flex items-center justify-between py-1.5 text-sm">
-                <span className="font-heading text-gray-700">
-                  {m.label}
-                  {m.isFuture && <span className="ml-1.5 text-[9px] font-bold text-orange bg-orange/10 px-1.5 py-0.5 rounded-full">PRÓXIMO</span>}
-                  <span className="text-gray-400 text-xs ml-1">({m.count} {m.count === 1 ? 'cumpleaños' : 'cumpleaños'})</span>
-                </span>
-                <span className="font-heading font-bold text-purple">{formatCurrency(m.total)}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-
-      {/* Filters \u2014 segmented control */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-3 overflow-x-auto scrollbar-hide">
-        {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${pendingOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['realizado', `Realizados (${realizadoOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setStatusFilter(key)} className={`flex-1 whitespace-nowrap px-3 py-1.5 min-h-[36px] rounded-lg font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-white text-purple shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Secondary actions */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
-          {sortMode === 'created' ? 'Por evento' : 'Por fecha'}
-        </button>
-        <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
-        <button onClick={fetchOrders} disabled={loading} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto" aria-label="Actualizar">
-          {loading ? '...' : '\u21BB'}
-        </button>
-      </div>
-
-      {/* Event month filter */}
-      {eventMonthOptions.length > 0 && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="font-heading font-semibold text-xs text-gray-500">Mes del evento:</span>
-          <select
-            value={eventMonthFilter}
-            onChange={(e) => setEventMonthFilter(e.target.value)}
-            className="flex-1 bg-gray-100 text-gray-700 font-heading font-semibold text-xs rounded-full px-3 py-1.5 border-0 focus:outline-none focus:ring-2 focus:ring-purple/30"
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setSearchOpen(s => !s)}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${searchOpen ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            aria-label="Buscar"
           >
-            <option value="all">Todos los meses</option>
-            {eventMonthOptions.map((opt) => (
-              <option key={opt.key} value={opt.key}>{opt.label}</option>
-            ))}
-          </select>
-          {eventMonthFilter !== 'all' && (
-            <button onClick={() => setEventMonthFilter('all')} className="text-gray-400 hover:text-purple text-xs font-heading font-semibold">Limpiar</button>
-          )}
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="relative mb-4">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, fecha o # pedido..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none" />
-        {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </button>
-        )}
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors relative"
+            aria-label="Filtros"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M7 12h10M10 18h4" /></svg>
+            {(eventMonthFilter !== 'all' || sortMode === 'created') && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-purple" />
+            )}
+          </button>
+        </div>
       </div>
 
-      {error && <div className="bg-yellow/20 border border-yellow rounded-xl p-4 mb-6"><p className="font-body text-sm text-gray-700">{error}</p></div>}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="skeleton w-16 h-5" />
-                  <div>
-                    <div className="skeleton w-24 h-4 mb-1.5" />
-                    <div className="skeleton w-40 h-3" />
-                  </div>
-                </div>
-                <div className="skeleton w-20 h-5" />
-              </div>
+      {/* ─── STATS BAR ─── */}
+      {_adminRole === 'admin' && totalOrders > 0 && (
+        <div className="grid grid-cols-4 border border-gray-200 rounded-xl mb-5 divide-x divide-gray-200">
+          {[
+            { label: 'Pendientes', value: pendingOrders, color: '#F27405' },
+            { label: 'Confirmados', value: confirmedOrders, color: '#580459' },
+            { label: 'Realizados', value: realizadoOrders, color: '#1D9E75' },
+            { label: 'Rechazados', value: rejectedOrders, color: '#E24B4A' },
+          ].map(stat => (
+            <div key={stat.label} className="py-3 px-1 text-center">
+              <p className="font-heading font-bold text-xl" style={{ color: stat.color }}>{stat.value}</p>
+              <p className="font-body text-xs text-gray-400 mt-0.5">{stat.label}</p>
             </div>
           ))}
         </div>
       )}
 
-      {!loading && filteredOrders.length === 0 && !error && (
-        <div className="text-center py-16">
-          <div className="text-4xl mb-3">{'\uD83D\uDCCB'}</div>
-          <p className="font-heading font-bold text-lg text-gray-400 mb-1">{search ? 'No se encontraron pedidos' : 'No hay pedidos'}</p>
-          <p className="font-body text-sm text-gray-400">{search ? 'Prueba con otro nombre o fecha' : 'Los pedidos aparecer\u00e1n aqu\u00ed'}</p>
+      {/* ─── STATUS PILLS ─── */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 mb-3" style={{ scrollSnapType: 'x mandatory' }}>
+        {([
+          ['all', `Todos (${totalOrders})`],
+          ['pending', `Pendientes (${pendingOrders})`],
+          ['confirmed', `Confirmados (${confirmedOrders})`],
+          ['realizado', `Realizados (${realizadoOrders})`],
+          ['rejected', `Rechazados (${rejectedOrders})`],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setStatusFilter(key)}
+            className={`shrink-0 px-4 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs transition-colors ${statusFilter === key ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            style={{ scrollSnapAlign: 'start' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── SEARCH (toggleable) ─── */}
+      <div className={`overflow-hidden transition-all duration-200 ${searchOpen ? 'max-h-20 mb-4' : 'max-h-0'}`}>
+        <div className="relative pt-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 mt-0.5 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, fecha o # pedido..."
+            className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl font-body text-sm focus:border-purple focus:outline-none"
+            autoFocus={searchOpen}
+          />
+          {(search || searchOpen) && (
+            <button
+              onClick={() => { setSearch(''); setSearchOpen(false); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 text-gray-400 hover:text-gray-600"
+              aria-label="Cerrar busqueda"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active filters chips */}
+      {(eventMonthFilter !== 'all') && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 bg-purple/10 text-purple text-xs font-heading font-semibold px-3 py-1 rounded-full">
+            {eventMonthOptions.find(o => o.key === eventMonthFilter)?.label || 'Mes'}
+            <button onClick={() => setEventMonthFilter('all')} className="hover:text-purple/60" aria-label="Quitar filtro de mes">{'×'}</button>
+          </span>
         </div>
       )}
 
+      {error && <div className="bg-yellow/20 border border-yellow rounded-xl p-4 mb-6"><p className="font-body text-sm text-gray-700">{error}</p></div>}
+
+      {/* ─── LOADING SKELETON ─── */}
+      {loading && (
+        <div className="divide-y divide-gray-100">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="flex items-center gap-3 py-3">
+              <div className="skeleton w-9 h-9 rounded-full" />
+              <div className="flex-1">
+                <div className="skeleton w-32 h-4 mb-1.5" />
+                <div className="skeleton w-44 h-3" />
+              </div>
+              <div className="skeleton w-16 h-5" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── EMPTY ─── */}
+      {!loading && filteredOrders.length === 0 && !error && (
+        <div className="text-center py-16">
+          <p className="font-heading font-bold text-lg text-gray-400 mb-1">{search ? 'No se encontraron pedidos' : 'No hay pedidos'}</p>
+          <p className="font-body text-sm text-gray-400">{search ? 'Prueba con otro nombre o fecha' : 'Los pedidos aparecerán aquí'}</p>
+        </div>
+      )}
+
+      {/* ─── ORDERS LIST (flat, with section headers) ─── */}
       {!loading && groupedByEvent ? (
         groupedByEvent.map(group => (
-          <div key={group.date} className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-heading font-bold text-sm text-purple">{group.label}</h3>
-              <span className="text-xs font-body text-gray-400">{group.orders.length} pedido{group.orders.length !== 1 ? 's' : ''}</span>
+          <div key={group.date} className="mb-5">
+            <h3 className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-1 mt-3">{group.label}</h3>
+            <div className="divide-y divide-gray-100">
+              {group.orders.map(o => {
+                const st = getOrderStatus(o);
+                const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
+                return (
+                  <button
+                    key={o.id}
+                    onClick={() => goToOrder(o.id)}
+                    className="w-full flex items-center gap-3 py-3 hover:bg-gray-50 transition-colors text-left -mx-2 px-2 rounded-lg"
+                  >
+                    <div
+                      className="rounded-full flex items-center justify-center text-white font-heading font-semibold text-sm flex-shrink-0"
+                      style={{ width: 38, height: 38, backgroundColor: STATUS_HEX[st] }}
+                      aria-hidden="true"
+                    >
+                      {getInitials(o.customer_name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-heading font-medium text-sm text-gray-800 truncate">{o.customer_name}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        #{o.order_number}
+                        {o.event_time ? ` · ${fmtTime12h(o.event_time)}` : ''}
+                        {o.event_area ? ` · ${o.event_area}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="font-heading font-semibold text-sm text-gray-800">{formatCurrency(o.total)}</span>
+                      <span className="text-xs font-heading mt-0.5" style={{ color: STATUS_HEX[st] }}>{stInfo.label}</span>
+                    </div>
+                    <span className="text-gray-300 text-lg leading-none flex-shrink-0">{'›'}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="space-y-3">{group.orders.map(o => (
-              <OrderCard
-                key={o.id}
-                order={o}
-                isExpanded={expandedOrder === o.id}
-                onToggleExpand={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
-                patchOrder={patchOrder}
-                fetchOrders={fetchOrders}
-                onDeleteOrder={deleteOrder}
-                onSetStatus={setOrderStatus}
-                onUpdateOrder={updateOrder}
-                allProducts={allProducts}
-              />
-            ))}</div>
           </div>
         ))
       ) : !loading ? (
-        <div className="space-y-3">{filteredOrders.map(o => (
-          <OrderCard
-            key={o.id}
-            order={o}
-            isExpanded={expandedOrder === o.id}
-            onToggleExpand={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
-            patchOrder={patchOrder}
-            fetchOrders={fetchOrders}
-            onDeleteOrder={deleteOrder}
-            onSetStatus={setOrderStatus}
-            onUpdateOrder={updateOrder}
-            allProducts={allProducts}
-          />
-        ))}</div>
+        <div className="divide-y divide-gray-100">
+          {filteredOrders.map(o => {
+            const st = getOrderStatus(o);
+            const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
+            return (
+              <button
+                key={o.id}
+                onClick={() => goToOrder(o.id)}
+                className="w-full flex items-center gap-3 py-3 hover:bg-gray-50 transition-colors text-left -mx-2 px-2 rounded-lg"
+              >
+                <div
+                  className="rounded-full flex items-center justify-center text-white font-heading font-semibold text-sm flex-shrink-0"
+                  style={{ width: 38, height: 38, backgroundColor: STATUS_HEX[st] }}
+                  aria-hidden="true"
+                >
+                  {getInitials(o.customer_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-heading font-medium text-sm text-gray-800 truncate">{o.customer_name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    #{o.order_number}
+                    {o.event_time ? ` · ${fmtTime12h(o.event_time)}` : ''}
+                    {o.event_area ? ` · ${o.event_area}` : ''}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end flex-shrink-0">
+                  <span className="font-heading font-semibold text-sm text-gray-800">{formatCurrency(o.total)}</span>
+                  <span className="text-xs font-heading mt-0.5" style={{ color: STATUS_HEX[st] }}>{stInfo.label}</span>
+                </div>
+                <span className="text-gray-300 text-lg leading-none flex-shrink-0">{'›'}</span>
+              </button>
+            );
+          })}
+        </div>
       ) : null}
+
+      {/* ─── FILTERS BOTTOM SHEET ─── */}
+      {filtersOpen && (
+        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setFiltersOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative bg-white w-full rounded-t-3xl shadow-2xl animate-sheet-up max-h-[85vh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="px-5 pb-3 flex items-center justify-between">
+              <h2 className="font-heading font-bold text-lg text-gray-900">Filtros</h2>
+              <button onClick={() => setFiltersOpen(false)} className="text-sm text-purple font-heading font-semibold">Aplicar</button>
+            </div>
+
+            <div className="px-5 space-y-5 pb-5">
+              {eventMonthOptions.length > 0 && (
+                <div>
+                  <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Mes del evento</p>
+                  <select
+                    value={eventMonthFilter}
+                    onChange={(e) => setEventMonthFilter(e.target.value)}
+                    className="w-full bg-gray-100 text-gray-700 font-heading font-semibold text-sm rounded-xl px-3 py-3 border-0 focus:outline-none focus:ring-2 focus:ring-purple/30"
+                  >
+                    <option value="all">Todos los meses</option>
+                    {eventMonthOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Ordenar por</p>
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+                  <button
+                    onClick={() => setSortMode('event')}
+                    className={`flex-1 py-2 rounded-lg font-heading font-semibold text-sm transition-all ${sortMode === 'event' ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}
+                  >
+                    Fecha evento
+                  </button>
+                  <button
+                    onClick={() => setSortMode('created')}
+                    className={`flex-1 py-2 rounded-lg font-heading font-semibold text-sm transition-all ${sortMode === 'created' ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}
+                  >
+                    Fecha creación
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Acciones</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { exportCSV(); showToast('CSV descargado'); }}
+                    className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Exportar CSV
+                  </button>
+                  <button
+                    onClick={() => { fetchOrders(); }}
+                    disabled={loading}
+                    className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Cargando...' : '↺ Actualizar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2985,6 +3109,7 @@ export default function AdminPage() {
       showToast('Error al activar notificaciones');
     }
   };
+  void togglePush;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3049,21 +3174,6 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Minimal header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="font-heading font-bold text-2xl text-purple">PlayTime</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={togglePush}
-            className="text-gray-400 hover:text-purple transition-colors text-lg"
-            title={pushEnabled ? 'Notificaciones activadas' : 'Activar notificaciones'}
-          >
-            {pushEnabled ? '\u{1F514}' : '\u{1F515}'}
-          </button>
-          <span className="text-xs font-body text-gray-400">{_adminRole === 'vendedora' ? 'Vendedora' : 'Admin'}</span>
-        </div>
-      </div>
-
       {/* Clean tab bar — vendedora only sees Pedidos */}
       {_adminRole === 'admin' && (
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
