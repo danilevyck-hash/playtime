@@ -20,6 +20,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
   const { toggle: toggleFav, isFavorite } = useFavorites();
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [copied, setCopied] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef<number | null>(null);
   const [dragDeltaY, setDragDeltaY] = useState(0);
@@ -126,6 +127,38 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" stroke={product && isFavorite(product.id) ? '#F27289' : '#6b7280'} fill={product && isFavorite(product.id) ? '#F27289' : 'none'} strokeWidth={2} />
           </svg>
+        </button>
+
+        {/* Share button */}
+        <button
+          onClick={() => {
+            if (!product) return;
+            const shareUrl = `${window.location.origin}/catalogo/${product.id}`;
+            if (typeof navigator !== 'undefined' && navigator.share) {
+              navigator.share({
+                title: product.name,
+                text: `Mira este servicio de PlayTime: ${product.name}`,
+                url: shareUrl,
+              }).catch(() => {});
+            } else if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+              navigator.clipboard.writeText(shareUrl).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }).catch(() => {});
+            }
+          }}
+          className="absolute top-4 right-28 z-10 h-10 px-3 min-w-[40px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-all"
+          aria-label="Compartir"
+        >
+          {copied ? (
+            <span className="text-xs font-heading font-bold text-purple whitespace-nowrap">{'¡'}Link copiado!</span>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l-4-4-4 4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
+            </svg>
+          )}
         </button>
 
         {/* Close button */}
