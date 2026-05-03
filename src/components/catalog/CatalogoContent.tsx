@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProducts } from '@/lib/useProducts';
+import { useCategories } from '@/lib/useCategories';
 import { Category, Product } from '@/lib/types';
 import { fetchProductImages } from '@/lib/supabase-data';
-import CategoryFilter from '@/components/catalog/CategoryFilter';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
 
+const CATEGORY_PALETTE = ['#580459', '#84D9D0', '#F27405', '#F27289', '#49B3BF', '#F2C84B'];
+
 export default function CatalogoContent() {
   const products = useProducts();
+  const categories = useCategories();
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [initialSet, setInitialSet] = useState(false);
   const [search, setSearch] = useState('');
@@ -82,9 +85,45 @@ export default function CatalogoContent() {
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
       <h1 className="sr-only">Catálogo de Fiestas Infantiles en Panamá — PlayTime</h1>
 
-      <div className="sticky top-16 z-30 bg-beige/95 backdrop-blur-sm -mx-4 px-4 pt-4 pb-3 space-y-3">
-        <CategoryFilter selected={category} onSelect={handleCategoryChange} />
+      <div className="sticky top-16 z-30 bg-beige/95 backdrop-blur-sm -mx-4 px-4 pt-4 pb-3">
         <SearchBar value={search} onChange={handleSearchChange} />
+      </div>
+
+      {/* Category grid (App Store style) */}
+      <div className="grid grid-cols-2 gap-3 mt-4 mb-6">
+        <button
+          onClick={() => handleCategoryChange('all')}
+          className={`bg-white rounded-2xl border p-4 flex flex-col items-center gap-2 transition-all hover:shadow-md active:scale-[0.98] ${category === 'all' ? 'border-2 border-purple' : 'border border-gray-100'}`}
+        >
+          <span
+            className="flex items-center justify-center text-2xl"
+            style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: '#580459', color: 'white' }}
+            aria-hidden="true"
+          >
+            ✨
+          </span>
+          <span className="font-heading font-medium text-sm text-center text-gray-800">Todos</span>
+        </button>
+        {categories.map((cat, idx) => {
+          const isActive = category === cat.id;
+          const bg = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
+          return (
+            <button
+              key={cat.id}
+              onClick={() => handleCategoryChange(cat.id)}
+              className={`bg-white rounded-2xl border p-4 flex flex-col items-center gap-2 transition-all hover:shadow-md active:scale-[0.98] ${isActive ? 'border-2 border-purple' : 'border border-gray-100'}`}
+            >
+              <span
+                className="flex items-center justify-center text-2xl"
+                style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: bg, color: 'white' }}
+                aria-hidden="true"
+              >
+                {cat.icon}
+              </span>
+              <span className="font-heading font-medium text-sm text-center text-gray-800">{cat.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {products.length === 0 ? (

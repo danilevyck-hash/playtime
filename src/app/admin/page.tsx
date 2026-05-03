@@ -91,6 +91,27 @@ const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: stri
   { key: 'rechazado', label: 'Rechazado', color: 'text-white', bg: 'bg-red-500' },
 ];
 
+const STATUS_HEX: Record<OrderStatus, string> = {
+  pendiente: '#888780',
+  confirmado: '#580459',
+  realizado: '#1D9E75',
+  rechazado: '#E24B4A',
+};
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  planes: '🎉', spa: '💅', show: '🎭', snacks: '🍿',
+  softplay: '🏰', bounces: '🎪', addons: '🎈', creative: '🎨',
+};
+function getCategoryEmoji(cat: string): string { return CATEGORY_EMOJI[cat] || '✨'; }
+
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 interface OrderItem {
   id?: number;
   product_name: string;
@@ -466,46 +487,73 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
   const payMethodLabel = order.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
 
   return (
-    <div className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${st === 'pendiente' ? 'border-gray-100' : st === 'confirmado' ? 'border-teal/30' : st === 'rechazado' ? 'border-red-200' : 'border-purple/30'}`}>
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       {/* ─── HEADER (collapsed card) ─── */}
       <button onClick={() => { onToggleExpand(); if (isEditing) setIsEditing(false); setShowMoreMenu(false); }} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full text-white ${stInfo.bg}`}>{stInfo.label}</span>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-heading font-bold text-purple">#{order.order_number}</span>
-                {totalDeposits > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-teal/10 text-teal font-semibold">{'\uD83D\uDCB0'}</span>}
-                {liveDisc > 0 && <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-600 font-semibold">{'\uD83C\uDFF7\uFE0F'}</span>}
-                {order.transport_cost_confirmed === null && <span className="text-[9px] px-1 py-0.5 rounded bg-orange/10 text-orange font-semibold">{'\uD83D\uDE9A?'}</span>}
-              </div>
-              <p className="font-body text-gray-700 text-sm mt-0.5">{order.customer_name} {'\u00b7'} {order.event_date}</p>
-            </div>
+        <div className="flex items-center gap-3">
+          {/* Avatar with initials */}
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-heading font-semibold text-sm flex-shrink-0"
+            style={{ backgroundColor: STATUS_HEX[st] }}
+            aria-hidden="true"
+          >
+            {getInitials(order.customer_name)}
           </div>
-          <span className="font-heading font-bold text-lg text-purple">{formatCurrency(liveTotal)}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: STATUS_HEX[st] }}
+                aria-hidden="true"
+              />
+              <span className="font-heading font-bold text-purple">#{order.order_number}</span>
+              {totalDeposits > 0 && <span className="text-xs" aria-label="Tiene dep\u00F3sitos">{'\uD83D\uDCB0'}</span>}
+              {liveDisc > 0 && <span className="text-xs" aria-label="Con descuento">{'\uD83C\uDFF7\uFE0F'}</span>}
+              {order.transport_cost_confirmed === null && <span className="text-xs" aria-label="Transporte pendiente">{'\uD83D\uDE9A'}</span>}
+            </div>
+            <p className="font-body text-gray-700 text-sm mt-0.5 truncate">{order.customer_name} {'\u00b7'} {order.event_date}</p>
+          </div>
+          {/* Trailing: total + status text */}
+          <div className="flex flex-col items-end flex-shrink-0">
+            <span className="font-heading font-bold text-lg text-purple leading-tight">{formatCurrency(liveTotal)}</span>
+            <span className="font-heading text-xs mt-0.5" style={{ color: STATUS_HEX[st] }}>{stInfo.label}</span>
+          </div>
         </div>
       </button>
 
       {isExpanded && (
-        <div className="border-t border-gray-100 p-4 bg-gray-50/50 space-y-3">
-          {/* ─── 1. PIPELINE ─── */}
-          <div className="flex gap-1">
-            {ORDER_STATUSES.map(s => (
-              <button key={s.key} onClick={() => onSetStatus(order.id, s.key)}
-                disabled={savingAction === 'status'}
-                className={`flex-1 py-2 min-h-[40px] rounded-lg text-xs font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? `${s.bg} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-              >{s.label}</button>
-            ))}
+        <div className="border-t border-gray-100 p-4 space-y-5">
+          {/* ─── 1. PIPELINE (segmented control) ─── */}
+          <div>
+            <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Estado</p>
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+              {ORDER_STATUSES.map(s => (
+                <button key={s.key} onClick={() => onSetStatus(order.id, s.key)}
+                  disabled={savingAction === 'status'}
+                  className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >{s.label}</button>
+              ))}
+            </div>
           </div>
 
-          {/* ─── 2. ACTIONS (neutral colors, delete in overflow) ─── */}
-          <div className="flex gap-2 items-center">
-            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp
+          {/* ─── 2. ACTIONS (circular icon buttons with labels) ─── */}
+          <div className="flex justify-around items-start gap-2 pt-1">
+            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 group" aria-label="WhatsApp">
+              <span className="w-11 h-11 rounded-full flex items-center justify-center transition-transform group-active:scale-95" style={{ backgroundColor: '#25D366' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              </span>
+              <span className="font-heading text-xs text-gray-600">WhatsApp</span>
             </a>
-            {!isEditing && <button onClick={() => startEditOrder()} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">Editar</button>}
-            {isEditing && <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">Cancelar</button>}
+            <button onClick={() => isEditing ? setIsEditing(false) : startEditOrder()} className="flex flex-col items-center gap-1 group" aria-label={isEditing ? 'Cancelar' : 'Editar'}>
+              <span className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform group-active:scale-95 ${isEditing ? 'bg-purple/10' : 'bg-gray-100'}`}>
+                {isEditing ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                )}
+              </span>
+              <span className="font-heading text-xs text-gray-600">{isEditing ? 'Cancelar' : 'Editar'}</span>
+            </button>
             <button onClick={async () => {
               const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
               const logoUrl = await fetchLogoUrl().catch(() => null);
@@ -515,11 +563,35 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               const pdfTotal = pdfBase + pdfSurch;
               await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
               showToast('PDF descargado');
-            }} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-heading font-semibold px-4 py-2 min-h-[40px] rounded-lg text-sm transition-colors">PDF</button>
-            {/* Overflow menu with delete */}
-            <div className="relative ml-auto">
-              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
+            }} className="flex flex-col items-center gap-1 group" aria-label="Descargar PDF">
+              <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              </span>
+              <span className="font-heading text-xs text-gray-600">PDF</span>
+            </button>
+            <button onClick={() => {
+              const url = `${window.location.origin}/api/orders?id=${order.id}`;
+              const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = `Pedido #${order.order_number}`; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('Copiado'); } catch { showToast('No se pudo copiar'); } };
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(`Pedido #${order.order_number} - ${order.customer_name} - ${formatCurrency(liveTotal)}`).then(() => showToast('Resumen copiado')).catch(fallback);
+              } else { fallback(); }
+              void url;
+            }} className="flex flex-col items-center gap-1 group" aria-label="Compartir">
+              <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l-4-4-4 4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
+                </svg>
+              </span>
+              <span className="font-heading text-xs text-gray-600">Compartir</span>
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="flex flex-col items-center gap-1 group" aria-label="Más opciones">
+                <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
+                  <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
+                </span>
+                <span className="font-heading text-xs text-gray-600">Más</span>
               </button>
               {showMoreMenu && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
@@ -529,22 +601,26 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             </div>
           </div>
 
+
+          <div className="border-t border-gray-100" />
+
           {/* ─── 3. DETAILS (edit form or read-only) ─── */}
           {isEditing ? (
-            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+            <div className="space-y-5">
               {/* Cliente */}
               <div>
-                <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Cliente</p>
-                <div className="grid grid-cols-2 gap-2">
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Cliente</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input value={ef.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
                   <input value={ef.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
                 </div>
                 <input value={ef.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={`${OI_CLS} mt-2`} />
               </div>
+              <div className="border-t border-gray-100" />
               {/* Evento */}
               <div>
-                <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
-                <div className="grid grid-cols-[1fr_auto] gap-2">
+                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Evento</p>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
                   <input type="date" value={ef.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
                   <input
                     type="text"
@@ -573,25 +649,28 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-100 p-3">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
-                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
-                {order.event_area && <div><span className="text-gray-400 font-heading text-[10px] uppercase">{'\u00c1'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
-                <div><span className="text-gray-400 font-heading text-[10px] uppercase">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
-                <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
-                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
-                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-[10px] uppercase">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
+            <div>
+              <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Evento</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
+                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
+                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">{'\u00c1'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
+                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
+                <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
+                {order.birthday_child_name && <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
+                {order.notes && <div className="sm:col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
               </div>
             </div>
           )}
 
-          {/* ─── 4. FACTURA UNIFICADA (items + descuento + transporte + total) ─── */}
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
-              <span className="font-heading font-semibold text-xs text-gray-500 uppercase">Factura</span>
+          <div className="border-t border-gray-100" />
+
+          {/* ─── 4. FACTURA estilo Wallet ─── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Factura</p>
               {isEditingItems ? (
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button onClick={() => setIsEditingItems(false)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
                   <button onClick={() => saveItemEdits()} disabled={savingAction === 'items'} className="text-xs text-purple font-heading font-semibold hover:text-purple/80">{savingAction === 'items' ? 'Guardando...' : 'Guardar'}</button>
                 </div>
@@ -625,7 +704,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             </div>
             {/* Add item (when editing) */}
             {isEditingItems && (
-              <div className="border-t border-gray-200 px-3 py-2.5 bg-gray-50/50 space-y-2">
+              <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
                 <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-1">
                   <div className="flex-1 relative">
@@ -654,14 +733,14 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               </div>
             )}
             {/* ─── TOTALS + INLINE DISCOUNT/TRANSPORT ─── */}
-            <div className="border-t border-gray-200 px-3 py-3 space-y-1.5">
-              <div className="flex justify-between text-xs text-gray-500">
+            <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
                 <span>Subtotal</span>
                 <span className="font-heading">{formatCurrency(liveItemsTotal)}</span>
               </div>
               {/* Discount (inline editable) */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Descuento</span>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Descuento</span>
                 {liveDisc > 0 ? (
                   <div className="flex items-center gap-1.5">
                     <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
@@ -679,8 +758,8 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                 )}
               </div>
               {/* Transport (inline editable) */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Transporte</span>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Transporte</span>
                 {order.transport_cost_confirmed !== null && !isEditingTransport ? (
                   <div className="flex items-center gap-1.5">
                     <span className={`font-heading font-semibold ${liveTrans > 0 ? 'text-gray-700' : 'text-gray-400'}`}>{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
@@ -694,30 +773,28 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                   </div>
                 )}
               </div>
-              {/* Surcharge */}
-              {liveSurch > 0 && (
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Recargo tarjeta (5%)</span>
-                  <span className="font-heading">{formatCurrency(liveSurch)}</span>
-                </div>
-              )}
-              {/* Payment method */}
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>M{'é'}todo</span>
-                <span className="font-heading">{payMethodLabel}</span>
+              {/* Payment method (combined with surcharge) */}
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Pago</span>
+                <span className="font-heading">
+                  {payMethodLabel}
+                  {liveSurch > 0 && <span className="text-orange"> · +{formatCurrency(liveSurch)} recargo</span>}
+                </span>
               </div>
               {/* Total */}
-              <div className="flex justify-between text-sm font-heading font-bold text-purple border-t border-gray-100 pt-2 mt-1">
-                <span>Total</span>
-                <span>{formatCurrency(liveTotal)}</span>
+              <div className="flex justify-between items-baseline border-t border-gray-100 pt-4 mt-2">
+                <span className="font-heading text-base text-gray-700">Total</span>
+                <span className="font-heading font-semibold text-xl text-purple">{formatCurrency(liveTotal)}</span>
               </div>
             </div>
           </div>
 
           {/* ─── 5. DEPÓSITOS (simplified, with progress bar) ─── */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <button onClick={() => toggleSection('dep')} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <span className="font-heading font-semibold text-xs text-gray-500">{'\uD83D\uDCB0'} Dep{'ó'}sitos</span>
+          <div className="border-t border-gray-100" />
+
+          <div>
+            <button onClick={() => toggleSection('dep')} className="w-full flex items-center justify-between py-1 hover:opacity-80 transition-opacity">
+              <span className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Dep{'ó'}sitos</span>
               <div className="flex items-center gap-3 text-xs">
                 {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">{formatCurrency(totalDeposits)}</span>}
                 {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span>}
@@ -725,14 +802,14 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
               </div>
             </button>
             {totalDeposits > 0 && (
-              <div className="px-3 pt-1 pb-0"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
+              <div className="pt-2"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
             )}
             {openSections['dep'] && (
-              <div className="p-3 space-y-2">
+              <div className="pt-3 space-y-2">
                 {deposits.length > 0 && (
                   <div className="space-y-1">
                     {deposits.map((d, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm bg-teal/5 rounded-lg px-2.5 py-1.5">
+                      <div key={i} className="flex items-center justify-between text-sm py-1.5">
                         <span className="font-body text-gray-600">{d.date}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
@@ -752,14 +829,16 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
             )}
           </div>
 
+          <div className="border-t border-gray-100" />
+
           {/* ─── 6. NOTA INTERNA ─── */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <button onClick={() => toggleSection('note')} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors">
-              <span className="font-heading font-semibold text-xs text-gray-500">{'\uD83D\uDCDD'} Nota interna {order.internal_note ? '(1)' : ''}</span>
+          <div>
+            <button onClick={() => toggleSection('note')} className="w-full flex items-center justify-between py-1 hover:opacity-80 transition-opacity">
+              <span className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Nota interna {order.internal_note ? '(1)' : ''}</span>
               <span className="text-gray-400 text-xs">{openSections['note'] ? '\u25BE' : '\u25B8'}</span>
             </button>
             {openSections['note'] && (
-              <div className="px-3 pb-3 space-y-2">
+              <div className="pt-3 space-y-2">
                 {order.internal_note && <p className="font-body text-sm text-gray-700 bg-gray-50 rounded-lg px-2.5 py-2">{order.internal_note}</p>}
                 <div className="flex gap-2">
                   <input type="text" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Agregar nota interna..." className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
@@ -1030,19 +1109,22 @@ function OrdersTab() {
         </details>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      {/* Filters \u2014 segmented control */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-3 overflow-x-auto scrollbar-hide">
         {([['all', `Todos (${totalOrders})`], ['pending', `Pendientes (${pendingOrders})`], ['confirmed', `Confirmados (${confirmedOrders})`], ['realizado', `Realizados (${realizadoOrders})`], ['rejected', `Rechazados (${rejectedOrders})`]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setStatusFilter(key)} className={`px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm transition-all ${statusFilter === key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <button key={key} onClick={() => setStatusFilter(key)} className={`flex-1 whitespace-nowrap px-3 py-1.5 min-h-[36px] rounded-lg font-heading font-semibold text-xs transition-all ${statusFilter === key ? 'bg-white text-purple shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}>
             {label}
           </button>
         ))}
-        <span className="mx-1 text-gray-200 self-center">|</span>
-        <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
+      </div>
+
+      {/* Secondary actions */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <button onClick={() => setSortMode(sortMode === 'created' ? 'event' : 'created')} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
           {sortMode === 'created' ? 'Por evento' : 'Por fecha'}
         </button>
-        <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
-        <button onClick={fetchOrders} disabled={loading} className="px-4 py-2 min-h-[40px] rounded-full font-heading font-semibold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto">
+        <button onClick={() => { exportCSV(); showToast('CSV descargado'); }} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">CSV</button>
+        <button onClick={fetchOrders} disabled={loading} className="px-3 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all ml-auto" aria-label="Actualizar">
           {loading ? '...' : '\u21BB'}
         </button>
       </div>
@@ -1555,7 +1637,7 @@ function ProductsTab() {
               <button onClick={() => { setReorderMode(!reorderMode); if (reorderMode) showToast('Orden guardado'); }} className={`font-heading font-bold px-3 py-2 rounded-xl text-xs transition-colors ${reorderMode ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {reorderMode ? '\u2713 Listo' : '\u21C5 Ordenar'}
               </button>
-              <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold w-9 h-9 rounded-xl text-lg hover:bg-purple-light transition-colors flex items-center justify-center">
+              <button onClick={() => setShowAdd(!showAdd)} className="bg-purple text-white font-heading font-bold w-8 h-8 rounded-full text-base hover:bg-purple-light transition-colors flex items-center justify-center" aria-label="Nuevo producto">
                 {showAdd ? '\u00D7' : '+'}
               </button>
             </>
@@ -1591,10 +1673,10 @@ function ProductsTab() {
         </div>
       )}
 
-      {/* Category filter */}
-      <div className={`flex gap-2 flex-wrap ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`}>
+      {/* Category filter — horizontal scroll */}
+      <div className={`flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 ${reorderMode ? 'opacity-50 pointer-events-none' : ''}`} style={{ scrollSnapType: 'x mandatory' }}>
         {allCategories.map(c => (
-          <button key={c} onClick={() => setFilter(filter === c ? '' : c)} className={`px-3 py-1 rounded-full text-xs font-heading font-semibold ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{getCatLabel(c)}</button>
+          <button key={c} onClick={() => setFilter(filter === c ? '' : c)} className={`shrink-0 px-3 py-1.5 min-h-[36px] rounded-full text-xs font-heading font-semibold transition-colors ${filter === c ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} style={{ scrollSnapAlign: 'start' }}>{getCatLabel(c)}</button>
         ))}
       </div>
 
@@ -1604,7 +1686,7 @@ function ProductsTab() {
           <p className="font-body text-sm text-gray-400">Selecciona una categoria o busca un producto</p>
         </div>
       ) : (
-      <div className="space-y-2">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
         {filtered.map((product) => {
           const isEditing = editingId === product.id;
           const imgSrc = product.image_url || '';
@@ -1619,7 +1701,7 @@ function ProductsTab() {
               onDragOver={(e) => { if (reorderMode) { e.preventDefault(); setDragOverId(product.id); } }}
               onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
               onDrop={() => { if (reorderMode) handleDrop(product.id); }}
-              className={`bg-white rounded-xl border p-3 transition-all ${!product.active ? 'opacity-40 border-gray-200' : 'border-gray-100'} ${draggingId === product.id ? 'opacity-40 scale-95' : ''} ${dragOverId === product.id && draggingId !== product.id ? 'border-t-2 border-t-purple' : ''} ${isCombineSelected ? 'ring-2 ring-purple' : ''}`}
+              className={`p-3 transition-all ${!product.active ? 'opacity-40' : ''} ${draggingId === product.id ? 'opacity-40 scale-95' : ''} ${dragOverId === product.id && draggingId !== product.id ? 'border-t-2 border-t-purple' : ''} ${isCombineSelected ? 'bg-purple/5' : ''}`}
             >
               {/* Collapsed view */}
               <div className="flex items-center gap-3" onClick={() => { if (combineMode) { setCombineSelected(prev => { const next = new Set(prev); if (next.has(product.id)) next.delete(product.id); else next.add(product.id); return next; }); } }}>
@@ -1631,18 +1713,18 @@ function ProductsTab() {
                 ) : reorderMode ? (
                   <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg leading-none px-1">{'\u2807'}</div>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }} className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${!product.active ? 'bg-gray-300' : 'bg-teal'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${!product.active ? 'left-1' : 'left-5'}`} />
+                  <button onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }} className={`flex-shrink-0 transition-colors relative rounded-full`} style={{ width: 44, height: 26, backgroundColor: product.active ? '#1D9E75' : '#D1D5DB' }} aria-label={product.active ? 'Desactivar' : 'Activar'}>
+                    <div className="bg-white rounded-full absolute transition-all shadow-sm" style={{ width: 20, height: 20, top: 3, left: product.active ? 21 : 3 }} />
                   </button>
                 )}
 
-                {/* Thumbnail */}
-                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                {/* Thumbnail 52x52 */}
+                <div className="bg-gray-100 overflow-hidden flex-shrink-0" style={{ width: 52, height: 52, borderRadius: 10 }}>
                   {imgSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img key={`${product.id}-${imageKeys[product.id] || 0}`} src={imgSrc} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs font-bold">IMG</div>
+                    <div className="w-full h-full flex items-center justify-center text-2xl">{getCategoryEmoji(product.category)}</div>
                   )}
                 </div>
 
@@ -2076,11 +2158,13 @@ function CatalogTab() {
         </div>
       )}
 
-      <div className="space-y-2">
-        {categories.map(cat => {
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
+        {categories.map((cat, idx) => {
           const isExpanded = expandedCatId === cat.id;
           const isEditing = editingCatId === cat.id;
           const count = productCounts[cat.id] || 0;
+          const palette = ['#580459', '#84D9D0', '#F27405', '#F27289', '#49B3BF', '#F2C84B'];
+          const bgColor = palette[idx % palette.length];
 
           return (
             <div
@@ -2090,25 +2174,31 @@ function CatalogTab() {
               onDragOver={(e) => { e.preventDefault(); setCatDragOver(cat.id); }}
               onDragEnd={() => { setCatDragging(null); setCatDragOver(null); }}
               onDrop={() => handleCatDrop(cat.id)}
-              className={`bg-white rounded-xl border border-gray-100 overflow-hidden transition-all ${catDragging === cat.id ? 'opacity-40 scale-95' : ''} ${catDragOver === cat.id && catDragging !== cat.id ? 'border-t-2 border-t-purple' : ''}`}
+              className={`transition-all ${catDragging === cat.id ? 'opacity-40 scale-95' : ''} ${catDragOver === cat.id && catDragging !== cat.id ? 'border-t-2 border-t-purple' : ''}`}
             >
               <div className="flex items-center">
-                <div className="px-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg">{'\u2807'}</div>
-                <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="flex-1 text-left p-4 pl-0 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{cat.icon}</span>
-                    <div>
-                      <span className="font-heading font-bold text-gray-800">{cat.label}</span>
-                      {cat.subtitle && <p className="font-body text-xs text-gray-400 mt-0.5">{cat.subtitle}</p>}
+                <div className="pl-3 pr-1 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg">{'\u2807'}</div>
+                <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="flex-1 text-left p-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                      style={{ backgroundColor: `${bgColor}20`, color: bgColor }}
+                      aria-hidden="true"
+                    >
+                      {cat.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="font-heading font-semibold text-sm text-gray-800 block truncate">{cat.label}</span>
+                      {cat.subtitle && <p className="font-body text-xs text-gray-400 mt-0.5 truncate">{cat.subtitle}</p>}
                     </div>
                   </div>
-                  <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">{count} productos</span>
+                  <span className="text-xs font-heading font-semibold text-gray-400 flex-shrink-0">{count} prod.</span>
                 </div>
               </button>
               </div>
               {isExpanded && (
-                <div className="border-t border-gray-100 p-4 bg-gray-50/50">
+                <div className="border-t border-gray-100 p-4">
                   {isEditing ? (
                     <div className="space-y-2">
                       <div className="grid grid-cols-[60px_1fr] gap-2">
@@ -2492,10 +2582,10 @@ function WebsiteTab() {
     <div className="space-y-6">
       <h2 className="font-heading font-bold text-xl text-purple">Sitio Web</h2>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 overflow-x-auto">
+      {/* Sub-tabs — horizontal scroll, no wrap */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollSnapType: 'x mandatory' }}>
         {SUB_TABS.map(t => (
-          <button key={t.key} onClick={() => setSection(t.key)} className={`px-4 py-1.5 rounded-full font-heading font-semibold text-xs transition-all shrink-0 ${section === t.key ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t.label}</button>
+          <button key={t.key} onClick={() => setSection(t.key)} className={`shrink-0 px-4 py-2 min-h-[36px] rounded-full font-heading font-semibold text-xs transition-all ${section === t.key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} style={{ scrollSnapAlign: 'start' }}>{t.label}</button>
         ))}
       </div>
 
