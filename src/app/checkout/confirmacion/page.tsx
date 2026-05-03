@@ -164,22 +164,46 @@ function ConfirmacionContent() {
             className="text-sm text-gray-500 hover:text-purple transition-colors font-body underline"
             onClick={() => {
               const eventDate = orderSummary?.date || '';
-              const eventTime = orderSummary?.time || '12:00';
-              const [hours, minutes] = eventTime.split(':').map(Number);
+              const rawTime = (orderSummary?.time || '').trim();
               const dateStr = eventDate.replace(/-/g, '');
-              const timeStr = `${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
-              const dtStart = dateStr ? `${dateStr}T${timeStr}` : new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
-              const endHours = hours + 3;
-              const dtEnd = dateStr ? `${dateStr}T${String(endHours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00` : dtStart;
+              const hhmmMatch = /^(\d{1,2}):(\d{2})$/.exec(rawTime);
+              const isStructured = !!hhmmMatch && !Number.isNaN(Number(hhmmMatch[1])) && !Number.isNaN(Number(hhmmMatch[2]));
+              const summaryTime = rawTime ? ` ${rawTime}` : '';
+              let dtStartLine: string;
+              let dtEndLine: string;
+              const descriptionLine = `DESCRIPTION:Pedido PlayTime${rawTime ? ` - Hora: ${rawTime}` : ''}`;
+              if (isStructured && dateStr) {
+                const hours = Number(hhmmMatch[1]);
+                const minutes = Number(hhmmMatch[2]);
+                const timeStr = `${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
+                const endHours = (hours + 3) % 24;
+                dtStartLine = `DTSTART:${dateStr}T${timeStr}`;
+                dtEndLine = `DTEND:${dateStr}T${String(endHours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
+              } else if (dateStr) {
+                // Free-text time or unparseable: create an all-day event, hora libre va en DESCRIPTION/SUMMARY
+                const parts = dateStr.match(/^(\d{4})(\d{2})(\d{2})$/);
+                let nextDay = dateStr;
+                if (parts) {
+                  const d = new Date(Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])));
+                  d.setUTCDate(d.getUTCDate() + 1);
+                  nextDay = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+                }
+                dtStartLine = `DTSTART;VALUE=DATE:${dateStr}`;
+                dtEndLine = `DTEND;VALUE=DATE:${nextDay}`;
+              } else {
+                const fallback = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
+                dtStartLine = `DTSTART:${fallback}`;
+                dtEndLine = `DTEND:${fallback}`;
+              }
               const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
                 'PRODID:-//PlayTime//Pedido//ES',
                 'BEGIN:VEVENT',
-                `DTSTART:${dtStart}`,
-                `DTEND:${dtEnd}`,
-                `SUMMARY:PlayTime Fiesta #${pedido || ''}`,
-                'DESCRIPTION:Pedido PlayTime',
+                dtStartLine,
+                dtEndLine,
+                `SUMMARY:PlayTime Fiesta #${pedido || ''}${summaryTime}`,
+                descriptionLine,
                 'END:VEVENT',
                 'END:VCALENDAR',
               ].join('\r\n');

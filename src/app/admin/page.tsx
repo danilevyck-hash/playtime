@@ -157,11 +157,30 @@ function round2(n: number) { return Math.round(n * 100) / 100; }
 const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
 function fmtTime12h(t: string) {
-  try {
-    const [h, m] = t.split(':').map(Number);
-    const ap = h >= 12 ? 'PM' : 'AM';
-    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')} ${ap}`;
-  } catch { return t; }
+  if (!t) return '';
+  const trimmed = t.trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!match) return trimmed;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return trimmed;
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')} ${ap}`;
+}
+
+// Convert "HH:MM" 24h format to "h:mm am/pm" for display in free-text editor.
+// Already-free-text values pass through unchanged.
+function timeToEditable(t: string | undefined | null): string {
+  if (!t) return '';
+  const trimmed = t.trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!match) return trimmed;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return trimmed;
+  const ap = h >= 12 ? 'pm' : 'am';
+  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hr}:${String(m).padStart(2, '0')} ${ap}`;
 }
 
 
@@ -186,6 +205,22 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
   const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
+
+  // Sync newly added items (from server) into itemEdits without clobbering in-progress edits
+  useEffect(() => {
+    if (!isEditingItems) return;
+    setItemEdits(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const item of order.items) {
+        if (item.id && !next[item.id]) {
+          next[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [order.items, isEditingItems]);
   const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [transportInput, setTransportInput] = useState('');
@@ -230,7 +265,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
     setIsEditing(true);
     setEditForm({
       customer_name: order.customer_name, customer_phone: order.customer_phone, customer_email: order.customer_email || '',
-      event_date: order.event_date, event_time: order.event_time, event_area: order.event_area || '', event_address: order.event_address,
+      event_date: order.event_date, event_time: timeToEditable(order.event_time), event_area: order.event_area || '', event_address: order.event_address,
       birthday_child_name: order.birthday_child_name || '', birthday_child_age: order.birthday_child_age ? String(order.birthday_child_age) : '',
       notes: order.notes || '',
     });
@@ -346,20 +381,23 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
   };
 
   const handleAddItem = async () => {
-    if (!newItemForm.name.trim() || !newItemForm.price) return;
+    const name = newItemForm.name.trim();
+    const qty = Number(newItemForm.qty) || 1;
+    const price = Number(newItemForm.price);
+    if (!name) return;
+    if (Number.isNaN(price) || price < 0) { showToast('Precio inválido'); return; }
     setSavingAction('additem');
     try {
-      if (await patchOrder({ orderId: order.id, addItem: { product_name: newItemForm.name, quantity: Number(newItemForm.qty) || 1, unit_price: Number(newItemForm.price) || 0 } })) {
-        const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
-          id: Number(id),
-          quantity: Number(vals.quantity) || 1,
-          unit_price: Number(vals.unit_price) || 0,
-        }));
-        if (pendingEdits.length > 0) {
-          await patchOrder({ orderId: order.id, editItems: pendingEdits });
-        }
+      const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
+        id: Number(id),
+        quantity: Number(vals.quantity) || 1,
+        unit_price: Number(vals.unit_price) || 0,
+      }));
+      if (pendingEdits.length > 0) {
+        await patchOrder({ orderId: order.id, editItems: pendingEdits });
+      }
+      if (await patchOrder({ orderId: order.id, addItem: { product_name: name, quantity: qty, unit_price: price } })) {
         await fetchOrders();
-        setIsEditingItems(false);
         setNewItemForm({ name: '', qty: '1', price: '' });
         showToast('Item agregado');
       } else { showToast('Error al agregar item'); }
@@ -508,32 +546,13 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
                 <p className="font-heading font-semibold text-xs text-gray-400 uppercase mb-2">Evento</p>
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                   <input type="date" value={ef.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
-                  {(() => {
-                    const raw = ef.event_time || '12:00';
-                    const [hh, mm] = raw.split(':').map(Number);
-                    const ap = hh >= 12 ? 'PM' : 'AM';
-                    const hr12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
-                    const buildTime = (h: number, m: number, ampm: string) => {
-                      let h24 = h;
-                      if (ampm === 'AM' && h === 12) h24 = 0;
-                      else if (ampm === 'PM' && h !== 12) h24 = h + 12;
-                      return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                    };
-                    return (
-                      <div className="flex gap-1">
-                        <select value={hr12} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(Number(e.target.value), mm, ap) }))} className="border border-gray-200 rounded-lg py-2 px-2 font-body text-sm focus:border-purple focus:outline-none w-16">
-                          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                        <select value={mm} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(hr12, Number(e.target.value), ap) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
-                          {[0,15,30,45].map(m => <option key={m} value={m}>:{String(m).padStart(2,'0')}</option>)}
-                        </select>
-                        <select value={ap} onChange={e => setEditForm(p => ({ ...p, event_time: buildTime(hr12, mm, e.target.value) }))} className="border border-gray-200 rounded-lg py-2 px-1.5 font-body text-sm focus:border-purple focus:outline-none w-16">
-                          <option value="AM">AM</option>
-                          <option value="PM">PM</option>
-                        </select>
-                      </div>
-                    );
-                  })()}
+                  <input
+                    type="text"
+                    value={ef.event_time || ''}
+                    onChange={e => setEditForm(p => ({ ...p, event_time: e.target.value }))}
+                    placeholder="Ej: 4:00 pm"
+                    className="border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none w-32"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <select value={ef.event_area || ''} onChange={e => setEditForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>

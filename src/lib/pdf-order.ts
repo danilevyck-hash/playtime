@@ -68,12 +68,16 @@ function fmtDateLong(dateStr: string): string {
 }
 
 function fmtTime(timeStr: string): string {
-  try {
-    const [h, m] = timeStr.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
-  } catch { return timeStr; }
+  if (!timeStr) return '';
+  const trimmed = timeStr.trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!match) return trimmed;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return trimmed;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
 function addDays(dateStr: string, days: number): string {
