@@ -367,6 +367,8 @@ export const PRODUCTS: Product[] = [
     description: 'Silla individual para bebé.',
     price: 2,
     maxQuantity: 20,
+    minQuantity: 1,
+    quantityStep: 1,
   },
   {
     id: 'silla-tiffany',
@@ -375,6 +377,8 @@ export const PRODUCTS: Product[] = [
     description: 'Silla Tiffany individual.',
     price: 3,
     maxQuantity: 20,
+    minQuantity: 1,
+    quantityStep: 1,
   },
   {
     id: 'mesa-ninos',
@@ -433,6 +437,8 @@ export const PRODUCTS: Product[] = [
     description: 'Silla o cubo individual.',
     price: 10,
     maxQuantity: 20,
+    minQuantity: 1,
+    quantityStep: 1,
   },
 
   // ═══ CREATIVE STUDIO ═══

@@ -1634,6 +1634,42 @@ function ProductsTab() {
                     {product.popular && <span className="text-[10px] text-orange font-heading font-bold">POP.</span>}
                   </div>
                 </div>
+
+                {/* Copiar link directo al producto */}
+                {!combineMode && !reorderMode && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = `${window.location.origin}/catalogo/${product.id}`;
+                      const fallback = () => {
+                        try {
+                          const ta = document.createElement('textarea');
+                          ta.value = url;
+                          ta.style.position = 'fixed';
+                          ta.style.opacity = '0';
+                          document.body.appendChild(ta);
+                          ta.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(ta);
+                          showToast('Link copiado');
+                        } catch {
+                          showToast('No se pudo copiar el link');
+                        }
+                      };
+                      if (navigator.clipboard?.writeText) {
+                        navigator.clipboard.writeText(url).then(() => showToast('Link copiado')).catch(fallback);
+                      } else {
+                        fallback();
+                      }
+                    }}
+                    className="text-gray-400 hover:text-purple flex-shrink-0 p-1.5 rounded-lg hover:bg-purple/5 transition-colors"
+                    aria-label="Copiar link del producto"
+                    title="Copiar link"
+                  >
+                    {'🔗'}
+                  </button>
+                )}
               </div>
 
               {/* Expanded edit form */}

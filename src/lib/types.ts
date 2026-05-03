@@ -53,6 +53,7 @@ export interface OrderCustomer {
 export interface OrderEvent {
   date: string;
   time: string;
+  showTime?: string;
   area: string;
   address: string;
   birthdayChildName: string;

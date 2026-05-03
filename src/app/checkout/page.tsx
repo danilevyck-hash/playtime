@@ -71,7 +71,7 @@ export default function CheckoutPage() {
 
   const [step, setStep] = useState(saved?.step ?? 0);
   const [customer, setCustomer] = useState<OrderCustomer>(saved?.customer ?? { name: '', phone: '', email: '' });
-  const [event, setEvent] = useState<OrderEvent>(saved?.event ?? { date: '', time: '', area: '', address: '', birthdayChildName: '', birthdayChildAge: '', theme: '' });
+  const [event, setEvent] = useState<OrderEvent>(saved?.event ?? { date: '', time: '', showTime: '', area: '', address: '', birthdayChildName: '', birthdayChildAge: '', theme: '' });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'bank_transfer');
 
   const persistCheckout = useCallback((overrides?: { step?: number; customer?: OrderCustomer; event?: OrderEvent; paymentMethod?: PaymentMethod }) => {
@@ -211,6 +211,9 @@ export default function CheckoutPage() {
         customerName: customer.name,
         customerPhone: customer.phone,
         pdfUrl,
+        eventDate: event.date,
+        eventTime: event.time,
+        showTime: event.showTime,
       });
 
       const waUrl = getWhatsAppUrl(message);

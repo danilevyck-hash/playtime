@@ -35,7 +35,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
     e.preventDefault();
     const errs: string[] = [];
     if (!data.date) errs.push('Selecciona la fecha de tu evento');
-    if (!data.time) errs.push('Elige la hora del evento');
+    if (!data.time?.trim()) errs.push('Indica la hora de inicio de la fiesta');
     if (!data.area) errs.push('Selecciona el área donde será la fiesta');
     if (!data.address.trim()) errs.push('Indica el lugar del evento');
     setErrors(errs);
@@ -71,31 +71,28 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         )}
       </div>
 
-      {/* Time — single dropdown with pre-built time slots */}
+      {/* Time — free-text input */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83D\uDD52'} Hora del evento</label>
-        <select
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83D\uDD52'} Hora de inicio de la fiesta</label>
+        <input
+          type="text"
           value={data.time || ''}
           onChange={(e) => onChange({ ...data, time: e.target.value })}
+          placeholder="Ej: 4:00 pm"
           className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
-        >
-          <option value="">Selecciona la hora</option>
-          {(() => {
-            const slots: { label: string; value: string }[] = [];
-            // 7:00 AM to 6:30 PM in 30-min increments
-            for (let h = 7; h <= 18; h++) {
-              for (const m of [0, 30]) {
-                if (h === 18 && m === 30) continue; // stop at 6:30 PM
-                const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-                const ampm = h >= 12 ? 'PM' : 'AM';
-                const label = `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-                const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                slots.push({ label, value });
-              }
-            }
-            return slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>);
-          })()}
-        </select>
+        />
+      </div>
+
+      {/* Hora del show / animaci{'\u00F3'}n */}
+      <div>
+        <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'\uD83C\uDFAD'} Hora del show / animaci{'\u00F3'}n <span className="text-gray-300 font-normal">{'\u2014'} opcional</span></label>
+        <input
+          type="text"
+          value={data.showTime || ''}
+          onChange={(e) => onChange({ ...data, showTime: e.target.value })}
+          placeholder="Ej: 5:30 pm"
+          className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
+        />
       </div>
 
       {/* Area */}
