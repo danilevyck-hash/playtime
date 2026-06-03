@@ -1001,22 +1001,38 @@ function OrdersTab() {
     });
   }, [orders, search, statusFilter, eventMonthFilter]);
 
-  // Group by event date for "by event" view
+  // Group by date for "by event" view.
+  // Exception: en el filtro "Pendientes" se ordena/agrupa por fecha de CREACI\u00d3N
+  // del pedido (created_at), del m\u00e1s reciente al m\u00e1s antiguo.
   const groupedByEvent = useMemo(() => {
-    if (sortMode !== 'event') return null;
-    const sorted = [...filteredOrders].sort((a, b) => a.event_date.localeCompare(b.event_date));
+    const pendingMode = statusFilter === 'pending';
+    if (!pendingMode && sortMode !== 'event') return null;
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'];
+    const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
     const groups: { date: string; label: string; orders: Order[] }[] = [];
+    if (pendingMode) {
+      // M\u00e1s reciente primero por fecha de creaci\u00f3n; headers por fecha de creaci\u00f3n.
+      const sorted = [...filteredOrders].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      for (const o of sorted) {
+        const d = new Date(o.created_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const last = groups[groups.length - 1];
+        if (last && last.date === key) { last.orders.push(o); } else {
+          groups.push({ date: key, label: `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`, orders: [o] });
+        }
+      }
+      return groups;
+    }
+    const sorted = [...filteredOrders].sort((a, b) => a.event_date.localeCompare(b.event_date));
     for (const o of sorted) {
       const last = groups[groups.length - 1];
       if (last && last.date === o.event_date) { last.orders.push(o); } else {
         const d = new Date(o.event_date + 'T00:00:00');
-        const DIAS = ['Domingo', 'Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'];
-        const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
         groups.push({ date: o.event_date, label: `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`, orders: [o] });
       }
     }
     return groups;
-  }, [filteredOrders, sortMode]);
+  }, [filteredOrders, sortMode, statusFilter]);
 
   // Monthly summary — grouped by EVENT date (solo confirmados)
   // Próximos meses arriba, pasados al final
@@ -1139,11 +1155,11 @@ function OrdersTab() {
       {/* ─── STATUS PILLS ─── */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 mb-3" style={{ scrollSnapType: 'x mandatory' }}>
         {([
-          ['all', `Todos (${totalOrders})`],
           ['pending', `Pendientes (${pendingOrders})`],
           ['confirmed', `Confirmados (${confirmedOrders})`],
           ['realizado', `Realizados (${realizadoOrders})`],
           ['rejected', `Rechazados (${rejectedOrders})`],
+          ['all', `Todos (${totalOrders})`],
         ] as const).map(([key, label]) => (
           <button
             key={key}
