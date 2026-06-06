@@ -199,37 +199,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 });
     }
 
-    // Send email notifications (non-blocking)
-    sendOrderNotification({
-      orderNumber: order.order_number,
-      customerName: customer.name.trim(),
-      customerPhone: customer.phone,
-      customerEmail: customer.email || undefined,
-      eventDate: event.date,
-      eventTime: event.time || '',
-      eventArea: event.area || undefined,
-      eventAddress: event.address || '',
-      birthdayChildName: event.birthdayChildName || undefined,
-      theme: event.theme || undefined,
-      items: items.map((i: { name: string; quantity: number; unitPrice: number }) => ({
-        name: i.name,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-      })),
-      subtotal: serverSubtotal,
-      transportCost: serverTransport,
-      transportPending,
-      surcharge: serverSurcharge,
-      total: serverTotal,
-      paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
-    }).catch(err => console.error('Email notification error:', err));
+    // Notifications must be AWAITED: on serverless the function is frozen/killed once
+    // the response is returned, so fire-and-forget silently drops the email/push.
+    // Failures are logged but never fail the order (it already exists).
+    try {
+      await sendOrderNotification({
+        orderNumber: order.order_number,
+        customerName: customer.name.trim(),
+        customerPhone: customer.phone,
+        customerEmail: customer.email || undefined,
+        eventDate: event.date,
+        eventTime: event.time || '',
+        eventArea: event.area || undefined,
+        eventAddress: event.address || '',
+        birthdayChildName: event.birthdayChildName || undefined,
+        theme: event.theme || undefined,
+        items: items.map((i: { name: string; quantity: number; unitPrice: number }) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+        subtotal: serverSubtotal,
+        transportCost: serverTransport,
+        transportPending,
+        surcharge: serverSurcharge,
+        total: serverTotal,
+        paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
+      });
+    } catch (err) {
+      console.error('Email notification error:', err);
+    }
 
-    // Send push notification (non-blocking)
-    sendPushNotification(
-      `Nuevo Pedido #${order.order_number}`,
-      `${customer.name.trim()} — $${serverTotal.toFixed(2)}`,
-      '/admin'
-    ).catch(err => console.error('Push notification error:', err));
+    try {
+      await sendPushNotification(
+        `Nuevo Pedido #${order.order_number}`,
+        `${customer.name.trim()} — $${serverTotal.toFixed(2)}`,
+        '/admin'
+      );
+    } catch (err) {
+      console.error('Push notification error:', err);
+    }
 
     return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
   } catch (error) {

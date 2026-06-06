@@ -133,7 +133,12 @@ export async function sendOrderNotification(data: OrderEmailData): Promise<void>
       subject: `Nuevo Pedido #${data.orderNumber} — ${data.customerName}`,
       html: buildOrderHTML(data, true),
     });
-    console.log('[Email] Admin email result:', JSON.stringify(adminResult));
+    // Resend returns { data, error } — it does NOT throw on API errors.
+    if (adminResult.error) {
+      console.error('[Email] Admin email API error:', JSON.stringify(adminResult.error));
+    } else {
+      console.log('[Email] Admin email sent, id:', adminResult.data?.id);
+    }
   } catch (err) {
     console.error('[Email] Admin email error:', err);
   }
@@ -148,7 +153,11 @@ export async function sendOrderNotification(data: OrderEmailData): Promise<void>
         subject: `Tu pedido #${data.orderNumber} ha sido recibido — PlayTime`,
         html: buildOrderHTML(data, false),
       });
-      console.log('[Email] Customer email result:', JSON.stringify(custResult));
+      if (custResult.error) {
+        console.error('[Email] Customer email API error:', JSON.stringify(custResult.error));
+      } else {
+        console.log('[Email] Customer email sent, id:', custResult.data?.id);
+      }
     } catch (err) {
       console.error('[Email] Customer email error:', err);
     }
