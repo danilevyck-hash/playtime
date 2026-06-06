@@ -237,12 +237,13 @@ export default function ContabilidadPage() {
   const [ready, setReady] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'comprobantes' | 'reportes' | 'cuentas' | 'categorias'>('comprobantes');
+  const [nav, setNav] = useState<'panel' | 'transacciones' | 'ventas' | 'informes' | 'config'>('panel');
 
   // Shared data
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<OrderLite[]>([]);
+  const [allVouchers, setAllVouchers] = useState<Voucher[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -294,13 +295,33 @@ export default function ContabilidadPage() {
     } catch {}
   }, []);
 
+  // Shared voucher dataset for Panel / Ventas / Informes (Transacciones fetches its own filtered list)
+  const loadVouchers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/accounting?resource=vouchers&sort=asc', { headers: adminHeaders() });
+      if (res.ok) {
+        const d = await res.json();
+        setAllVouchers(d.vouchers || []);
+      }
+    } catch {}
+  }, []);
+
+  // Anulados NEVER sum — filtered out once, here.
+  const active = useMemo(() => allVouchers.filter(v => v.status === 'activo'), [allVouchers]);
+
+  const reloadAfterMutation = useCallback(() => {
+    loadAccounts();
+    loadVouchers();
+  }, [loadAccounts, loadVouchers]);
+
   useEffect(() => {
     if (!authed) return;
     loadAccounts();
     loadCategories();
     loadOrders();
+    loadVouchers();
     fetchLogoUrl().then(setLogoUrl).catch(() => {});
-  }, [authed, loadAccounts, loadCategories, loadOrders]);
+  }, [authed, loadAccounts, loadCategories, loadOrders, loadVouchers]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,44 +401,59 @@ export default function ContabilidadPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-        {([['comprobantes', 'Comprobantes'], ['reportes', 'Reportes'], ['cuentas', 'Cuentas'], ['categorias', 'Categorías']] as const).map(([t, label]) => (
+      {/* QuickBooks-style nav */}
+      <div className="flex items-center gap-1.5 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
+        {([['panel', 'Panel'], ['transacciones', 'Transacciones'], ['ventas', 'Ventas'], ['informes', 'Informes']] as const).map(([key, label]) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-lg font-heading font-semibold text-[11px] sm:text-xs transition-all ${
-              tab === t ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            key={key}
+            onClick={() => setNav(key)}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg font-heading font-semibold text-sm transition-all ${
+              nav === key ? 'bg-purple text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:text-gray-800'
             }`}
           >
             {label}
           </button>
         ))}
+        <button
+          onClick={() => setNav('config')}
+          aria-label="Configuración"
+          className={`ml-auto shrink-0 p-2 rounded-lg transition-all ${nav === 'config' ? 'bg-purple text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
       </div>
 
-      {tab === 'comprobantes' && (
+      {nav === 'panel' && (
+        <PanelView active={active} accounts={accounts} orders={orders} onGoToVentas={() => setNav('ventas')} />
+      )}
+      {nav === 'transacciones' && (
         <ComprobantesTab
           accounts={accounts}
           categories={categories}
           orders={orders}
           logoUrl={logoUrl}
-          onMutated={loadAccounts}
+          onMutated={reloadAfterMutation}
           showToast={showToast}
         />
       )}
-      {tab === 'reportes' && (
-        <ReportesTab
+      {nav === 'ventas' && (
+        <VentasView
+          active={active}
+          orders={orders}
           accounts={accounts}
           categories={categories}
-          orders={orders}
-          onMutated={loadAccounts}
+          onMutated={reloadAfterMutation}
           showToast={showToast}
         />
       )}
-      {tab === 'cuentas' && (
-        <CuentasTab accounts={accounts} reload={loadAccounts} showToast={showToast} />
+      {nav === 'informes' && (
+        <InformesView active={active} accounts={accounts} />
       )}
-      {tab === 'categorias' && (
-        <CategoriasTab categories={categories} reload={loadCategories} showToast={showToast} />
+      {nav === 'config' && (
+        <ConfigView accounts={accounts} categories={categories} reloadAccounts={loadAccounts} reloadCategories={loadCategories} showToast={showToast} />
       )}
     </div>
   );
@@ -448,6 +484,7 @@ function ComprobantesTab({
   const [formKind, setFormKind] = useState<'ingreso' | 'egreso' | null>(null);
   const [detail, setDetail] = useState<Voucher | null>(null);
   const [printing, setPrinting] = useState<Voucher | null>(null);
+  const [showNewMenu, setShowNewMenu] = useState(false);
 
   const loadVouchers = useCallback(async () => {
     setLoading(true);
@@ -547,20 +584,36 @@ function ComprobantesTab({
         </div>
       </div>
 
-      {/* New buttons */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <button
-          onClick={() => setFormKind('ingreso')}
-          className="bg-emerald-600 text-white font-heading font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <span className="text-lg leading-none">+</span> Nuevo ingreso
-        </button>
-        <button
-          onClick={() => setFormKind('egreso')}
-          className="bg-red-500 text-white font-heading font-bold py-3 rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <span className="text-lg leading-none">−</span> Nuevo egreso
-        </button>
+      {/* Sub-tabs + New dropdown (QuickBooks style) */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 flex-1">
+          {([['', 'Todas'], ['ingreso', 'Ingresos'], ['egreso', 'Gastos']] as const).map(([k, label]) => (
+            <button
+              key={k || 'all'}
+              onClick={() => setKindFilter(k)}
+              className={`flex-1 py-1.5 rounded-md font-heading font-semibold text-xs transition-all ${kindFilter === k ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setShowNewMenu(s => !s)}
+            className="bg-emerald-600 text-white font-heading font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+          >
+            <span className="text-base leading-none">+</span> Nuevo <span className="text-[10px]">▾</span>
+          </button>
+          {showNewMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowNewMenu(false)} />
+              <div className="absolute right-0 mt-1 z-20 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden w-36">
+                <button onClick={() => { setFormKind('ingreso'); setShowNewMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm font-heading font-semibold text-emerald-700 hover:bg-emerald-50">Ingreso</button>
+                <button onClick={() => { setFormKind('egreso'); setShowNewMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm font-heading font-semibold text-red-600 hover:bg-red-50 border-t border-gray-100">Gasto</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Search + filter toggle */}
@@ -605,15 +658,7 @@ function ComprobantesTab({
               <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPreset('todo'); }} className={INPUT_CLS} />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className={LABEL_CLS}>Tipo</label>
-              <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | 'ingreso' | 'egreso')} className={INPUT_CLS}>
-                <option value="">Todos</option>
-                <option value="ingreso">Ingreso</option>
-                <option value="egreso">Egreso</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className={LABEL_CLS}>Categoría</label>
               <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={INPUT_CLS}>
@@ -1011,6 +1056,14 @@ function VoucherDetailModal({
             >
               📎 Ver adjunto
             </button>
+          )}
+          {v.order_id != null && (
+            <Link
+              href={`/admin/pedidos/${v.order_id}`}
+              className="flex items-center justify-center gap-1.5 w-full text-center bg-purple/10 rounded-lg py-2.5 text-purple font-heading font-semibold text-sm mt-2"
+            >
+              🧾 Ver pedido vinculado
+            </Link>
           )}
         </div>
 
@@ -1425,100 +1478,198 @@ function groupSumByCategory(list: Voucher[], kind: 'ingreso' | 'egreso'): Map<st
 const sumByKind = (list: Voucher[], kind: 'ingreso' | 'egreso') =>
   list.reduce((s, v) => s + (v.kind === kind ? Number(v.amount) || 0 : 0), 0);
 
-const REPORT_VIEWS: { key: 'resumen' | 'pl' | 'flujo' | 'cxc'; label: string }[] = [
-  { key: 'resumen', label: 'Resumen' },
-  { key: 'pl', label: 'Estado de resultados' },
-  { key: 'flujo', label: 'Flujo de caja' },
-  { key: 'cxc', label: 'Cuentas por cobrar' },
-];
-
-function ReportesTab({
-  accounts, categories, orders, onMutated, showToast,
-}: {
-  accounts: Account[];
-  categories: Category[];
-  orders: OrderLite[];
-  onMutated: () => void;
-  showToast: (m: string) => void;
+// Shared period selector (pills + custom range)
+function PeriodPills({ periodKey, setPeriodKey, customFrom, setCustomFrom, customTo, setCustomTo }: {
+  periodKey: ReportPeriodKey;
+  setPeriodKey: (k: ReportPeriodKey) => void;
+  customFrom: string;
+  setCustomFrom: (s: string) => void;
+  customTo: string;
+  setCustomTo: (s: string) => void;
 }) {
-  const [view, setView] = useState<'resumen' | 'pl' | 'flujo' | 'cxc'>('resumen');
+  return (
+    <div className="mb-4">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {REPORT_PRESETS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => setPeriodKey(p.key)}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-full font-heading font-semibold text-xs transition-colors ${periodKey === p.key ? 'bg-teal text-purple' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {periodKey === 'custom' && (
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div>
+            <label className={LABEL_CLS}>Desde</label>
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={INPUT_CLS} />
+          </div>
+          <div>
+            <label className={LABEL_CLS}>Hasta</label>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={INPUT_CLS} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Receivables: ALL non-rejected orders with paid/saldo (saldo>0 means outstanding)
+interface Receivable { o: OrderLite; paid: number; saldo: number }
+function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[] {
+  const paid = new Map<number, number>();
+  for (const v of active) {
+    if (v.kind !== 'ingreso' || v.order_id == null) continue;
+    paid.set(v.order_id, (paid.get(v.order_id) || 0) + (Number(v.amount) || 0));
+  }
+  return orders
+    .filter(o => { const st = (o.status || '').toLowerCase(); return st !== 'rechazado' && st !== 'rechazada'; })
+    .map(o => {
+      const paidAmt = (Number(o.deposit_amount) || 0) + (paid.get(o.id) || 0);
+      return { o, paid: paidAmt, saldo: (Number(o.total) || 0) - paidAmt };
+    });
+}
+
+// ─── PANEL ───
+function PanelView({ active, accounts, orders, onGoToVentas }: { active: Voucher[]; accounts: Account[]; orders: OrderLite[]; onGoToVentas: () => void }) {
   const [periodKey, setPeriodKey] = useState<ReportPeriodKey>('mes');
   const [customFrom, setCustomFrom] = useState(reportRange('mes').from);
   const [customTo, setCustomTo] = useState(reportRange('mes').to);
-  const [allVouchers, setAllVouchers] = useState<Voucher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [payPrefill, setPayPrefill] = useState<{ orderId: string; amount: string; counterparty: string; description: string } | null>(null);
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/accounting?resource=vouchers&sort=asc', { headers: adminHeaders() });
-      if (res.ok) { const d = await res.json(); setAllVouchers(d.vouchers || []); }
-    } catch {} finally { setLoading(false); }
-  }, []);
-  useEffect(() => { loadAll(); }, [loadAll]);
-
   const { from, to } = periodKey === 'custom' ? { from: customFrom, to: customTo } : reportRange(periodKey);
-  // Anulados NEVER sum in any report — filtered out once, here.
-  const active = useMemo(() => allVouchers.filter(v => v.status === 'activo'), [allVouchers]);
 
-  const afterPay = () => { setPayPrefill(null); loadAll(); onMutated(); };
+  const porCobrar = useMemo(() => computeReceivables(active, orders).reduce((s, r) => s + (r.saldo > 0.005 ? r.saldo : 0), 0), [active, orders]);
 
   return (
     <div>
-      {/* View selector */}
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
-        {REPORT_VIEWS.map(v => (
+      <button
+        onClick={onGoToVentas}
+        className="w-full bg-orange/10 rounded-xl p-4 mb-4 flex items-center justify-between text-left hover:bg-orange/20 transition-colors"
+      >
+        <div>
+          <p className="font-heading text-[11px] text-orange font-semibold uppercase tracking-wide">Por cobrar</p>
+          <p className="font-heading font-bold text-orange text-2xl mt-0.5">{formatCurrency(porCobrar)}</p>
+        </div>
+        <span className="font-heading font-semibold text-orange text-sm whitespace-nowrap">Ver ventas →</span>
+      </button>
+
+      <PeriodPills periodKey={periodKey} setPeriodKey={setPeriodKey} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      <ResumenView active={active} from={from} to={to} accounts={accounts} />
+    </div>
+  );
+}
+
+// ─── VENTAS (QuickBooks-style sales / receivables) ───
+function ventaBadge(r: Receivable, today: string): { label: string; cls: string } {
+  if (r.saldo <= 0.005) return { label: 'Pagado', cls: 'bg-emerald-100 text-emerald-700' };
+  if (r.o.event_date < today) return { label: 'Vencido', cls: 'bg-red-100 text-red-600' };
+  if (r.paid > 0.005) return { label: 'Parcial', cls: 'bg-yellow-100 text-yellow-700' };
+  return { label: 'Pendiente', cls: 'bg-gray-100 text-gray-500' };
+}
+
+function VentasView({ active, orders, accounts, categories, onMutated, showToast }: {
+  active: Voucher[];
+  orders: OrderLite[];
+  accounts: Account[];
+  categories: Category[];
+  onMutated: () => void;
+  showToast: (m: string) => void;
+}) {
+  const [filter, setFilter] = useState<'todas' | 'pendientes' | 'pagadas'>('todas');
+  const [payPrefill, setPayPrefill] = useState<{ orderId: string; amount: string; counterparty: string; description: string } | null>(null);
+  const today = todayStr();
+
+  const allRows = useMemo(
+    () => computeReceivables(active, orders).sort((a, b) => b.o.event_date.localeCompare(a.o.event_date)),
+    [active, orders]
+  );
+  const porCobrar = allRows.reduce((s, r) => s + (r.saldo > 0.005 ? r.saldo : 0), 0);
+  const rows = allRows.filter(r => filter === 'todas' ? true : filter === 'pendientes' ? r.saldo > 0.005 : r.saldo <= 0.005);
+
+  const afterPay = () => { setPayPrefill(null); onMutated(); };
+
+  const exportCSV = () => {
+    const headers = ['Pedido', 'Cliente', 'Fecha evento', 'Total', 'Pagado', 'Saldo', 'Estado'];
+    const data = rows.map(r => [`#${r.o.order_number}`, r.o.customer_name, r.o.event_date, money2(r.o.total), money2(r.paid), money2(r.saldo), ventaBadge(r, today).label]);
+    downloadCSV('ventas.csv', headers, data);
+  };
+
+  return (
+    <div>
+      <div className="bg-orange/10 rounded-xl p-4 mb-4 text-center">
+        <p className="font-heading text-[11px] text-orange font-semibold uppercase tracking-wide">Por cobrar</p>
+        <p className="font-heading font-bold text-orange text-2xl mt-0.5">{formatCurrency(porCobrar)}</p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 mb-3">
+        {([['todas', 'Todas'], ['pendientes', 'Pendientes de cobro'], ['pagadas', 'Pagadas']] as const).map(([k, label]) => (
           <button
-            key={v.key}
-            onClick={() => setView(v.key)}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-full font-heading font-semibold text-xs transition-colors ${view === v.key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}
+            key={k}
+            onClick={() => setFilter(k)}
+            className={`flex-1 py-1.5 rounded-md font-heading font-semibold text-[11px] sm:text-xs transition-all ${filter === k ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}
           >
-            {v.label}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Period selector — Cuentas por cobrar ignores the period (shows all outstanding) */}
-      {view !== 'cxc' && (
-        <div className="mb-4">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-            {REPORT_PRESETS.map(p => (
-              <button
-                key={p.key}
-                onClick={() => setPeriodKey(p.key)}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-full font-heading font-semibold text-xs transition-colors ${periodKey === p.key ? 'bg-teal text-purple' : 'bg-gray-100 text-gray-600'}`}
-              >
-                {p.label}
-              </button>
-            ))}
+      {rows.length === 0 ? (
+        <div className="text-center py-10 text-gray-400">
+          <p className="text-4xl mb-2">🧾</p>
+          <p className="font-body">No hay ventas en esta vista</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 font-heading text-[11px] uppercase">
+                  <th className="text-left py-2 px-3">Cliente</th>
+                  <th className="text-left py-2 px-2">Evento</th>
+                  <th className="text-right py-2 px-2">Total</th>
+                  <th className="text-right py-2 px-2">Pagado</th>
+                  <th className="text-right py-2 px-2">Saldo</th>
+                  <th className="text-center py-2 px-2">Estado</th>
+                  <th className="py-2 px-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map(r => {
+                  const badge = ventaBadge(r, today);
+                  return (
+                    <tr key={r.o.id} className="font-body">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <p className="font-heading font-semibold text-gray-800 truncate max-w-[120px]">{r.o.customer_name}</p>
+                        <p className="text-[10px] text-gray-400">#{r.o.order_number}</p>
+                      </td>
+                      <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap text-xs">{formatDate(r.o.event_date)}</td>
+                      <td className="py-2.5 px-2 text-right text-gray-700 whitespace-nowrap">{formatCurrency(Number(r.o.total) || 0)}</td>
+                      <td className="py-2.5 px-2 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(r.paid)}</td>
+                      <td className="py-2.5 px-2 text-right font-heading font-bold whitespace-nowrap text-gray-800">{formatCurrency(Math.max(0, r.saldo))}</td>
+                      <td className="py-2.5 px-2 text-center">
+                        <span className={`inline-block text-[10px] font-heading font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {r.saldo > 0.005 && (
+                          <button
+                            onClick={() => setPayPrefill({ orderId: String(r.o.id), amount: r.saldo.toFixed(2), counterparty: r.o.customer_name, description: `Pago pedido #${r.o.order_number}` })}
+                            className="bg-emerald-600 text-white font-heading font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                          >
+                            Recibir pago
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          {periodKey === 'custom' && (
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <div>
-                <label className={LABEL_CLS}>Desde</label>
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={INPUT_CLS} />
-              </div>
-              <div>
-                <label className={LABEL_CLS}>Hasta</label>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={INPUT_CLS} />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {loading ? (
-        <div className="space-y-2">{[0, 1, 2].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}</div>
-      ) : view === 'resumen' ? (
-        <ResumenView active={active} from={from} to={to} accounts={accounts} />
-      ) : view === 'pl' ? (
-        <PLView active={active} from={from} to={to} periodKey={periodKey} />
-      ) : view === 'flujo' ? (
-        <FlujoView active={active} from={from} to={to} accounts={accounts} />
-      ) : (
-        <CxCView active={active} orders={orders} onPay={setPayPrefill} />
-      )}
+      {rows.length > 0 && <ExportButton onClick={exportCSV} />}
 
       {payPrefill && (
         <VoucherFormModal
@@ -1532,6 +1683,81 @@ function ReportesTab({
           showToast={showToast}
         />
       )}
+    </div>
+  );
+}
+
+// ─── INFORMES (report center) ───
+function InformesView({ active, accounts }: { active: Voucher[]; accounts: Account[] }) {
+  const [report, setReport] = useState<null | 'pl' | 'flujo'>(null);
+  const [periodKey, setPeriodKey] = useState<ReportPeriodKey>('mes');
+  const [customFrom, setCustomFrom] = useState(reportRange('mes').from);
+  const [customTo, setCustomTo] = useState(reportRange('mes').to);
+  const { from, to } = periodKey === 'custom' ? { from: customFrom, to: customTo } : reportRange(periodKey);
+
+  if (!report) {
+    const items: { key: 'pl' | 'flujo'; title: string; desc: string; icon: string }[] = [
+      { key: 'pl', title: 'Estado de resultados', desc: 'Ingresos, gastos y utilidad neta del período', icon: '📊' },
+      { key: 'flujo', title: 'Flujo de efectivo', desc: 'Entradas y salidas de dinero por mes', icon: '💵' },
+    ];
+    return (
+      <div className="space-y-2">
+        <p className="font-heading font-bold text-sm text-gray-500 uppercase tracking-wide mb-1">Informes</p>
+        {items.map(it => (
+          <button
+            key={it.key}
+            onClick={() => setReport(it.key)}
+            className="w-full bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3 text-left hover:shadow-sm hover:border-purple/40 transition-all"
+          >
+            <span className="text-2xl">{it.icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-heading font-bold text-gray-800">{it.title}</p>
+              <p className="text-xs text-gray-400 font-body">{it.desc}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={() => setReport(null)} className="flex items-center gap-1 text-purple font-heading font-semibold text-sm mb-3">
+        ← Informes
+      </button>
+      <h2 className="font-heading font-bold text-xl text-purple mb-3">{report === 'pl' ? 'Estado de resultados' : 'Flujo de efectivo'}</h2>
+      <PeriodPills periodKey={periodKey} setPeriodKey={setPeriodKey} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      {report === 'pl' ? <PLView active={active} from={from} to={to} periodKey={periodKey} /> : <FlujoView active={active} from={from} to={to} accounts={accounts} />}
+    </div>
+  );
+}
+
+// ─── CONFIGURACIÓN ───
+function ConfigView({ accounts, categories, reloadAccounts, reloadCategories, showToast }: {
+  accounts: Account[];
+  categories: Category[];
+  reloadAccounts: () => void;
+  reloadCategories: () => void;
+  showToast: (m: string) => void;
+}) {
+  const [sub, setSub] = useState<'cuentas' | 'categorias'>('cuentas');
+  return (
+    <div>
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 mb-5">
+        {([['cuentas', 'Cuentas'], ['categorias', 'Categorías']] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setSub(k)}
+            className={`flex-1 py-1.5 rounded-md font-heading font-semibold text-xs transition-all ${sub === k ? 'bg-white text-purple shadow-sm' : 'text-gray-500'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {sub === 'cuentas'
+        ? <CuentasTab accounts={accounts} reload={reloadAccounts} showToast={showToast} />
+        : <CategoriasTab categories={categories} reload={reloadCategories} showToast={showToast} />}
     </div>
   );
 }
@@ -1697,7 +1923,7 @@ function PLView({ active, from, to, periodKey }: { active: Voucher[]; from: stri
   );
 }
 
-// ── Flujo de caja ──
+// ── Flujo de efectivo ──
 function FlujoView({ active, from, to, accounts }: { active: Voucher[]; from: string; to: string; accounts: Account[] }) {
   const [accountId, setAccountId] = useState('');
 
@@ -1727,7 +1953,7 @@ function FlujoView({ active, from, to, accounts }: { active: Voucher[]; from: st
   const exportCSV = () => {
     const headers = ['Mes', 'Saldo inicial', 'Entradas', 'Salidas', 'Saldo final'];
     const data = rows.map(r => [r.mes, money2(r.saldoInicial), money2(r.entradas), money2(r.salidas), money2(r.saldoFinal)]);
-    downloadCSV(`flujo_caja_${from}_${to}.csv`, headers, data);
+    downloadCSV(`flujo_efectivo_${from}_${to}.csv`, headers, data);
   };
 
   return (
@@ -1768,92 +1994,6 @@ function FlujoView({ active, from, to, accounts }: { active: Voucher[]; from: st
           </table>
         </div>
       </div>
-
-      <ExportButton onClick={exportCSV} />
-    </div>
-  );
-}
-
-// ── Cuentas por cobrar ──
-function CxCView({ active, orders, onPay }: {
-  active: Voucher[];
-  orders: OrderLite[];
-  onPay: (p: { orderId: string; amount: string; counterparty: string; description: string }) => void;
-}) {
-  const paidByOrder = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const v of active) {
-      if (v.kind !== 'ingreso' || v.order_id == null) continue;
-      m.set(v.order_id, (m.get(v.order_id) || 0) + (Number(v.amount) || 0));
-    }
-    return m;
-  }, [active]);
-
-  // CxC ignores the period: show ALL orders with an outstanding balance,
-  // ordered by event date descending. Rejected orders are excluded.
-  const receivables = useMemo(() => {
-    return orders
-      .filter(o => {
-        const st = (o.status || '').toLowerCase();
-        return st !== 'rechazado' && st !== 'rechazada';
-      })
-      .map(o => {
-        const paid = (Number(o.deposit_amount) || 0) + (paidByOrder.get(o.id) || 0);
-        const saldo = (Number(o.total) || 0) - paid;
-        return { o, paid, saldo };
-      })
-      .filter(r => r.saldo > 0.005)
-      .sort((a, b) => b.o.event_date.localeCompare(a.o.event_date));
-  }, [orders, paidByOrder]);
-
-  const totalCxC = receivables.reduce((s, r) => s + r.saldo, 0);
-
-  const exportCSV = () => {
-    const headers = ['Pedido', 'Cliente', 'Fecha evento', 'Total', 'Pagado', 'Saldo pendiente'];
-    const rows = receivables.map(r => [`#${r.o.order_number}`, r.o.customer_name, r.o.event_date, money2(r.o.total), money2(r.paid), money2(r.saldo)]);
-    downloadCSV('cuentas_por_cobrar.csv', headers, rows);
-  };
-
-  return (
-    <div>
-      <div className="bg-orange/10 rounded-xl p-4 mb-4 text-center">
-        <p className="font-heading text-[11px] text-orange font-semibold uppercase tracking-wide">Total por cobrar</p>
-        <p className="font-heading font-bold text-orange text-2xl mt-0.5">{formatCurrency(totalCxC)}</p>
-        <p className="text-[11px] text-gray-400 font-body mt-0.5">{receivables.length} pedido{receivables.length === 1 ? '' : 's'} con saldo</p>
-      </div>
-
-      {receivables.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <p className="text-4xl mb-2">✅</p>
-          <p className="font-body">No hay saldos pendientes</p>
-        </div>
-      ) : (
-        <div className="space-y-2 mb-3">
-          {receivables.map(({ o, paid, saldo }) => (
-            <div key={o.id} className="bg-white border border-gray-200 rounded-xl p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-heading font-bold text-gray-800 text-sm truncate">{o.customer_name}</p>
-                  <p className="text-[11px] text-gray-400 font-body">#{o.order_number} · {formatDate(o.event_date)}</p>
-                </div>
-                <div className="text-right whitespace-nowrap">
-                  <p className="font-heading font-bold text-orange text-base">{formatCurrency(saldo)}</p>
-                  <p className="text-[10px] text-gray-400 font-body">de {formatCurrency(Number(o.total) || 0)}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                <span className="text-[11px] text-gray-500 font-body">Pagado: {formatCurrency(paid)}</span>
-                <button
-                  onClick={() => onPay({ orderId: String(o.id), amount: saldo.toFixed(2), counterparty: o.customer_name, description: `Pago pedido #${o.order_number}` })}
-                  className="bg-emerald-600 text-white font-heading font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors"
-                >
-                  + Registrar pago
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <ExportButton onClick={exportCSV} />
     </div>
