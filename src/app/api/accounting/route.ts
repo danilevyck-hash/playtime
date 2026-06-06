@@ -259,6 +259,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Pedido inválido' }, { status: 400 });
     }
 
+    // Idempotency backstop (no schema change): if an identical active voucher was
+    // created in the last ~10s, return it instead of inserting a duplicate. Catches a
+    // double-tap that slips past the client-side ref guard. Not a hard guarantee
+    // (true-concurrent inserts could still both pass) — a UNIQUE index would need a migration.
+    const recentIso = new Date(Date.now() - 10_000).toISOString();
+    let dupQuery = db.from('pt_vouchers')
+      .select('*')
+      .eq('kind', kind)
+      .eq('account_id', body.account_id)
+      .eq('category_id', body.category_id)
+      .eq('amount', round2(amount))
+      .eq('status', 'activo')
+      .gte('created_at', recentIso)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    dupQuery = orderId == null ? dupQuery.is('order_id', null) : dupQuery.eq('order_id', orderId);
+    const { data: recentDup } = await dupQuery;
+    if (recentDup && recentDup.length > 0) {
+      return NextResponse.json({ ok: true, voucher: recentDup[0], deduped: true });
+    }
+
     const insertRow = {
       kind,
       date,

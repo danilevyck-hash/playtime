@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/format';
@@ -787,6 +787,9 @@ function VoucherFormModal({
   const [attachmentSigned, setAttachmentSigned] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Synchronous double-submit guard — `saving` (state) re-renders too late to block a
+  // rapid double-tap, so a ref is the real protection (same pattern as the checkout).
+  const savingRef = useRef(false);
 
   const isIngreso = kind === 'ingreso';
 
@@ -827,10 +830,12 @@ function VoucherFormModal({
   };
 
   const submit = async () => {
+    if (savingRef.current) return;
     const amt = Number(amount);
     if (isNaN(amt) || amt <= 0) { showToast('El monto debe ser mayor a 0'); return; }
     if (!accountId) { showToast('Selecciona una cuenta'); return; }
     if (!categoryId) { showToast('Selecciona una categoría'); return; }
+    savingRef.current = true;
     setSaving(true);
     try {
       const res = await fetch('/api/accounting', {
@@ -863,6 +868,7 @@ function VoucherFormModal({
       showToast('Error de conexión');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 

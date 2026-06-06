@@ -55,6 +55,7 @@ export default function CheckoutPage() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmData, setConfirmData] = useState<{ subtotalLine: string; transportLine: string; surchargeLine: string; totalLine: string; pendingNote: string } | null>(null);
   const [eventAreas, setEventAreas] = useState(DEFAULT_AREAS);
@@ -135,15 +136,14 @@ export default function CheckoutPage() {
 
     submittingRef.current = true;
     setLoading(true);
+    setSubmitError(null);
     try {
       setLoadingStep('Guardando pedido...');
 
-      // Generate unique order number: YYMMDD + 4 random digits
-      const now = new Date();
-      const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-      const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-      let orderNumber: string | number = `${datePart}-${randPart}`;
-
+      // Persist the order in the DB FIRST. We only show the success screen if the
+      // server confirms a real order (returns orderId). On any failure we keep the
+      // cart, stay on this page, and surface a retry — never a fake "success".
+      let orderNumber: string | number = '';
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
@@ -155,38 +155,45 @@ export default function CheckoutPage() {
             items,
           }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          orderNumber = data.orderNumber || orderNumber;
-        } else {
+        if (!res.ok) {
           console.error('Order API error:', res.status);
-          showToast('No se pudo guardar el pedido, pero puedes continuar por WhatsApp');
+          setSubmitError('No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
+          return;
         }
+        const data = await res.json();
+        if (!data?.orderId) {
+          console.error('Order API returned no orderId:', data);
+          setSubmitError('No se pudo guardar tu pedido. Intenta de nuevo.');
+          return;
+        }
+        orderNumber = data.orderNumber ?? data.orderId;
       } catch (e) {
         console.error('Order save error:', e);
-        showToast('No se pudo guardar el pedido, pero puedes continuar por WhatsApp');
+        setSubmitError('No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
+        return;
       }
 
-      // Generate PDF
-      setLoadingStep('Generando factura...');
-      const pdfLogoUrl = await fetchLogoUrl().catch(() => null) || `${window.location.origin}/logo-white.png`;
-      const pdfDoc = await generateOrderPDF({
-        orderNumber,
-        customer,
-        event,
-        items,
-        subtotal,
-        transportCost: isTransportPending ? -1 : transportCost,
-        surcharge,
-        total,
-        paymentMethod,
-        logoUrl: pdfLogoUrl,
-      });
-
-      // Upload PDF
-      setLoadingStep('Subiendo PDF...');
+      // The order now EXISTS in the DB. Everything below is best-effort: PDF
+      // generation/upload is non-critical and must NOT block success or trigger a
+      // re-POST on retry, so it is fully wrapped — the order goes through regardless.
       let pdfUrl = '';
       try {
+        setLoadingStep('Generando factura...');
+        const pdfLogoUrl = await fetchLogoUrl().catch(() => null) || `${window.location.origin}/logo-white.png`;
+        const pdfDoc = await generateOrderPDF({
+          orderNumber,
+          customer,
+          event,
+          items,
+          subtotal,
+          transportCost: isTransportPending ? -1 : transportCost,
+          surcharge,
+          total,
+          paymentMethod,
+          logoUrl: pdfLogoUrl,
+        });
+
+        setLoadingStep('Subiendo PDF...');
         const pdfBlob = pdfDoc.output('blob');
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -201,8 +208,8 @@ export default function CheckoutPage() {
           pdfUrl = urlData.publicUrl;
         }
       } catch (e) {
-        console.error('PDF upload error:', e);
-        // Continue without PDF link — order still goes through WhatsApp
+        console.error('PDF generate/upload error (non-critical):', e);
+        // Continue without PDF link — order already saved; WhatsApp still works.
       }
 
       // Build WhatsApp URL
@@ -214,6 +221,8 @@ export default function CheckoutPage() {
         eventDate: event.date,
         eventTime: event.time,
         showTime: event.showTime,
+        items: items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+        total,
       });
 
       const waUrl = getWhatsAppUrl(message);
@@ -245,6 +254,20 @@ export default function CheckoutPage() {
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
       <h1 className="font-heading font-bold text-3xl text-purple mb-6 text-center">{texts.checkout_title}</h1>
       <StepIndicator current={step} />
+
+      {submitError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 my-4 text-center">
+          <p className="font-heading font-bold text-red-600 mb-1">No se pudo enviar tu pedido</p>
+          <p className="font-body text-sm text-red-500 mb-3">{submitError} Tu carrito sigue intacto.</p>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="bg-purple text-white font-heading font-bold px-6 py-2.5 rounded-xl hover:bg-purple-light transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Reintentando…' : 'Reintentar'}
+          </button>
+        </div>
+      )}
 
       {/* Mini order summary — visible on steps 0-1 */}
       {step < 2 && items.length > 0 && (
