@@ -11,23 +11,34 @@ const sessions = new Map<string, SessionData>(); // token -> session data
 
 // ─── Signed tokens (work across serverless cold starts) ───
 // Format: base64({role, exp}).base64(hmac-sha256)
-function getSigningKey(): string {
-  // Use service role key as HMAC secret (always available server-side)
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.ADMIN_PIN || 'fallback-key';
+// HMAC signing key. MUST be a strong secret. We do NOT fall back to ADMIN_PIN
+// (4 digits = trivially brute-forceable) nor to a hardcoded string (forgeable by
+// anyone). If no strong secret is configured, auth fails closed — no token can be
+// issued or verified.
+function getSigningKey(): string | null {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.AUTH_SECRET;
+  return key && key.length >= 32 ? key : null;
 }
 
 export function createSignedToken(role: 'admin' | 'vendedora'): string {
+  const key = getSigningKey();
+  if (!key) {
+    console.error('[auth] No strong signing key (SUPABASE_SERVICE_ROLE_KEY/AUTH_SECRET) — refusing to issue token');
+    return '';
+  }
   const payload = JSON.stringify({ role, exp: Date.now() + 24 * 60 * 60 * 1000 });
   const payloadB64 = Buffer.from(payload).toString('base64url');
-  const sig = crypto.createHmac('sha256', getSigningKey()).update(payloadB64).digest('base64url');
+  const sig = crypto.createHmac('sha256', key).update(payloadB64).digest('base64url');
   return `${payloadB64}.${sig}`;
 }
 
 export function verifySignedToken(token: string): { valid: boolean; role: 'admin' | 'vendedora' | null } {
   try {
+    const key = getSigningKey();
+    if (!key) return { valid: false, role: null };
     const [payloadB64, sig] = token.split('.');
     if (!payloadB64 || !sig) return { valid: false, role: null };
-    const expectedSig = crypto.createHmac('sha256', getSigningKey()).update(payloadB64).digest('base64url');
+    const expectedSig = crypto.createHmac('sha256', key).update(payloadB64).digest('base64url');
     const sigBuf = Buffer.from(sig, 'base64url');
     const expectedBuf = Buffer.from(expectedSig, 'base64url');
     if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) return { valid: false, role: null };
@@ -113,6 +124,9 @@ export function requireRole(
 export function createSession(role: 'admin' | 'vendedora' = 'admin'): string {
   // Return a signed token that works across serverless instances
   const token = createSignedToken(role);
+  // Fail closed: if no strong signing key, createSignedToken returns '' — never
+  // cache an empty token (isValidSession/getSessionRole already reject it).
+  if (!token) return '';
   // Also cache in-memory for fast validation on same instance
   const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
   sessions.set(token, { expiresAt, role });
