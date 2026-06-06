@@ -20,11 +20,9 @@ async function fetchOrderEventAreas(db: SupabaseClient): Promise<{ name: string;
 }
 
 function isAdminAuthorized(request: NextRequest): boolean {
-  // Check session token first (works for both admin and vendedora), then fall back to PIN
-  const token = request.headers.get('x-admin-token');
-  if (isValidSession(token)) return true;
-  const pin = request.headers.get('x-admin-pin');
-  return pin === process.env.ADMIN_PIN;
+  // Token-only (works for both admin and vendedora). The raw x-admin-pin header
+  // fallback was removed — the signed token is the single source of truth.
+  return isValidSession(request.headers.get('x-admin-token'));
 }
 
 /** Round to 2 decimal places to avoid floating-point issues */

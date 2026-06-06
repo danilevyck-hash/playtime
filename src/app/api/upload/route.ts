@@ -6,10 +6,8 @@ const BUCKET = 'playtime-images';
 const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']);
 
 export async function POST(request: NextRequest) {
-  // Auth check: session token or PIN
-  const token = request.headers.get('x-admin-token');
-  const pin = request.headers.get('x-admin-pin');
-  if (!isValidSession(token) && pin !== process.env.ADMIN_PIN) {
+  // Auth check: session token only (raw x-admin-pin fallback removed)
+  if (!isValidSession(request.headers.get('x-admin-token'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

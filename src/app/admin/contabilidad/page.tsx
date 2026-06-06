@@ -11,10 +11,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 // ─── Session (shared with /admin via sessionStorage) ───
 let _adminToken = '';
-let _adminPin = '';
 
 function adminHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin };
+  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken };
 }
 
 /**
@@ -250,16 +249,14 @@ export default function ContabilidadPage() {
   useEffect(() => {
     try {
       const t = sessionStorage.getItem('adminToken');
-      const p = sessionStorage.getItem('adminPin');
       const role = sessionStorage.getItem('adminRole');
-      if (t && p) {
+      if (t) {
         // Contabilidad is admin-only. A vendedora session must not see it.
         if (role === 'vendedora') {
           router.replace('/admin');
           return;
         }
         _adminToken = t;
-        _adminPin = p;
         setAuthed(true);
       }
     } catch {}
@@ -335,12 +332,10 @@ export default function ContabilidadPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        _adminPin = pin;
         _adminToken = data.token || '';
         const role = data.role || 'admin';
         try {
           sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminPin', _adminPin);
           sessionStorage.setItem('adminRole', role);
         } catch {}
         // Contabilidad is admin-only: send vendedora to the orders admin.
@@ -830,7 +825,7 @@ function VoucherFormModal({
       fd.append('file', file);
       const res = await fetch('/api/accounting/upload', {
         method: 'POST',
-        headers: { 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin },
+        headers: { 'x-admin-token': _adminToken },
         body: fd,
       });
       const d = await res.json();

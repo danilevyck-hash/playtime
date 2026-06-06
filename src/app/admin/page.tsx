@@ -21,7 +21,7 @@ import {
 
 // ─── API helpers (server-side writes via service role) ───
 function adminHeaders(extra?: Record<string, string>): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin, ...extra };
+  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, ...extra };
 }
 
 async function apiUpsertSetting(key: string, value: unknown): Promise<boolean> {
@@ -167,10 +167,8 @@ function getOrderStatus(order: Order): OrderStatus {
   return 'pendiente';
 }
 
-// Session token stored after server-side auth validation
+// Session token stored after server-side auth validation (single source of truth)
 let _adminToken = '';
-// Keep PIN for backward compat with API headers
-let _adminPin = '';
 // Role: 'admin' has full access, 'vendedora' sees only Pedidos (no stats)
 let _adminRole: 'admin' | 'vendedora' = 'admin';
 
@@ -361,7 +359,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
         body: JSON.stringify({ orderId: order.id, discount: val, discountType: dtype }),
       });
       if (res.ok) {
@@ -448,7 +446,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
         body: JSON.stringify({ orderId: order.id, transportCostConfirmed: val }),
       });
       if (res.ok) {
@@ -887,7 +885,7 @@ function OrdersTab() {
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
       body: JSON.stringify(body),
     });
     return res.ok;
@@ -897,7 +895,7 @@ function OrdersTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken } });
+      const res = await fetch('/api/orders', { headers: { 'x-admin-token': _adminToken } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
@@ -945,7 +943,7 @@ function OrdersTab() {
   const deleteOrder = useCallback(async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
-      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
+      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
       if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); showToast('Pedido eliminado'); }
       else { showToast('Error al eliminar pedido'); }
     } catch (e) {
@@ -1494,7 +1492,7 @@ function ProductsTab() {
       formData.append('productId', productId);
       formData.append('folder', 'products');
       formData.append('imageIndex', String(imageIndex));
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
@@ -1538,7 +1536,7 @@ function ProductsTab() {
       formData.append('productId', `${productId}_variant_${variantId}`);
       formData.append('folder', 'variants');
       formData.append('imageIndex', '0');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         console.error('Variant upload failed:', res.status, errBody);
@@ -2392,7 +2390,7 @@ const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body tex
 function revalidateSite() {
   fetch('/api/revalidate', {
     method: 'POST',
-    headers: { 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin },
+    headers: { 'x-admin-token': _adminToken },
   }).catch(() => {});
 }
 
@@ -2542,7 +2540,7 @@ function WebsiteTab() {
       formData.append('file', file);
       formData.append('productId', 'site-logo');
       formData.append('folder', 'logos');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const url = data.path + '?t=' + Date.now();
@@ -3078,11 +3076,9 @@ export default function AdminPage() {
   useEffect(() => {
     try {
       const savedToken = sessionStorage.getItem('adminToken');
-      const savedPin = sessionStorage.getItem('adminPin');
       const savedRole = sessionStorage.getItem('adminRole');
-      if (savedToken && savedPin) {
+      if (savedToken) {
         _adminToken = savedToken;
-        _adminPin = savedPin;
         _adminRole = (savedRole === 'vendedora' ? 'vendedora' : 'admin');
         setAuthenticated(true);
       }
@@ -3138,12 +3134,10 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        _adminPin = pin;
         _adminToken = data.token || '';
         _adminRole = data.role || 'admin';
         try {
           sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminPin', _adminPin);
           sessionStorage.setItem('adminRole', _adminRole);
         } catch {}
         setAuthenticated(true);

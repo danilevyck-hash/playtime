@@ -3,9 +3,8 @@ import { revalidatePath } from 'next/cache';
 import { isValidSession } from '@/lib/admin-auth';
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('x-admin-token') || '';
-  const pin = req.headers.get('x-admin-pin') || '';
-  if (!isValidSession(token) && pin !== process.env.ADMIN_PIN) {
+  // Token-only — the raw x-admin-pin fallback was removed.
+  if (!isValidSession(req.headers.get('x-admin-token'))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
