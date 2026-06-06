@@ -88,7 +88,11 @@ export async function POST(request: NextRequest) {
     const serverSurcharge = paymentMethod === 'credit_card' ? round2(serverSubtotal * CREDIT_CARD_SURCHARGE) : 0;
     const serverTotal = round2(serverSubtotal + serverSurcharge);
 
-    if (!supabase) {
+    // Use the service-role client so public order creation does NOT depend on
+    // anon RLS policies (those are being dropped to stop a PII leak on pt_orders).
+    // Service role bypasses RLS for both the INSERT and the RETURNING select.
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       // Supabase not configured, return a mock order number
       const now = new Date();
       const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert order with server-calculated totals
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await db
       .from('pt_orders')
       .insert({
         customer_name: customer.name.trim(),
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
       line_total: round2(item.quantity * item.unitPrice),
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await db
       .from('pt_order_items')
       .insert(orderItems);
 

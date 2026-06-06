@@ -1,0 +1,105 @@
+-- ============================================================================
+-- Migration: Drop public/anon policies on pt_orders & pt_order_items (PII leak)
+-- File:      2026-06-06_drop_anon_policies_orders.sql
+-- ============================================================================
+--
+-- PROBLEM
+-- -------
+-- pg_policies (prod) shows permissive policies that let the PUBLIC/ANON role
+-- SELECT and INSERT on pt_orders and pt_order_items. Because the anon key ships
+-- in the browser bundle, anyone can read EVERY order — customer name, phone,
+-- email, address (PII). This migration removes all public/anon policies and
+-- leaves ONLY the service_role policy, so these tables become server-only.
+--
+-- ┌──────────────────────────────────────────────────────────────────────────┐
+-- │ ⚠️  HARD PREREQUISITE — DO NOT APPLY THIS BEFORE THE CODE DEPLOY  ⚠️       │
+-- │                                                                            │
+-- │ POST /api/orders (the public checkout) USED TO insert with the anon       │
+-- │ client, so it depended on these anon policies for BOTH the INSERT and the │
+-- │ `.select('id, order_number')` RETURNING. It was changed to the            │
+-- │ service-role client (src/app/api/orders/route.ts: `const db =             │
+-- │ supabaseAdmin || supabase`, commit pushed with this migration).           │
+-- │                                                                            │
+-- │ DEPLOY THAT CODE TO VERCEL FIRST. If you DROP these policies while the     │
+-- │ old (anon) build is still live, the checkout returns "Failed to create    │
+-- │ order" (500) for every customer.                                          │
+-- └──────────────────────────────────────────────────────────────────────────┘
+--
+-- ============================================================================
+-- GATE  —  run BEFORE the migration; record the output by hand
+-- ============================================================================
+--
+-- 1) Current policies on both tables (expect the 8 listed: 3 public/anon + 1
+--    service_role per table). Write them down:
+--
+--      SELECT schemaname, tablename, policyname, roles, cmd
+--      FROM pg_policies
+--      WHERE tablename IN ('pt_orders', 'pt_order_items')
+--      ORDER BY tablename, policyname;
+--
+-- 2) RLS must be ENABLED for the drops to actually close the leak. If
+--    rowsecurity = false, the policies aren't enforced and access comes from
+--    table GRANTs instead — in that case ENABLE RLS as well (out of scope here,
+--    flag it). Expected: rowsecurity = true on both.
+--
+--      SELECT tablename, rowsecurity
+--      FROM pg_tables
+--      WHERE tablename IN ('pt_orders', 'pt_order_items')
+--      ORDER BY tablename;
+--
+-- ============================================================================
+-- MIGRATION  —  drop the 6 public/anon policies; keep ONLY service_all
+-- ============================================================================
+
+-- pt_orders
+DROP POLICY IF EXISTS "Allow select pt_orders" ON pt_orders;
+DROP POLICY IF EXISTS "Allow insert pt_orders" ON pt_orders;
+DROP POLICY IF EXISTS "anon_insert"            ON pt_orders;
+
+-- pt_order_items
+DROP POLICY IF EXISTS "Allow select pt_order_items" ON pt_order_items;
+DROP POLICY IF EXISTS "Allow insert pt_order_items" ON pt_order_items;
+DROP POLICY IF EXISTS "anon_insert"                 ON pt_order_items;
+
+-- NOTE: "service_all" {service_role} ALL is intentionally KEPT on both tables.
+--       Do not drop it — the API routes (service role) rely on it.
+
+-- ============================================================================
+-- VERIFICATION  —  run AFTER the migration
+-- ============================================================================
+--
+-- 1) Only the two service_role policies must remain:
+--
+--      SELECT schemaname, tablename, policyname, roles, cmd
+--      FROM pg_policies
+--      WHERE tablename IN ('pt_orders', 'pt_order_items')
+--      ORDER BY tablename, policyname;
+--
+--      -- Expected (exactly 2 rows):
+--      --   pt_order_items | service_all | {service_role} | ALL
+--      --   pt_orders      | service_all | {service_role} | ALL
+--
+-- 2) Confirm the leak is closed: querying pt_orders with the public ANON key
+--    (e.g. from the JS client / a curl to the REST endpoint with apikey = anon)
+--    must now return ZERO rows / be blocked.
+--
+-- ============================================================================
+-- POST-CHECK  —  functional, in production, AFTER deploy + migration
+-- ============================================================================
+--
+-- (a) PUBLIC CHECKOUT still works: place a real test order from the storefront
+--     (/checkout). It must create the order and return an order number. This
+--     proves POST /api/orders now inserts via the service-role client (bypasses
+--     RLS) and no longer needs the anon policies. If it fails with 500, the
+--     code deploy did not land first — revert is just re-adding the policies.
+--
+-- (b) ADMIN still lists orders: open /admin (Pedidos) and confirm the order list
+--     loads, including the test order. The admin reads through /api/orders GET
+--     (service role), so it is unaffected by the policy drops.
+--
+-- ROLLBACK (if needed): re-create the dropped policies, e.g.
+--   CREATE POLICY "anon_insert" ON pt_orders        FOR INSERT TO anon WITH CHECK (true);
+--   CREATE POLICY "anon_insert" ON pt_order_items   FOR INSERT TO anon WITH CHECK (true);
+--   -- (and the "Allow select/insert ..." {public} ones) — but prefer fixing
+--   -- forward (ensure the service-role code is deployed) over restoring the leak.
+-- ============================================================================
