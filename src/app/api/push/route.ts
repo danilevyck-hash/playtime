@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { isValidSession } from '@/lib/admin-auth';
 
 interface PushSubscriptionJSON {
   endpoint: string;
   keys: { p256dh: string; auth: string };
+}
+
+// Push subscriptions belong to admin/vendedora devices — require a valid session.
+function requireSession(request: NextRequest): boolean {
+  return isValidSession(request.headers.get('x-admin-token'));
 }
 
 async function getSubscriptions(): Promise<PushSubscriptionJSON[]> {
@@ -25,6 +31,9 @@ async function saveSubscriptions(subs: PushSubscriptionJSON[]) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!requireSession(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const sub: PushSubscriptionJSON = await request.json();
     if (!sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
       return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 });
@@ -46,6 +55,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!requireSession(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const sub: PushSubscriptionJSON = await request.json();
     const subs = await getSubscriptions();
     const filtered = subs.filter((s) => s.endpoint !== sub.endpoint);

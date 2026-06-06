@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { isValidSession } from '@/lib/admin-auth';
+import { isValidSession, getClientIP } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { EVENT_AREAS } from '@/lib/types';
 import { sendOrderNotification } from '@/lib/email';
@@ -32,6 +32,23 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// In-memory rate limit for public order creation (per IP). Same best-effort,
+// per-instance approach as the auth limiter — a determined attacker across cold
+// starts isn't fully stopped, but casual spam of fake orders is.
+const orderAttempts = new Map<string, { count: number; resetAt: number }>();
+const ORDER_MAX = 5;
+const ORDER_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+function isOrderRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = orderAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    orderAttempts.set(ip, { count: 1, resetAt: now + ORDER_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > ORDER_MAX;
+}
+
 /** Recalculate order totals from items, applying discount before surcharge */
 function recalcTotals(items: { line_total: number }[], opts: { transport: number; discount: number; discountType?: string; paymentMethod: string }) {
   const itemsTotal = round2(items.reduce((s, i) => s + i.line_total, 0));
@@ -47,6 +64,11 @@ function recalcTotals(items: { line_total: number }[], opts: { transport: number
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIP(request.headers);
+    if (isOrderRateLimited(ip)) {
+      return NextResponse.json({ error: 'Demasiados pedidos seguidos. Espera unos minutos e intenta de nuevo.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { customer, event, paymentMethod, items } = body;
 
