@@ -30,6 +30,16 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(amount);
 }
 
+/** Escape user-supplied values before interpolating into the email HTML. */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function fmtDate(dateStr: string): string {
   try {
     const parts = dateStr.split('-').map(Number);
@@ -41,8 +51,8 @@ function fmtDate(dateStr: string): string {
 function buildOrderHTML(data: OrderEmailData, isAdmin: boolean): string {
   const itemRows = data.items.map(i =>
     `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333">${i.name}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:center">${i.quantity}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333">${escapeHtml(i.name)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:center">${Number(i.quantity) || 0}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;text-align:right">${formatCurrency(i.unitPrice * i.quantity)}</td>
     </tr>`
   ).join('');
@@ -67,21 +77,21 @@ function buildOrderHTML(data: OrderEmailData, isAdmin: boolean): string {
 
       ${isAdmin ? `
       <div style="background:#f9f7f4;padding:12px 16px;border-radius:8px;margin-bottom:16px">
-        <p style="margin:0;font-size:14px;color:#333"><strong>${data.customerName}</strong></p>
-        <p style="margin:4px 0 0;font-size:13px;color:#666">${data.customerPhone}${data.customerEmail ? ` · ${data.customerEmail}` : ''}</p>
+        <p style="margin:0;font-size:14px;color:#333"><strong>${escapeHtml(data.customerName)}</strong></p>
+        <p style="margin:4px 0 0;font-size:13px;color:#666">${escapeHtml(data.customerPhone)}${data.customerEmail ? ` · ${escapeHtml(data.customerEmail)}` : ''}</p>
       </div>
       ` : `
       <p style="font-size:14px;color:#555;margin:0 0 16px">
-        Hola <strong>${data.customerName}</strong>, recibimos tu pedido. Te contactaremos pronto por WhatsApp para confirmar los detalles.
+        Hola <strong>${escapeHtml(data.customerName)}</strong>, recibimos tu pedido. Te contactaremos pronto por WhatsApp para confirmar los detalles.
       </p>
       `}
 
       <div style="background:#f9f7f4;padding:12px 16px;border-radius:8px;margin-bottom:16px">
         <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;font-weight:600">Evento</p>
-        <p style="margin:6px 0 0;font-size:14px;color:#333">${fmtDate(data.eventDate)} · ${data.eventTime}</p>
-        <p style="margin:4px 0 0;font-size:14px;color:#333">${data.eventArea ? data.eventArea + ' – ' : ''}${data.eventAddress}</p>
-        ${data.birthdayChildName ? `<p style="margin:4px 0 0;font-size:14px;color:#333">Cumpleañero/a: ${data.birthdayChildName}</p>` : ''}
-        ${data.theme ? `<p style="margin:4px 0 0;font-size:14px;color:#333">Tema: ${data.theme}</p>` : ''}
+        <p style="margin:6px 0 0;font-size:14px;color:#333">${escapeHtml(fmtDate(data.eventDate))} · ${escapeHtml(data.eventTime)}</p>
+        <p style="margin:4px 0 0;font-size:14px;color:#333">${data.eventArea ? escapeHtml(data.eventArea) + ' – ' : ''}${escapeHtml(data.eventAddress)}</p>
+        ${data.birthdayChildName ? `<p style="margin:4px 0 0;font-size:14px;color:#333">Cumpleañero/a: ${escapeHtml(data.birthdayChildName)}</p>` : ''}
+        ${data.theme ? `<p style="margin:4px 0 0;font-size:14px;color:#333">Tema: ${escapeHtml(data.theme)}</p>` : ''}
       </div>
 
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
@@ -126,7 +136,7 @@ export async function sendOrderNotification(data: OrderEmailData): Promise<void>
 
   // 1. Send to admin
   try {
-    console.log('[Email] Sending to admin:', ADMIN_EMAIL, 'from:', FROM_EMAIL);
+    console.log('[Email] Sending admin notification');
     const adminResult = await resend.emails.send({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
@@ -146,7 +156,7 @@ export async function sendOrderNotification(data: OrderEmailData): Promise<void>
   // 2. Send to customer (if email provided)
   if (data.customerEmail) {
     try {
-      console.log('[Email] Sending to customer:', data.customerEmail);
+      console.log('[Email] Sending customer confirmation');
       const custResult = await resend.emails.send({
         from: FROM_EMAIL,
         to: data.customerEmail,
