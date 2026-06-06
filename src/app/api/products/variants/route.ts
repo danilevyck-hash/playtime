@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { isValidSession } from '@/lib/admin-auth';
-
-function isAuthorized(request: NextRequest): boolean {
-  // 1. Check HMAC-signed token (works across serverless cold starts)
-  const token = request.headers.get('x-admin-token');
-  if (isValidSession(token)) return true;
-  // 2. Check PIN (for PIN-based login)
-  const pin = request.headers.get('x-admin-pin');
-  if (pin && pin === process.env.ADMIN_PIN) return true;
-  if (pin && pin === process.env.VENDEDORA_PIN) return true;
-  return false;
-}
+import { requireRole } from '@/lib/admin-auth';
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = requireRole(request, 'admin');
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
@@ -38,8 +28,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = requireRole(request, 'admin');
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });

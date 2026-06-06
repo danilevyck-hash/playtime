@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
@@ -3205,6 +3206,15 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {_adminRole === 'admin' && (
+        <Link
+          href="/admin/contabilidad"
+          className="flex items-center justify-center gap-2 mb-6 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
+        >
+          <span>💰</span> Contabilidad
+        </Link>
       )}
 
       {tab === 'pedidos' && <OrdersTab />}

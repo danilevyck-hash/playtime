@@ -93,6 +93,23 @@ export function getSessionRole(token: string | null | undefined): 'admin' | 'ven
   return valid ? role : null;
 }
 
+/**
+ * Server-side ROLE authorization. Unlike isValidSession(), this validates the
+ * role embedded in the HMAC-signed token and does NOT honor the x-admin-pin
+ * fallback header — so a role check cannot be bypassed with a raw PIN.
+ * Returns 401 if no valid session, 403 if the session role doesn't match.
+ */
+export function requireRole(
+  request: Request,
+  role: 'admin' | 'vendedora'
+): { authorized: true } | { authorized: false; status: number; error: string } {
+  const token = request.headers.get('x-admin-token');
+  const sessionRole = getSessionRole(token);
+  if (!sessionRole) return { authorized: false, status: 401, error: 'Unauthorized' };
+  if (sessionRole !== role) return { authorized: false, status: 403, error: 'Forbidden' };
+  return { authorized: true };
+}
+
 export function createSession(role: 'admin' | 'vendedora' = 'admin'): string {
   // Return a signed token that works across serverless instances
   const token = createSignedToken(role);

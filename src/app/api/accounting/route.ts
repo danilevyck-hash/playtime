@@ -2,14 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { isValidSession } from '@/lib/admin-auth';
-
-function isAdminAuthorized(request: NextRequest): boolean {
-  const token = request.headers.get('x-admin-token');
-  if (isValidSession(token)) return true;
-  const pin = request.headers.get('x-admin-pin');
-  return pin === process.env.ADMIN_PIN;
-}
+import { requireRole } from '@/lib/admin-auth';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -31,8 +24,9 @@ function sanitizeSearch(q: string): string {
 // resource=orders    → minimal orders list for linking
 export async function GET(request: NextRequest) {
   try {
-    if (!isAdminAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = requireRole(request, 'admin');
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
     const db = supabaseAdmin || supabase;
     if (!db) {
@@ -177,8 +171,9 @@ export async function GET(request: NextRequest) {
 // ─── POST ─── create voucher / account / category
 export async function POST(request: NextRequest) {
   try {
-    if (!isAdminAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = requireRole(request, 'admin');
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
     const db = supabaseAdmin || supabase;
     if (!db) {
@@ -299,8 +294,9 @@ export async function POST(request: NextRequest) {
 // ─── PATCH ─── void voucher / update account / update category
 export async function PATCH(request: NextRequest) {
   try {
-    if (!isAdminAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = requireRole(request, 'admin');
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
     const db = supabaseAdmin || supabase;
     if (!db) {

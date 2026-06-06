@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { fetchLogoUrl } from '@/lib/supabase-data';
@@ -135,6 +136,7 @@ const LABEL_CLS = 'block font-heading font-semibold text-xs text-gray-500 mb-1';
 // ─── MAIN PAGE ───
 export default function ContabilidadPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
   const [pin, setPin] = useState('');
@@ -151,14 +153,20 @@ export default function ContabilidadPage() {
     try {
       const t = sessionStorage.getItem('adminToken');
       const p = sessionStorage.getItem('adminPin');
+      const role = sessionStorage.getItem('adminRole');
       if (t && p) {
+        // Contabilidad is admin-only. A vendedora session must not see it.
+        if (role === 'vendedora') {
+          router.replace('/admin');
+          return;
+        }
         _adminToken = t;
         _adminPin = p;
         setAuthed(true);
       }
     } catch {}
     setReady(true);
-  }, []);
+  }, [router]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -210,11 +218,17 @@ export default function ContabilidadPage() {
       if (data.ok) {
         _adminPin = pin;
         _adminToken = data.token || '';
+        const role = data.role || 'admin';
         try {
           sessionStorage.setItem('adminToken', _adminToken);
           sessionStorage.setItem('adminPin', _adminPin);
-          sessionStorage.setItem('adminRole', data.role || 'admin');
+          sessionStorage.setItem('adminRole', role);
         } catch {}
+        // Contabilidad is admin-only: send vendedora to the orders admin.
+        if (role === 'vendedora') {
+          router.replace('/admin');
+          return;
+        }
         setAuthed(true);
       } else {
         setError(data.error || 'PIN incorrecto');

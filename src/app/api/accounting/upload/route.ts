@@ -2,18 +2,17 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { isValidSession } from '@/lib/admin-auth';
+import { requireRole } from '@/lib/admin-auth';
 
 const BUCKET = 'vouchers';
 const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'pdf']);
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request: NextRequest) {
-  // Auth: session token or PIN
-  const token = request.headers.get('x-admin-token');
-  const pin = request.headers.get('x-admin-pin');
-  if (!isValidSession(token) && pin !== process.env.ADMIN_PIN) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Auth: admin role only (token-based, no PIN fallback)
+  const auth = requireRole(request, 'admin');
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   if (!supabaseAdmin) {
