@@ -1,11 +1,23 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { EVENT_AREAS } from '@/lib/types';
 import { sendOrderNotification } from '@/lib/email';
 import { sendPushNotification } from '@/lib/push';
+
+/** Server-validated transport areas: pt_settings('event_areas') with EVENT_AREAS fallback.
+ *  Transport is ALWAYS derived from this list by area name, never trusted from the client. */
+async function fetchOrderEventAreas(db: SupabaseClient): Promise<{ name: string; price: number }[]> {
+  try {
+    const { data } = await db.from('pt_settings').select('value').eq('key', 'event_areas').single();
+    if (Array.isArray(data?.value) && data.value.length > 0) return data.value as { name: string; price: number }[];
+  } catch {}
+  return EVENT_AREAS;
+}
 
 function isAdminAuthorized(request: NextRequest): boolean {
   // Check session token first (works for both admin and vendedora), then fall back to PIN
@@ -83,10 +95,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Recalculate totals server-side (never trust client totals)
+    // Items subtotal recalculated server-side (never trust client totals)
     const serverSubtotal = round2(items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + i.unitPrice * i.quantity, 0));
-    const serverSurcharge = paymentMethod === 'credit_card' ? round2(serverSubtotal * CREDIT_CARD_SURCHARGE) : 0;
-    const serverTotal = round2(serverSubtotal + serverSurcharge);
 
     // Use the service-role client so public order creation does NOT depend on
     // anon RLS policies (those are being dropped to stop a PII leak on pt_orders).
@@ -99,6 +109,19 @@ export async function POST(request: NextRequest) {
       const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
       return NextResponse.json({ orderNumber: `${datePart}-${randPart}` });
     }
+
+    // Transport comes from the server-validated area list (NEVER the client). An
+    // unknown area or 'Otra área' = pending → no transport in the quote, and we store
+    // transport_cost_confirmed = null so the admin shows it as pending and confirms
+    // later. For a known area we store its price so DB = email = PDF = what was quoted.
+    const eventAreas = await fetchOrderEventAreas(db);
+    const matchedArea = event.area ? eventAreas.find(a => a.name === event.area) : undefined;
+    const transportPending = event.area === 'Otra área' || !matchedArea;
+    const serverTransport = transportPending ? 0 : Math.max(0, round2(Number(matchedArea?.price) || 0));
+    // Card surcharge applies to subtotal + transport, matching the client quote.
+    const surchargeBase = serverSubtotal + serverTransport;
+    const serverSurcharge = paymentMethod === 'credit_card' ? round2(surchargeBase * CREDIT_CARD_SURCHARGE) : 0;
+    const serverTotal = round2(surchargeBase + serverSurcharge);
 
     // Insert order with server-calculated totals
     const { data: order, error: orderError } = await db
@@ -115,6 +138,7 @@ export async function POST(request: NextRequest) {
         birthday_child_age: event.birthdayChildAge || null,
         payment_method: paymentMethod,
         subtotal: serverSubtotal,
+        transport_cost_confirmed: transportPending ? null : serverTransport,
         surcharge: serverSurcharge,
         total: serverTotal,
         notes: event.theme ? `Tema: ${event.theme}` : null,
@@ -164,6 +188,8 @@ export async function POST(request: NextRequest) {
         unitPrice: i.unitPrice,
       })),
       subtotal: serverSubtotal,
+      transportCost: serverTransport,
+      transportPending,
       surcharge: serverSurcharge,
       total: serverTotal,
       paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',

@@ -19,6 +19,8 @@ interface OrderEmailData {
   theme?: string;
   items: { name: string; quantity: number; unitPrice: number }[];
   subtotal: number;
+  transportCost?: number;
+  transportPending?: boolean;
   surcharge: number;
   total: number;
   paymentMethod: 'bank_transfer' | 'credit_card';
@@ -95,6 +97,9 @@ function buildOrderHTML(data: OrderEmailData, isAdmin: boolean): string {
 
       <div style="text-align:right;padding:8px 0;border-top:2px solid #580459">
         <p style="margin:4px 0;font-size:13px;color:#888">Subtotal: ${formatCurrency(data.subtotal)}</p>
+        ${data.transportPending
+          ? `<p style="margin:4px 0;font-size:13px;color:#888">Transporte: a confirmar</p>`
+          : (data.transportCost && data.transportCost > 0 ? `<p style="margin:4px 0;font-size:13px;color:#888">Transporte: ${formatCurrency(data.transportCost)}</p>` : '')}
         ${data.surcharge > 0 ? `<p style="margin:4px 0;font-size:13px;color:#888">Recargo tarjeta: ${formatCurrency(data.surcharge)}</p>` : ''}
         <p style="margin:8px 0 0;font-size:18px;color:#580459;font-weight:700">Total: ${formatCurrency(data.total)}</p>
         <p style="margin:4px 0 0;font-size:12px;color:#aaa">Método: ${payLabel}</p>
