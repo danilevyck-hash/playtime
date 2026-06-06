@@ -167,7 +167,11 @@ export async function POST(request: NextRequest) {
       .insert(orderItems);
 
     if (itemsError) {
-      console.error('Order items insert error:', itemsError);
+      // Never report success for an order with no items. Roll back the order row
+      // we just created and return an error so the client can retry cleanly.
+      console.error('Order items insert error, rolling back order', order.id, ':', itemsError);
+      await db.from('pt_orders').delete().eq('id', order.id);
+      return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 });
     }
 
     // Send email notifications (non-blocking)
