@@ -199,7 +199,11 @@ export default function CheckoutPage() {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         if (supabaseUrl && supabaseKey) {
           const sb = createClient(supabaseUrl, supabaseKey);
-          const fileName = `pedidos/PlayTime-Pedido-${orderNumber}.pdf`;
+          // Capability URL: append a random 128-bit token so the path is NOT guessable
+          // from the (sequential) order number. The bucket stays public so the WhatsApp
+          // link never expires, but order PDFs can no longer be enumerated.
+          const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+          const fileName = `pedidos/PlayTime-Pedido-${orderNumber}-${token}.pdf`;
           await sb.storage.from('playtime-images').upload(fileName, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true,
