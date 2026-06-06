@@ -1,0 +1,113 @@
+-- ============================================================================
+-- Migration: Negar LIST (SELECT) a anon/public sobre el bucket playtime-images
+-- File:      2026-06-06_deny_anon_list_storage.sql
+-- ============================================================================
+--
+-- PROBLEMA (verificado read-only el 6 jun 2026 con la anon key del bundle de prod):
+--   El rol `anon` puede LISTAR el bucket público `playtime-images`. Evidencia:
+--     POST {SUPABASE_URL}/storage/v1/object/list/playtime-images
+--          headers: apikey/Authorization = anon key (NEXT_PUBLIC_SUPABASE_ANON_KEY)
+--          body: {"prefix":"pedidos/","limit":100}
+--     → HTTP 200 + lista REAL de archivos (PlayTime-Pedido-10.pdf, -11.pdf, … con tamaños).
+--   Esto deja enumerar todos los PDFs de pedido (PII: nombre, teléfono, dirección) y
+--   anula la "capability URL" del PDF (token en el path): anon lista el nombre-con-token
+--   y baja el archivo por su URL pública. El token NO protege mientras `list()` esté abierto.
+--
+-- POR QUÉ ESTO NO ROMPE LAS IMÁGENES DEL CATÁLOGO (verificado contra el código):
+--   El catálogo se sirve del MISMO bucket público, pero NO usa `list`. Las imágenes de
+--   producto se guardan como la URL que devuelve `getPublicUrl` (src/app/api/upload/route.ts:69
+--   → image_url) y se consumen con <img src={image_url}>. Esa URL es del endpoint PÚBLICO:
+--       {SUPABASE_URL}/storage/v1/object/public/playtime-images/{path}
+--   Para un bucket público, ese endpoint sirve el objeto por PATH DIRECTO y NO evalúa RLS
+--   de storage.objects. En cambio, `list` (/object/list/...) SÍ pasa por RLS (necesita un
+--   SELECT policy que devuelva las filas). Grep confirmó: CERO `.list()` en src/ (el catálogo
+--   lee por URL directa; el único list es el server con service_role en el script de limpieza).
+--   Conclusión: negar SELECT(list) a anon cierra la fuga SIN tocar la carga de imágenes.
+--
+-- CÓMO LO HACEMOS (policy RESTRICTIVE, name-agnostic):
+--   En vez de adivinar el nombre del policy permisivo actual que habilita el list, agregamos
+--   un policy RESTRICTIVE para SELECT que excluye este bucket. Los policies RESTRICTIVE se
+--   combinan con AND con los permisivos, así que el resultado neto deniega SELECT sobre
+--   `playtime-images` para todo rol NO-bypass (anon, authenticated), sin tocar otros buckets.
+--   `service_role` tiene BYPASSRLS → sigue listando/subiendo/borrando normal (uploads del
+--   server, script de limpieza). El endpoint público de lectura NO se ve afectado.
+--
+-- ============================================================================
+-- GATE  —  correr ANTES y anotar el resultado a mano
+-- ============================================================================
+--
+-- 1) RLS debe estar habilitada en storage.objects (en Supabase lo está por default;
+--    si fuera false, los policies no aplican y habría que revisar GRANTs):
+--
+--      SELECT relname, relrowsecurity
+--      FROM pg_class WHERE relname = 'objects' AND relnamespace = 'storage'::regnamespace;
+--      -- esperado: relrowsecurity = true
+--
+-- 2) Policies actuales sobre storage.objects (anotar nombres/roles/cmd/qual; ver cuál
+--    habilita el SELECT/list a anon/public hoy):
+--
+--      SELECT policyname, permissive, roles, cmd, qual
+--      FROM pg_policies
+--      WHERE schemaname = 'storage' AND tablename = 'objects'
+--      ORDER BY policyname;
+--
+-- 3) Evidencia de la fuga (la podés re-correr con la anon key): el list de abajo
+--    HOY devuelve la lista de archivos (debe quedar vacío/denegado DESPUÉS):
+--      curl -s -X POST "$SUPABASE_URL/storage/v1/object/list/playtime-images" \
+--        -H "apikey: $ANON" -H "Authorization: Bearer $ANON" -H "Content-Type: application/json" \
+--        --data '{"prefix":"pedidos/","limit":100}'
+--
+-- ============================================================================
+-- MIGRACIÓN
+-- ============================================================================
+
+DROP POLICY IF EXISTS "deny_list_playtime_images" ON storage.objects;
+
+CREATE POLICY "deny_list_playtime_images"
+  ON storage.objects
+  AS RESTRICTIVE
+  FOR SELECT
+  TO public
+  USING (bucket_id <> 'playtime-images');
+
+-- Nota: `TO public` cubre anon + authenticated (y cualquier rol no-bypass). service_role
+-- bypassa RLS, así que server/uploads/limpieza siguen funcionando.
+
+-- ============================================================================
+-- VERIFICACIÓN  —  correr DESPUÉS
+-- ============================================================================
+--
+-- 1) El policy quedó creado:
+--      SELECT policyname, permissive, roles, cmd
+--      FROM pg_policies WHERE schemaname='storage' AND tablename='objects'
+--        AND policyname='deny_list_playtime_images';
+--      -- esperado: 1 fila, permissive = 'RESTRICTIVE', cmd = 'SELECT'
+--
+-- 2) anon YA NO puede listar (re-correr el curl del GATE): debe devolver `[]`
+--    (vacío) o 4xx — NO la lista de archivos.
+--      curl -s -X POST "$SUPABASE_URL/storage/v1/object/list/playtime-images" \
+--        -H "apikey: $ANON" -H "Authorization: Bearer $ANON" -H "Content-Type: application/json" \
+--        --data '{"prefix":"pedidos/","limit":100}'
+--      -- esperado: []  (o error de permiso)
+--
+-- 3) Una imagen de producto por su URL pública (getPublicUrl) SIGUE cargando — el
+--    endpoint /object/public/ no pasa por este policy:
+--      curl -s -o /dev/null -w "%{http_code}\n" \
+--        "$SUPABASE_URL/storage/v1/object/public/playtime-images/products/<algún-producto>.png"
+--      -- esperado: 200
+--
+-- ============================================================================
+-- POST-CHECK funcional (en prod, después de aplicar)
+-- ============================================================================
+-- (a) Catálogo público (/catalogo) carga las imágenes de productos con normalidad.
+-- (b) Un PDF NUEVO con token sigue descargable por su URL directa
+--     ({...}/object/public/playtime-images/pedidos/PlayTime-Pedido-{N}-{token}.pdf → 200),
+--     pero ya no se puede ENUMERAR el bucket (el list de anon da vacío).
+-- (c) (admin) Subir una foto de producto sigue funcionando (usa service_role server-side).
+--
+-- ROLLBACK (si algo se rompe): `DROP POLICY "deny_list_playtime_images" ON storage.objects;`
+-- (vuelve al estado actual; preferir arreglar hacia adelante antes que reabrir la fuga.)
+--
+-- DESPUÉS de cerrar el list: correr scripts/cleanup-old-order-pdfs.mjs para borrar los
+-- ~90 PDFs viejos de ruta adivinable (pasivo). Eso es limpieza, no parte de esta migración.
+-- ============================================================================
