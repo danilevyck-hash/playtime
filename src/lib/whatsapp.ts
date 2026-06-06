@@ -1,4 +1,5 @@
 import { CONTACT } from './constants';
+import { formatCurrency } from './format';
 
 export function buildWhatsAppOrderMessage(params: {
   orderNumber: string | number;
@@ -8,6 +9,8 @@ export function buildWhatsAppOrderMessage(params: {
   eventDate?: string;
   eventTime?: string;
   showTime?: string;
+  items?: { name: string; quantity: number; unitPrice: number }[];
+  total?: number;
 }): string {
   const lines = [
     `🎉 *Nuevo Pedido #${params.orderNumber}*`,
@@ -24,6 +27,17 @@ export function buildWhatsAppOrderMessage(params: {
   }
   if (params.showTime && params.showTime.trim()) {
     lines.push(`*Hora del show:* ${params.showTime}`);
+  }
+
+  // Always include products + total so the order survives even if the PDF upload failed.
+  if (params.items && params.items.length > 0) {
+    lines.push('', '*Productos:*');
+    for (const it of params.items) {
+      lines.push(`• ${it.quantity}x ${it.name} — ${formatCurrency((Number(it.unitPrice) || 0) * (Number(it.quantity) || 0))}`);
+    }
+  }
+  if (typeof params.total === 'number') {
+    lines.push('', `*Total:* ${formatCurrency(params.total)}`);
   }
 
   if (params.pdfUrl) {

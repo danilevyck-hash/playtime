@@ -95,9 +95,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Items subtotal recalculated server-side (never trust client totals)
-    const serverSubtotal = round2(items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + i.unitPrice * i.quantity, 0));
-
     // Use the service-role client so public order creation does NOT depend on
     // anon RLS policies (those are being dropped to stop a PII leak on pt_orders).
     // Service role bypasses RLS for both the INSERT and the RETURNING select.
@@ -109,6 +106,34 @@ export async function POST(request: NextRequest) {
       const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
       return NextResponse.json({ orderNumber: `${datePart}-${randPart}` });
     }
+
+    // Validate prices against the REAL catalog (pt_products + pt_product_variants) so a
+    // crafted POST cannot set arbitrary prices. Cart ids are `productId` or
+    // `productId--variantId`; a variant price (when set) overrides the base price. We
+    // OVERRIDE each unitPrice with the DB price — never trust the client's number.
+    const baseIds = Array.from(new Set(items.map((i: { productId: string }) => String(i.productId).split('--')[0])));
+    const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
+      db.from('pt_products').select('id, price').in('id', baseIds),
+      db.from('pt_product_variants').select('product_id, id, price').in('product_id', baseIds),
+    ]);
+    const priceByProduct = new Map<string, number>();
+    for (const p of dbProducts || []) priceByProduct.set(p.id, Math.max(0, Number(p.price) || 0));
+    const priceByVariant = new Map<string, number>();
+    for (const v of dbVariants || []) {
+      if (v.price != null) priceByVariant.set(`${v.product_id}--${v.id}`, Math.max(0, Number(v.price) || 0));
+    }
+    for (const item of items) {
+      const cartId = String(item.productId);
+      const baseId = cartId.split('--')[0];
+      if (!priceByProduct.has(baseId)) {
+        // The public catalog is DB-first, so every cart product must exist in pt_products.
+        return NextResponse.json({ error: 'Datos inválidos', details: `Producto no encontrado: ${item.name}` }, { status: 400 });
+      }
+      item.unitPrice = priceByVariant.get(cartId) ?? priceByProduct.get(baseId)!;
+    }
+
+    // Items subtotal from the SERVER-resolved prices (never trust client totals)
+    const serverSubtotal = round2(items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + i.unitPrice * i.quantity, 0));
 
     // Transport comes from the server-validated area list (NEVER the client). An
     // unknown area or 'Otra área' = pending → no transport in the quote, and we store

@@ -221,6 +221,8 @@ export default function CheckoutPage() {
         eventDate: event.date,
         eventTime: event.time,
         showTime: event.showTime,
+        items: items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+        total,
       });
 
       const waUrl = getWhatsAppUrl(message);
