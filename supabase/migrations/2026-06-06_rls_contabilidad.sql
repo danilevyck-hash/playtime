@@ -1,0 +1,87 @@
+-- ============================================================================
+-- Migration: Enable RLS on accounting tables
+-- File:      2026-06-06_rls_contabilidad.sql
+-- Tables:    pt_accounts, pt_categories, pt_vouchers
+-- ============================================================================
+--
+-- WHY THIS IS SAFE
+-- ----------------
+-- The accounting module (/api/accounting/*) reads and writes these three tables
+-- and the "vouchers" storage bucket EXCLUSIVELY from the server using the Supabase
+-- service-role key (supabaseAdmin in src/lib/supabase.ts). No client-side code
+-- touches pt_accounts / pt_categories / pt_vouchers or the bucket with the anon
+-- key — the browser only calls /api/accounting/* via fetch(). The service role
+-- BYPASSES RLS, so enabling RLS does not affect the module.
+--
+-- We intentionally create NO policies. With RLS enabled and zero policies, the
+-- anon and authenticated roles get deny-by-default (no rows visible, no writes),
+-- while service_role keeps full access. That is the correct posture for financial
+-- data — unlike the public catalog tables (pt_products, pt_product_variants,
+-- pt_settings, ...) which expose an anon SELECT policy so the storefront can read
+-- them. Accounting data must never be reachable with the anon key.
+--
+-- ============================================================================
+-- GATE  —  run BEFORE the migration and record the output by hand
+-- ============================================================================
+--
+-- 1) Row counts (write these numbers down — they must be unchanged afterwards):
+--
+--      SELECT 'pt_accounts'   AS tbl, count(*) AS n FROM pt_accounts
+--      UNION ALL
+--      SELECT 'pt_categories',        count(*)      FROM pt_categories
+--      UNION ALL
+--      SELECT 'pt_vouchers',          count(*)      FROM pt_vouchers;
+--
+-- 2) Current RLS state (expected: rowsecurity = false on all three BEFORE running):
+--
+--      SELECT tablename, rowsecurity
+--      FROM pg_tables
+--      WHERE tablename IN ('pt_accounts', 'pt_categories', 'pt_vouchers')
+--      ORDER BY tablename;
+--
+-- ============================================================================
+-- MIGRATION
+-- ============================================================================
+
+ALTER TABLE pt_accounts   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pt_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pt_vouchers   ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- VERIFICATION  —  run AFTER the migration
+-- ============================================================================
+--
+-- 1) RLS must now be TRUE on all three:
+--
+--      SELECT tablename, rowsecurity
+--      FROM pg_tables
+--      WHERE tablename IN ('pt_accounts', 'pt_categories', 'pt_vouchers')
+--      ORDER BY tablename;
+--
+--      -- Expected:
+--      --   pt_accounts    | true
+--      --   pt_categories  | true
+--      --   pt_vouchers    | true
+--
+-- 2) Row counts must MATCH the gate exactly (enabling RLS never deletes data).
+--    Run this from the Supabase SQL editor / service role, which bypasses RLS so
+--    the rows are still visible:
+--
+--      SELECT 'pt_accounts'   AS tbl, count(*) AS n FROM pt_accounts
+--      UNION ALL
+--      SELECT 'pt_categories',        count(*)      FROM pt_categories
+--      UNION ALL
+--      SELECT 'pt_vouchers',          count(*)      FROM pt_vouchers;
+--
+--      -- The three counts must equal the numbers recorded in the GATE step.
+--
+-- 3) (Optional) Confirm the lockdown actually denies the anon role. Querying these
+--    tables with the public anon key should now return zero rows / be blocked,
+--    while /api/accounting/* (service role) keeps working unchanged.
+--
+-- ============================================================================
+-- NOTE (not part of this migration): pt_orders and pt_order_items have NO RLS
+-- statement in the repo's versioned migrations. Verify their live rowsecurity
+-- state with the same pg_tables query and decide separately — they are out of
+-- scope here and intentionally left untouched.
+-- ============================================================================
