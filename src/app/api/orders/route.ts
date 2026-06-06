@@ -291,10 +291,19 @@ export async function PATCH(request: NextRequest) {
         .update({ internal_note: internalNote })
         .eq('id', orderId);
       if (noteError) {
-        const { data: existing } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
+        // Fallback for DBs without an internal_note column: append to notes.
+        const { data: existing, error: readErr } = await db.from('pt_orders').select('notes').eq('id', orderId).single();
+        if (readErr) {
+          console.error('internalNote fallback read error:', readErr);
+          return NextResponse.json({ error: 'No se pudo guardar la nota' }, { status: 500 });
+        }
         const currentNotes = existing?.notes || '';
         const separator = currentNotes ? '\n' : '';
-        await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCDD Nota interna: ${internalNote}` }).eq('id', orderId);
+        const { error: writeErr } = await db.from('pt_orders').update({ notes: `${currentNotes}${separator}\uD83D\uDCDD Nota interna: ${internalNote}` }).eq('id', orderId);
+        if (writeErr) {
+          console.error('internalNote fallback write error:', writeErr);
+          return NextResponse.json({ error: 'No se pudo guardar la nota' }, { status: 500 });
+        }
       }
       return NextResponse.json({ ok: true });
     }
@@ -305,10 +314,14 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
       }
       const isConfirmed = status === 'confirmado' || status === 'realizado';
-      const updateData: Record<string, unknown> = { confirmed: isConfirmed };
       const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
       if (statusError) {
-        await db.from('pt_orders').update(updateData).eq('id', orderId);
+        // Fallback for DBs without a status column: at least persist `confirmed`.
+        const { error: fbErr } = await db.from('pt_orders').update({ confirmed: isConfirmed }).eq('id', orderId);
+        if (fbErr) {
+          console.error('status update error:', statusError, '· fallback error:', fbErr);
+          return NextResponse.json({ error: 'No se pudo actualizar el estado' }, { status: 500 });
+        }
       }
       return NextResponse.json({ ok: true });
     }
@@ -349,16 +362,26 @@ export async function PATCH(request: NextRequest) {
       const { error: depError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (depError) {
         console.error('Deposits update error (deposits column may not exist):', depError);
-        // Fallback: update deposit_amount only if deposits column doesn't exist yet
+        // Fallback: deposit_amount only (DBs without a deposits JSONB column).
         if (depositAmount !== undefined) {
-          await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+          const { error: fbErr } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+          if (fbErr) {
+            console.error('Deposits fallback error:', fbErr);
+            return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
+          }
+        } else {
+          return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
         }
       }
       return NextResponse.json({ ok: true });
     }
 
     if (depositAmount !== undefined && deposits === undefined) {
-      await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+      const { error } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
+      if (error) {
+        console.error('deposit_amount update error:', error);
+        return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -367,21 +390,30 @@ export async function PATCH(request: NextRequest) {
       if (isNaN(val) || val < 0) {
         return NextResponse.json({ error: 'Costo de transporte debe ser >= 0' }, { status: 400 });
       }
-      await db.from('pt_orders').update({ transport_cost_confirmed: val }).eq('id', orderId);
-      // Recalculate totals
-      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('discount, discount_type, payment_method').eq('id', orderId).single();
-        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-          transport: val,
-          discount: orderData?.discount ?? 0,
-          discountType: orderData?.discount_type ?? 'fixed',
-          paymentMethod: orderData?.payment_method ?? '',
-        });
-        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-        return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
+      const { error: tErr } = await db.from('pt_orders').update({ transport_cost_confirmed: val }).eq('id', orderId);
+      if (tErr) {
+        console.error('transport update error:', tErr);
+        return NextResponse.json({ error: 'No se pudo actualizar el transporte' }, { status: 500 });
       }
-      return NextResponse.json({ ok: true });
+      // Recalculate totals — a null/failed refetch means the stored total would be stale.
+      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (itemsErr || !updatedItems) {
+        console.error('transport recalc refetch error:', itemsErr);
+        return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
+      }
+      const { data: orderData } = await db.from('pt_orders').select('discount, discount_type, payment_method').eq('id', orderId).single();
+      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+        transport: val,
+        discount: orderData?.discount ?? 0,
+        discountType: orderData?.discount_type ?? 'fixed',
+        paymentMethod: orderData?.payment_method ?? '',
+      });
+      const { error: updErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      if (updErr) {
+        console.error('transport total update error:', updErr);
+        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
     }
 
     if (discount !== undefined) {
@@ -396,24 +428,33 @@ export async function PATCH(request: NextRequest) {
       const updateData: Record<string, unknown> = { discount: val, discount_type: dtype };
       const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
       if (discError) {
-        // Fallback: try without discount_type column (not migrated yet)
-        await db.from('pt_orders').update({ discount: val }).eq('id', orderId);
+        // Fallback for DBs without a discount_type column.
+        const { error: fbErr } = await db.from('pt_orders').update({ discount: val }).eq('id', orderId);
+        if (fbErr) {
+          console.error('discount update error:', discError, '· fallback error:', fbErr);
+          return NextResponse.json({ error: 'No se pudo guardar el descuento' }, { status: 500 });
+        }
       }
-      // Recalculate totals
-      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, payment_method').eq('id', orderId).single();
-        const itemsTotal = round2(updatedItems.reduce((s, i) => s + i.line_total, 0));
-        const discountAmount = dtype === 'percent' ? round2(itemsTotal * val / 100) : val;
-        const { surcharge, total } = recalcTotals(updatedItems, {
-          transport: orderData?.transport_cost_confirmed ?? 0,
-          discount: discountAmount,
-          paymentMethod: orderData?.payment_method ?? '',
-        });
-        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-        return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
+      // Recalculate totals — a null/failed refetch means the stored total would be stale.
+      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (itemsErr || !updatedItems) {
+        console.error('discount recalc refetch error:', itemsErr);
+        return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
       }
-      return NextResponse.json({ ok: true });
+      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, payment_method').eq('id', orderId).single();
+      const itemsTotal = round2(updatedItems.reduce((s, i) => s + i.line_total, 0));
+      const discountAmount = dtype === 'percent' ? round2(itemsTotal * val / 100) : val;
+      const { surcharge, total } = recalcTotals(updatedItems, {
+        transport: orderData?.transport_cost_confirmed ?? 0,
+        discount: discountAmount,
+        paymentMethod: orderData?.payment_method ?? '',
+      });
+      const { error: updErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      if (updErr) {
+        console.error('discount total update error:', updErr);
+        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
     }
 
     if (editItems !== undefined) {
@@ -426,23 +467,33 @@ export async function PATCH(request: NextRequest) {
       // editItems: array of { id, quantity, unit_price }
       for (const item of editItems) {
         const lineTotal = round2(item.quantity * item.unit_price);
-        await db.from('pt_order_items').update({
+        const { error: updErr } = await db.from('pt_order_items').update({
           quantity: item.quantity,
           unit_price: item.unit_price,
           line_total: lineTotal,
         }).eq('id', item.id).eq('order_id', orderId); // Validate ownership
+        if (updErr) {
+          console.error('editItems update error:', updErr);
+          return NextResponse.json({ error: 'No se pudieron actualizar los items' }, { status: 500 });
+        }
       }
       // Recalculate order totals (discount before surcharge)
-      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
-        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-          transport: orderData?.transport_cost_confirmed ?? 0,
-          discount: orderData?.discount ?? 0,
-          discountType: orderData?.discount_type ?? 'fixed',
-          paymentMethod: orderData?.payment_method ?? '',
-        });
-        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (itemsErr || !updatedItems) {
+        console.error('editItems recalc refetch error:', itemsErr);
+        return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
+      }
+      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
+      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+        transport: orderData?.transport_cost_confirmed ?? 0,
+        discount: orderData?.discount ?? 0,
+        discountType: orderData?.discount_type ?? 'fixed',
+        paymentMethod: orderData?.payment_method ?? '',
+      });
+      const { error: totErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      if (totErr) {
+        console.error('editItems total update error:', totErr);
+        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
@@ -465,8 +516,7 @@ export async function PATCH(request: NextRequest) {
       }
       // addItem: { product_name, quantity, unit_price }
       const lineTotal = round2(qty * price);
-      console.log('ORDER ID:', orderId, typeof orderId);
-      const insertResult = await db.from('pt_order_items').insert({
+      const { error: insertError } = await db.from('pt_order_items').insert({
         order_id: orderId,
         product_id: `manual-${Date.now()}`,
         product_name: addItem.product_name.trim(),
@@ -475,8 +525,6 @@ export async function PATCH(request: NextRequest) {
         unit_price: price,
         line_total: lineTotal,
       });
-      console.log('INSERT RESULT:', JSON.stringify(insertResult));
-      const { error: insertError } = insertResult;
       if (insertError) {
         console.error('addItem insert error:', insertError);
         return NextResponse.json({ error: insertError.message || 'Error al guardar item' }, { status: 500 });
@@ -510,18 +558,28 @@ export async function PATCH(request: NextRequest) {
 
     if (removeItem !== undefined) {
       // Validate ownership before deleting
-      await db.from('pt_order_items').delete().eq('id', removeItem).eq('order_id', orderId);
-      // Recalculate totals
-      const { data: updatedItems } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (updatedItems) {
-        const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
-        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-          transport: orderData?.transport_cost_confirmed ?? 0,
-          discount: orderData?.discount ?? 0,
-          discountType: orderData?.discount_type ?? 'fixed',
-          paymentMethod: orderData?.payment_method ?? '',
-        });
-        await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      const { error: delErr } = await db.from('pt_order_items').delete().eq('id', removeItem).eq('order_id', orderId);
+      if (delErr) {
+        console.error('removeItem delete error:', delErr);
+        return NextResponse.json({ error: 'No se pudo eliminar el item' }, { status: 500 });
+      }
+      // Recalculate totals — a null/failed refetch means the stored total would be stale.
+      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
+      if (itemsErr || !updatedItems) {
+        console.error('removeItem recalc refetch error:', itemsErr);
+        return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
+      }
+      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
+      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
+        transport: orderData?.transport_cost_confirmed ?? 0,
+        discount: orderData?.discount ?? 0,
+        discountType: orderData?.discount_type ?? 'fixed',
+        paymentMethod: orderData?.payment_method ?? '',
+      });
+      const { error: totErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
+      if (totErr) {
+        console.error('removeItem total update error:', totErr);
+        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
@@ -608,7 +666,13 @@ export async function DELETE(request: NextRequest) {
     }
     const { orderId } = await request.json();
 
-    await db.from('pt_order_items').delete().eq('order_id', orderId);
+    // Delete items first; if this fails, do NOT delete the order (avoid orphaning
+    // items / leaving the order in an inconsistent half-deleted state).
+    const { error: itemsDelErr } = await db.from('pt_order_items').delete().eq('order_id', orderId);
+    if (itemsDelErr) {
+      console.error('Delete items error:', itemsDelErr);
+      return NextResponse.json({ error: 'Failed to delete order items' }, { status: 500 });
+    }
 
     const { error } = await db.from('pt_orders').delete().eq('id', orderId);
     if (error) {
