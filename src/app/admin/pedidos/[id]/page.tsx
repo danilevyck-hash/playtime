@@ -358,6 +358,17 @@ export default function PedidoDetailPage() {
     if (!name || Number.isNaN(price)) return;
     setSavingAction('additem');
     try {
+      // Persist pending item edits FIRST. Adding an item triggers loadOrder(), which
+      // would otherwise overwrite quantities/prices the user typed but hasn't saved.
+      if (hasPendingItemEdits) {
+        const editItems = Object.entries(itemEdits).map(([id, v]) => ({
+          id: Number(id),
+          quantity: Number(v.quantity) || 1,
+          unit_price: Number(v.unit_price) || 0,
+        }));
+        const editRes = await patchOrder({ editItems });
+        if (!editRes.ok) { showToast('❌ ' + editRes.error); return; }
+      }
       const result = await patchOrder({ addItem: { product_name: name, quantity: qty, unit_price: price } });
       if (result.ok) {
         // Reset UI inmediatamente, ANTES de re-fetch
@@ -431,6 +442,8 @@ export default function PedidoDetailPage() {
   };
 
   const removeDeposit = async (idx: number) => {
+    const dep = (order.deposits || [])[idx];
+    if (!window.confirm(`¿Eliminar el depósito de ${formatCurrency(dep?.amount || 0)}? Esta acción no se puede deshacer.`)) return;
     const newDeposits = (order.deposits || []).filter((_, i) => i !== idx);
     const total = newDeposits.reduce((s, d) => s + d.amount, 0);
     const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
