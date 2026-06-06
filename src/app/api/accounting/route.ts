@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     if (resource === 'orders') {
       const { data, error } = await db
         .from('pt_orders')
-        .select('id, order_number, customer_name, event_date, total')
+        .select('id, order_number, customer_name, event_date, total, deposit_amount, status')
         .order('created_at', { ascending: false })
         .limit(300);
       if (error) {
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     if (resource === 'bootstrap') {
       const { data: orders } = await db
         .from('pt_orders')
-        .select('id, order_number, customer_name, event_date, total')
+        .select('id, order_number, customer_name, event_date, total, deposit_amount, status')
         .order('created_at', { ascending: false })
         .limit(300);
       return NextResponse.json({

@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { fetchLogoUrl } from '@/lib/supabase-data';
 import { CONTACT } from '@/lib/constants';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // ─── Session (shared with /admin via sessionStorage) ───
 let _adminToken = '';
@@ -63,6 +64,8 @@ interface OrderLite {
   customer_name: string;
   event_date: string;
   total: number;
+  deposit_amount?: number | null;
+  status?: string | null;
 }
 
 interface Voucher {
@@ -133,6 +136,99 @@ function presetRange(key: PresetKey): { from: string; to: string } {
 const INPUT_CLS = 'w-full border border-gray-200 rounded-lg py-2.5 px-3 font-body text-base focus:border-purple focus:outline-none bg-white';
 const LABEL_CLS = 'block font-heading font-semibold text-xs text-gray-500 mb-1';
 
+// ─── Report period helpers ───
+type ReportPeriodKey = 'mes' | 'mesPasado' | 'trimestre' | 'anio' | 'custom';
+const REPORT_PRESETS: { key: ReportPeriodKey; label: string }[] = [
+  { key: 'mes', label: 'Este mes' },
+  { key: 'mesPasado', label: 'Mes pasado' },
+  { key: 'trimestre', label: 'Últimos 3 meses' },
+  { key: 'anio', label: 'Este año' },
+  { key: 'custom', label: 'Rango' },
+];
+const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function reportRange(key: ReportPeriodKey): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (key === 'mes') return { from: fmtDate(new Date(y, m, 1)), to: fmtDate(new Date(y, m + 1, 0)) };
+  if (key === 'mesPasado') return { from: fmtDate(new Date(y, m - 1, 1)), to: fmtDate(new Date(y, m, 0)) };
+  if (key === 'trimestre') return { from: fmtDate(new Date(y, m - 2, 1)), to: fmtDate(new Date(y, m + 1, 0)) };
+  if (key === 'anio') return { from: fmtDate(new Date(y, 0, 1)), to: fmtDate(new Date(y, 11, 31)) };
+  return { from: fmtDate(new Date(y, m, 1)), to: fmtDate(new Date(y, m + 1, 0)) };
+}
+
+/** Previous comparable period for P&L comparison. */
+function previousReportRange(key: ReportPeriodKey, from: string, to: string): { from: string; to: string } {
+  const f = parseLocalDate(from);
+  const t = parseLocalDate(to);
+  if (key === 'mes' || key === 'mesPasado') {
+    return { from: fmtDate(new Date(f.getFullYear(), f.getMonth() - 1, 1)), to: fmtDate(new Date(f.getFullYear(), f.getMonth(), 0)) };
+  }
+  if (key === 'trimestre') {
+    return { from: fmtDate(new Date(f.getFullYear(), f.getMonth() - 3, 1)), to: fmtDate(new Date(f.getFullYear(), f.getMonth(), 0)) };
+  }
+  if (key === 'anio') {
+    return { from: fmtDate(new Date(f.getFullYear() - 1, 0, 1)), to: fmtDate(new Date(f.getFullYear() - 1, 11, 31)) };
+  }
+  // custom: shift back by equal-length window
+  const lenMs = t.getTime() - f.getTime();
+  const prevTo = new Date(f.getTime() - 86400000);
+  const prevFrom = new Date(prevTo.getTime() - lenMs);
+  return { from: fmtDate(prevFrom), to: fmtDate(prevTo) };
+}
+
+const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function monthKey(dateStr: string): string { return dateStr.slice(0, 7); } // YYYY-MM
+function monthLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return `${MONTHS_ES[(m || 1) - 1]} ${String(y).slice(2)}`;
+}
+/** List of YYYY-MM month keys spanning [from, to] inclusive. */
+function monthsInRange(from: string, to: string): string[] {
+  const f = parseLocalDate(from);
+  const t = parseLocalDate(to);
+  const out: string[] = [];
+  let y = f.getFullYear(), m = f.getMonth();
+  while (y < t.getFullYear() || (y === t.getFullYear() && m <= t.getMonth())) {
+    out.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  return out;
+}
+/** Last N month keys ending in the current month. */
+function lastNMonths(n: number): string[] {
+  const now = new Date();
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+const inRange = (date: string, from: string, to: string) => date >= from && date <= to;
+
+// ─── CSV export ───
+function csvCell(v: string | number): string {
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : '0';
+  const s = String(v ?? '');
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]): void {
+  const lines = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))];
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+const money2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
 // ─── MAIN PAGE ───
 export default function ContabilidadPage() {
   const { showToast } = useToast();
@@ -141,7 +237,7 @@ export default function ContabilidadPage() {
   const [ready, setReady] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'comprobantes' | 'cuentas' | 'categorias'>('comprobantes');
+  const [tab, setTab] = useState<'comprobantes' | 'reportes' | 'cuentas' | 'categorias'>('comprobantes');
 
   // Shared data
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -285,11 +381,11 @@ export default function ContabilidadPage() {
       </div>
 
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-        {([['comprobantes', 'Comprobantes'], ['cuentas', 'Cuentas'], ['categorias', 'Categorías']] as const).map(([t, label]) => (
+        {([['comprobantes', 'Comprobantes'], ['reportes', 'Reportes'], ['cuentas', 'Cuentas'], ['categorias', 'Categorías']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-lg font-heading font-semibold text-xs transition-all ${
+            className={`flex-1 py-2 rounded-lg font-heading font-semibold text-[11px] sm:text-xs transition-all ${
               tab === t ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -304,6 +400,15 @@ export default function ContabilidadPage() {
           categories={categories}
           orders={orders}
           logoUrl={logoUrl}
+          onMutated={loadAccounts}
+          showToast={showToast}
+        />
+      )}
+      {tab === 'reportes' && (
+        <ReportesTab
+          accounts={accounts}
+          categories={categories}
+          orders={orders}
           onMutated={loadAccounts}
           showToast={showToast}
         />
@@ -390,6 +495,17 @@ function ComprobantesTab({
     setFormKind(null);
     loadVouchers();
     onMutated();
+  };
+
+  const exportCSV = () => {
+    if (vouchers.length === 0) { showToast('No hay comprobantes para exportar'); return; }
+    const headers = ['Numero', 'Fecha', 'Tipo', 'Categoria', 'Cuenta', 'Contraparte', 'Descripcion', 'Metodo', 'Referencia', 'Monto', 'Estado'];
+    const rows = vouchers.map(v => [
+      voucherCode(v), v.date, v.kind, v.category_name || '', v.account_name || '',
+      v.counterparty || '', v.description || '', v.payment_method || '', v.reference || '',
+      money2(v.amount), v.status,
+    ]);
+    downloadCSV(`comprobantes_${from || 'inicio'}_${to || 'fin'}.csv`, headers, rows);
   };
 
   const handleVoid = async (v: Voucher) => {
@@ -516,6 +632,13 @@ function ComprobantesTab({
         </div>
       )}
 
+      {/* Export */}
+      <div className="flex justify-end mb-2">
+        <button onClick={exportCSV} className="text-purple font-heading font-semibold text-xs flex items-center gap-1 hover:underline">
+          ⬇ Exportar CSV
+        </button>
+      </div>
+
       {/* List */}
       {loading ? (
         <div className="space-y-2">
@@ -594,7 +717,7 @@ function ComprobantesTab({
 
 // ─── VOUCHER FORM MODAL ───
 function VoucherFormModal({
-  kind, accounts, categories, orders, onClose, onCreated, showToast,
+  kind, accounts, categories, orders, onClose, onCreated, showToast, prefill,
 }: {
   kind: 'ingreso' | 'egreso';
   accounts: Account[];
@@ -603,17 +726,18 @@ function VoucherFormModal({
   onClose: () => void;
   onCreated: () => void;
   showToast: (m: string) => void;
+  prefill?: { orderId?: string; amount?: string; counterparty?: string; description?: string };
 }) {
   const [date, setDate] = useState(todayStr());
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [counterparty, setCounterparty] = useState('');
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
+  const [counterparty, setCounterparty] = useState(prefill?.counterparty || '');
+  const [description, setDescription] = useState(prefill?.description || '');
+  const [amount, setAmount] = useState(prefill?.amount || '');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
-  const [orderId, setOrderId] = useState('');
+  const [orderId, setOrderId] = useState(prefill?.orderId || '');
   const [attachmentPath, setAttachmentPath] = useState('');
   const [attachmentSigned, setAttachmentSigned] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -1285,5 +1409,476 @@ function CategoriasTab({ categories, reload, showToast }: { categories: Category
       {renderGroup('Ingresos', ingresos, 'text-emerald-700')}
       {renderGroup('Gastos', gastos, 'text-red-600')}
     </div>
+  );
+}
+
+// ─── REPORTES TAB ───
+function groupSumByCategory(list: Voucher[], kind: 'ingreso' | 'egreso'): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const v of list) {
+    if (v.kind !== kind) continue;
+    const key = v.category_name || 'Sin categoría';
+    m.set(key, (m.get(key) || 0) + (Number(v.amount) || 0));
+  }
+  return m;
+}
+const sumByKind = (list: Voucher[], kind: 'ingreso' | 'egreso') =>
+  list.reduce((s, v) => s + (v.kind === kind ? Number(v.amount) || 0 : 0), 0);
+
+const REPORT_VIEWS: { key: 'resumen' | 'pl' | 'flujo' | 'cxc'; label: string }[] = [
+  { key: 'resumen', label: 'Resumen' },
+  { key: 'pl', label: 'Estado de resultados' },
+  { key: 'flujo', label: 'Flujo de caja' },
+  { key: 'cxc', label: 'Cuentas por cobrar' },
+];
+
+function ReportesTab({
+  accounts, categories, orders, onMutated, showToast,
+}: {
+  accounts: Account[];
+  categories: Category[];
+  orders: OrderLite[];
+  onMutated: () => void;
+  showToast: (m: string) => void;
+}) {
+  const [view, setView] = useState<'resumen' | 'pl' | 'flujo' | 'cxc'>('resumen');
+  const [periodKey, setPeriodKey] = useState<ReportPeriodKey>('mes');
+  const [customFrom, setCustomFrom] = useState(reportRange('mes').from);
+  const [customTo, setCustomTo] = useState(reportRange('mes').to);
+  const [allVouchers, setAllVouchers] = useState<Voucher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [payPrefill, setPayPrefill] = useState<{ orderId: string; amount: string; counterparty: string; description: string } | null>(null);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/accounting?resource=vouchers&sort=asc', { headers: adminHeaders() });
+      if (res.ok) { const d = await res.json(); setAllVouchers(d.vouchers || []); }
+    } catch {} finally { setLoading(false); }
+  }, []);
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const { from, to } = periodKey === 'custom' ? { from: customFrom, to: customTo } : reportRange(periodKey);
+  // Anulados NEVER sum in any report — filtered out once, here.
+  const active = useMemo(() => allVouchers.filter(v => v.status === 'activo'), [allVouchers]);
+
+  const afterPay = () => { setPayPrefill(null); loadAll(); onMutated(); };
+
+  return (
+    <div>
+      {/* View selector */}
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        {REPORT_VIEWS.map(v => (
+          <button
+            key={v.key}
+            onClick={() => setView(v.key)}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-full font-heading font-semibold text-xs transition-colors ${view === v.key ? 'bg-purple text-white' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Period selector — Cuentas por cobrar ignores the period (shows all outstanding) */}
+      {view !== 'cxc' && (
+        <div className="mb-4">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            {REPORT_PRESETS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setPeriodKey(p.key)}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full font-heading font-semibold text-xs transition-colors ${periodKey === p.key ? 'bg-teal text-purple' : 'bg-gray-100 text-gray-600'}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {periodKey === 'custom' && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className={LABEL_CLS}>Desde</label>
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={INPUT_CLS} />
+              </div>
+              <div>
+                <label className={LABEL_CLS}>Hasta</label>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={INPUT_CLS} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">{[0, 1, 2].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+      ) : view === 'resumen' ? (
+        <ResumenView active={active} from={from} to={to} accounts={accounts} />
+      ) : view === 'pl' ? (
+        <PLView active={active} from={from} to={to} periodKey={periodKey} />
+      ) : view === 'flujo' ? (
+        <FlujoView active={active} from={from} to={to} accounts={accounts} />
+      ) : (
+        <CxCView active={active} orders={orders} onPay={setPayPrefill} />
+      )}
+
+      {payPrefill && (
+        <VoucherFormModal
+          kind="ingreso"
+          accounts={accounts.filter(a => a.is_active)}
+          categories={categories.filter(c => c.is_active && c.kind === 'ingreso')}
+          orders={orders}
+          prefill={payPrefill}
+          onClose={() => setPayPrefill(null)}
+          onCreated={afterPay}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Resumen ──
+function ResumenView({ active, from, to, accounts }: { active: Voucher[]; from: string; to: string; accounts: Account[] }) {
+  const periodV = useMemo(() => active.filter(v => inRange(v.date, from, to)), [active, from, to]);
+  const ingresos = sumByKind(periodV, 'ingreso');
+  const gastos = sumByKind(periodV, 'egreso');
+  const utilidad = ingresos - gastos;
+  const saldoTotal = accounts.reduce((s, a) => s + (a.balance ?? a.initial_balance ?? 0), 0);
+
+  const monthly = useMemo(() => {
+    return lastNMonths(6).map(mk => {
+      const list = active.filter(v => monthKey(v.date) === mk);
+      return { mes: monthLabel(mk), Ingresos: money2(sumByKind(list, 'ingreso')), Gastos: money2(sumByKind(list, 'egreso')) };
+    });
+  }, [active]);
+
+  const topGastos = useMemo(() => {
+    const m = groupSumByCategory(periodV, 'egreso');
+    return [...m.entries()].map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount).slice(0, 5);
+  }, [periodV]);
+  const maxTop = topGastos.length ? topGastos[0].amount : 0;
+
+  const exportCSV = () => {
+    const headers = ['Mes', 'Ingresos', 'Gastos', 'Utilidad'];
+    const rows = monthly.map(r => [r.mes, r.Ingresos, r.Gastos, money2(r.Ingresos - r.Gastos)]);
+    downloadCSV(`resumen_${from}_${to}.csv`, headers, rows);
+  };
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <Card label="Ingresos" value={ingresos} color="emerald" />
+        <Card label="Gastos" value={gastos} color="red" />
+        <Card label="Utilidad" value={utilidad} color={utilidad >= 0 ? 'emerald' : 'red'} />
+        <Card label="Saldo en cuentas" value={saldoTotal} color="purple" />
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4">
+        <p className="font-heading font-bold text-sm text-gray-700 mb-2">Ingresos vs Gastos (últimos 6 meses)</p>
+        <div style={{ width: '100%', height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthly} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Ingresos" fill="#059669" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Gastos" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-3 mb-3">
+        <p className="font-heading font-bold text-sm text-gray-700 mb-2">Top 5 categorías de gasto</p>
+        {topGastos.length === 0 ? (
+          <p className="text-gray-400 text-sm font-body py-2">Sin gastos en el período</p>
+        ) : (
+          <div className="space-y-2">
+            {topGastos.map(c => (
+              <div key={c.name}>
+                <div className="flex justify-between text-sm mb-0.5">
+                  <span className="font-body text-gray-700 truncate pr-2">{c.name}</span>
+                  <span className="font-heading font-bold text-red-600 whitespace-nowrap">{formatCurrency(c.amount)}</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-red-400 rounded-full" style={{ width: `${maxTop ? (c.amount / maxTop) * 100 : 0}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ExportButton onClick={exportCSV} />
+    </div>
+  );
+}
+
+// ── Estado de resultados (P&L) ──
+function PLView({ active, from, to, periodKey }: { active: Voucher[]; from: string; to: string; periodKey: ReportPeriodKey }) {
+  const [compare, setCompare] = useState(false);
+  const prev = useMemo(() => previousReportRange(periodKey, from, to), [periodKey, from, to]);
+
+  const cur = useMemo(() => active.filter(v => inRange(v.date, from, to)), [active, from, to]);
+  const prevV = useMemo(() => active.filter(v => inRange(v.date, prev.from, prev.to)), [active, prev]);
+
+  const ingCur = useMemo(() => groupSumByCategory(cur, 'ingreso'), [cur]);
+  const gasCur = useMemo(() => groupSumByCategory(cur, 'egreso'), [cur]);
+  const ingPrev = useMemo(() => groupSumByCategory(prevV, 'ingreso'), [prevV]);
+  const gasPrev = useMemo(() => groupSumByCategory(prevV, 'egreso'), [prevV]);
+
+  const subIngCur = sumByKind(cur, 'ingreso'), subGasCur = sumByKind(cur, 'egreso');
+  const subIngPrev = sumByKind(prevV, 'ingreso'), subGasPrev = sumByKind(prevV, 'egreso');
+  const netCur = subIngCur - subGasCur, netPrev = subIngPrev - subGasPrev;
+
+  const catList = (curMap: Map<string, number>, prevMap: Map<string, number>) => {
+    const names = new Set([...curMap.keys(), ...prevMap.keys()]);
+    return [...names].map(n => ({ name: n, cur: curMap.get(n) || 0, prev: prevMap.get(n) || 0 })).sort((a, b) => b.cur - a.cur);
+  };
+  const variation = (c: number, p: number): string => {
+    if (p === 0) return c === 0 ? '—' : '+100%';
+    const pct = ((c - p) / Math.abs(p)) * 100;
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
+  };
+
+  const exportCSV = () => {
+    const headers = compare ? ['Seccion', 'Categoria', 'Monto', 'Anterior', 'Variacion'] : ['Seccion', 'Categoria', 'Monto'];
+    const rows: (string | number)[][] = [];
+    for (const r of catList(ingCur, ingPrev)) rows.push(compare ? ['Ingresos', r.name, money2(r.cur), money2(r.prev), variation(r.cur, r.prev)] : ['Ingresos', r.name, money2(r.cur)]);
+    rows.push(compare ? ['Ingresos', 'TOTAL', money2(subIngCur), money2(subIngPrev), variation(subIngCur, subIngPrev)] : ['Ingresos', 'TOTAL', money2(subIngCur)]);
+    for (const r of catList(gasCur, gasPrev)) rows.push(compare ? ['Gastos', r.name, money2(r.cur), money2(r.prev), variation(r.cur, r.prev)] : ['Gastos', r.name, money2(r.cur)]);
+    rows.push(compare ? ['Gastos', 'TOTAL', money2(subGasCur), money2(subGasPrev), variation(subGasCur, subGasPrev)] : ['Gastos', 'TOTAL', money2(subGasCur)]);
+    rows.push(compare ? ['', 'UTILIDAD NETA', money2(netCur), money2(netPrev), variation(netCur, netPrev)] : ['', 'UTILIDAD NETA', money2(netCur)]);
+    downloadCSV(`estado_resultados_${from}_${to}.csv`, headers, rows);
+  };
+
+  const Row = ({ name, cur: c, prev: p, bold }: { name: string; cur: number; prev: number; bold?: boolean }) => (
+    <div className={`flex items-center py-1.5 text-sm ${bold ? 'font-heading font-bold border-t border-gray-200 mt-1 pt-2' : 'font-body'}`}>
+      <span className={`flex-1 truncate pr-2 ${bold ? 'text-gray-800' : 'text-gray-600'}`}>{name}</span>
+      <span className="w-24 text-right text-gray-800">{formatCurrency(c)}</span>
+      {compare && <span className="w-20 text-right text-gray-400 text-xs">{formatCurrency(p)}</span>}
+      {compare && <span className={`w-14 text-right text-xs font-semibold ${c - p >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{variation(c, p)}</span>}
+    </div>
+  );
+
+  return (
+    <div>
+      <label className="flex items-center gap-2 mb-3 text-sm font-body text-gray-600">
+        <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="accent-purple w-4 h-4" />
+        Comparar vs período anterior
+      </label>
+
+      {compare && (
+        <p className="text-[11px] text-gray-400 font-body mb-2">Anterior: {formatDate(prev.from)} – {formatDate(prev.to)}</p>
+      )}
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-3">
+        <h3 className="font-heading font-bold text-sm uppercase tracking-wide text-emerald-700 mb-1">Ingresos</h3>
+        {catList(ingCur, ingPrev).length === 0 ? <p className="text-gray-400 text-sm font-body py-1">Sin ingresos</p> :
+          catList(ingCur, ingPrev).map(r => <Row key={r.name} name={r.name} cur={r.cur} prev={r.prev} />)}
+        <Row name="Subtotal ingresos" cur={subIngCur} prev={subIngPrev} bold />
+
+        <h3 className="font-heading font-bold text-sm uppercase tracking-wide text-red-600 mb-1 mt-4">Gastos</h3>
+        {catList(gasCur, gasPrev).length === 0 ? <p className="text-gray-400 text-sm font-body py-1">Sin gastos</p> :
+          catList(gasCur, gasPrev).map(r => <Row key={r.name} name={r.name} cur={r.cur} prev={r.prev} />)}
+        <Row name="Subtotal gastos" cur={subGasCur} prev={subGasPrev} bold />
+
+        <div className={`flex items-center py-2 mt-3 border-t-2 ${netCur >= 0 ? 'border-emerald-500' : 'border-red-500'}`}>
+          <span className="flex-1 font-heading font-bold text-gray-800">Utilidad neta</span>
+          <span className={`w-24 text-right font-heading font-bold ${netCur >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatCurrency(netCur)}</span>
+          {compare && <span className="w-20 text-right text-gray-400 text-xs">{formatCurrency(netPrev)}</span>}
+          {compare && <span className={`w-14 text-right text-xs font-semibold ${netCur - netPrev >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{variation(netCur, netPrev)}</span>}
+        </div>
+      </div>
+
+      <ExportButton onClick={exportCSV} />
+    </div>
+  );
+}
+
+// ── Flujo de caja ──
+function FlujoView({ active, from, to, accounts }: { active: Voucher[]; from: string; to: string; accounts: Account[] }) {
+  const [accountId, setAccountId] = useState('');
+
+  const scoped = useMemo(() => accountId ? active.filter(v => v.account_id === accountId) : active, [active, accountId]);
+  const baseInitial = useMemo(() => {
+    if (accountId) {
+      const a = accounts.find(x => x.id === accountId);
+      return Number(a?.initial_balance) || 0;
+    }
+    return accounts.reduce((s, a) => s + (Number(a.initial_balance) || 0), 0);
+  }, [accountId, accounts]);
+
+  const rows = useMemo(() => {
+    const opening = baseInitial + scoped.filter(v => v.date < from).reduce((s, v) => s + (v.kind === 'ingreso' ? Number(v.amount) : -Number(v.amount)), 0);
+    let running = opening;
+    return monthsInRange(from, to).map(mk => {
+      const list = scoped.filter(v => monthKey(v.date) === mk && inRange(v.date, from, to));
+      const entradas = sumByKind(list, 'ingreso');
+      const salidas = sumByKind(list, 'egreso');
+      const saldoInicial = running;
+      const saldoFinal = saldoInicial + entradas - salidas;
+      running = saldoFinal;
+      return { mes: monthLabel(mk), saldoInicial, entradas, salidas, saldoFinal };
+    });
+  }, [scoped, baseInitial, from, to]);
+
+  const exportCSV = () => {
+    const headers = ['Mes', 'Saldo inicial', 'Entradas', 'Salidas', 'Saldo final'];
+    const data = rows.map(r => [r.mes, money2(r.saldoInicial), money2(r.entradas), money2(r.salidas), money2(r.saldoFinal)]);
+    downloadCSV(`flujo_caja_${from}_${to}.csv`, headers, data);
+  };
+
+  return (
+    <div>
+      <div className="mb-3">
+        <label className={LABEL_CLS}>Cuenta</label>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={INPUT_CLS}>
+          <option value="">Consolidado (todas)</option>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 font-heading text-[11px] uppercase">
+                <th className="text-left py-2 px-3">Mes</th>
+                <th className="text-right py-2 px-2">S. inicial</th>
+                <th className="text-right py-2 px-2">Entradas</th>
+                <th className="text-right py-2 px-2">Salidas</th>
+                <th className="text-right py-2 px-3">S. final</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.length === 0 ? (
+                <tr><td colSpan={5} className="text-center text-gray-400 py-6 font-body">Sin datos en el período</td></tr>
+              ) : rows.map(r => (
+                <tr key={r.mes} className="font-body">
+                  <td className="py-2 px-3 text-gray-700 whitespace-nowrap">{r.mes}</td>
+                  <td className="py-2 px-2 text-right text-gray-500 whitespace-nowrap">{formatCurrency(r.saldoInicial)}</td>
+                  <td className="py-2 px-2 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(r.entradas)}</td>
+                  <td className="py-2 px-2 text-right text-red-600 whitespace-nowrap">{formatCurrency(r.salidas)}</td>
+                  <td className="py-2 px-3 text-right font-heading font-bold text-gray-800 whitespace-nowrap">{formatCurrency(r.saldoFinal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <ExportButton onClick={exportCSV} />
+    </div>
+  );
+}
+
+// ── Cuentas por cobrar ──
+function CxCView({ active, orders, onPay }: {
+  active: Voucher[];
+  orders: OrderLite[];
+  onPay: (p: { orderId: string; amount: string; counterparty: string; description: string }) => void;
+}) {
+  const paidByOrder = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const v of active) {
+      if (v.kind !== 'ingreso' || v.order_id == null) continue;
+      m.set(v.order_id, (m.get(v.order_id) || 0) + (Number(v.amount) || 0));
+    }
+    return m;
+  }, [active]);
+
+  // CxC ignores the period: show ALL orders with an outstanding balance,
+  // ordered by event date descending. Rejected orders are excluded.
+  const receivables = useMemo(() => {
+    return orders
+      .filter(o => {
+        const st = (o.status || '').toLowerCase();
+        return st !== 'rechazado' && st !== 'rechazada';
+      })
+      .map(o => {
+        const paid = (Number(o.deposit_amount) || 0) + (paidByOrder.get(o.id) || 0);
+        const saldo = (Number(o.total) || 0) - paid;
+        return { o, paid, saldo };
+      })
+      .filter(r => r.saldo > 0.005)
+      .sort((a, b) => b.o.event_date.localeCompare(a.o.event_date));
+  }, [orders, paidByOrder]);
+
+  const totalCxC = receivables.reduce((s, r) => s + r.saldo, 0);
+
+  const exportCSV = () => {
+    const headers = ['Pedido', 'Cliente', 'Fecha evento', 'Total', 'Pagado', 'Saldo pendiente'];
+    const rows = receivables.map(r => [`#${r.o.order_number}`, r.o.customer_name, r.o.event_date, money2(r.o.total), money2(r.paid), money2(r.saldo)]);
+    downloadCSV('cuentas_por_cobrar.csv', headers, rows);
+  };
+
+  return (
+    <div>
+      <div className="bg-orange/10 rounded-xl p-4 mb-4 text-center">
+        <p className="font-heading text-[11px] text-orange font-semibold uppercase tracking-wide">Total por cobrar</p>
+        <p className="font-heading font-bold text-orange text-2xl mt-0.5">{formatCurrency(totalCxC)}</p>
+        <p className="text-[11px] text-gray-400 font-body mt-0.5">{receivables.length} pedido{receivables.length === 1 ? '' : 's'} con saldo</p>
+      </div>
+
+      {receivables.length === 0 ? (
+        <div className="text-center py-10 text-gray-400">
+          <p className="text-4xl mb-2">✅</p>
+          <p className="font-body">No hay saldos pendientes</p>
+        </div>
+      ) : (
+        <div className="space-y-2 mb-3">
+          {receivables.map(({ o, paid, saldo }) => (
+            <div key={o.id} className="bg-white border border-gray-200 rounded-xl p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-heading font-bold text-gray-800 text-sm truncate">{o.customer_name}</p>
+                  <p className="text-[11px] text-gray-400 font-body">#{o.order_number} · {formatDate(o.event_date)}</p>
+                </div>
+                <div className="text-right whitespace-nowrap">
+                  <p className="font-heading font-bold text-orange text-base">{formatCurrency(saldo)}</p>
+                  <p className="text-[10px] text-gray-400 font-body">de {formatCurrency(Number(o.total) || 0)}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                <span className="text-[11px] text-gray-500 font-body">Pagado: {formatCurrency(paid)}</span>
+                <button
+                  onClick={() => onPay({ orderId: String(o.id), amount: saldo.toFixed(2), counterparty: o.customer_name, description: `Pago pedido #${o.order_number}` })}
+                  className="bg-emerald-600 text-white font-heading font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  + Registrar pago
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ExportButton onClick={exportCSV} />
+    </div>
+  );
+}
+
+// ── Shared report bits ──
+function Card({ label, value, color }: { label: string; value: number; color: 'emerald' | 'red' | 'purple' }) {
+  const cls = color === 'emerald'
+    ? 'bg-emerald-50 text-emerald-700'
+    : color === 'red'
+    ? 'bg-red-50 text-red-600'
+    : 'bg-purple/10 text-purple';
+  return (
+    <div className={`rounded-xl p-4 ${cls}`}>
+      <p className="font-heading text-[11px] font-semibold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="font-heading font-bold text-xl mt-1">{formatCurrency(value)}</p>
+    </div>
+  );
+}
+
+function ExportButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-600 font-heading font-semibold text-sm hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5">
+      ⬇ Exportar CSV
+    </button>
   );
 }
