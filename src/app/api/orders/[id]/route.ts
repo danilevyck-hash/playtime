@@ -15,10 +15,8 @@ const NO_CACHE_HEADERS = {
 };
 
 function isAdminAuthorized(request: NextRequest): boolean {
-  const token = request.headers.get('x-admin-token');
-  if (isValidSession(token)) return true;
-  const pin = request.headers.get('x-admin-pin');
-  return pin === process.env.ADMIN_PIN;
+  // Token-only — the raw x-admin-pin header fallback was removed.
+  return isValidSession(request.headers.get('x-admin-token'));
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {

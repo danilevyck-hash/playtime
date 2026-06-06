@@ -16,6 +16,23 @@ function sanitizeSearch(q: string): string {
   return q.replace(/[,%()*]/g, '').trim().slice(0, 80);
 }
 
+/** Fetch ALL rows across Supabase's 1000-row page cap via .range() paging. Throws on
+ *  error (no silent truncation). makePage must build a FRESH query each call. */
+async function fetchAllPaged<T>(
+  makePage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; from < 200000; from += PAGE) {
+    const { data, error } = await makePage(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 // ─── GET ───
 // resource=bootstrap → accounts + categories + orders (for form selects)
 // resource=accounts  → accounts with computed balances
@@ -100,11 +117,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (resource === 'accounts') {
-      // Compute balances from active vouchers
-      const { data: vouchers } = await db
-        .from('pt_vouchers')
-        .select('account_id, kind, amount, status')
-        .eq('status', 'activo');
+      // Compute balances from ALL active vouchers (paged — no 1000-row silent cap).
+      let vouchers: { account_id: string | null; kind: string; amount: number }[];
+      try {
+        vouchers = await fetchAllPaged((from, to) =>
+          db.from('pt_vouchers').select('account_id, kind, amount, status').eq('status', 'activo').range(from, to),
+        );
+      } catch (e) {
+        console.error('accounts balance fetch error:', e);
+        return NextResponse.json({ error: 'No se pudieron calcular los saldos' }, { status: 500 });
+      }
       const deltas: Record<string, number> = {};
       for (const v of vouchers || []) {
         if (!v.account_id) continue;
@@ -124,33 +146,34 @@ export async function GET(request: NextRequest) {
     const categoryMap: Record<string, string> = {};
     for (const c of categories || []) categoryMap[c.id] = c.name;
 
-    let query = db
-      .from('pt_vouchers')
-      .select('*')
-      .order('date', { ascending: url.searchParams.get('sort') === 'asc' })
-      .order('voucher_number', { ascending: url.searchParams.get('sort') === 'asc' });
-
+    const sortAsc = url.searchParams.get('sort') === 'asc';
     const dateFrom = url.searchParams.get('dateFrom');
     const dateTo = url.searchParams.get('dateTo');
     const kind = url.searchParams.get('kind');
     const categoryId = url.searchParams.get('categoryId');
     const accountId = url.searchParams.get('accountId');
     const q = url.searchParams.get('q');
+    const term = q ? sanitizeSearch(q) : '';
 
-    if (dateFrom) query = query.gte('date', dateFrom);
-    if (dateTo) query = query.lte('date', dateTo);
-    if (kind && VOUCHER_KINDS.includes(kind)) query = query.eq('kind', kind);
-    if (categoryId) query = query.eq('category_id', categoryId);
-    if (accountId) query = query.eq('account_id', accountId);
-    if (q) {
-      const term = sanitizeSearch(q);
-      if (term) {
-        query = query.or(`counterparty.ilike.%${term}%,description.ilike.%${term}%,reference.ilike.%${term}%`);
-      }
-    }
+    // Build a FRESH filtered query per page so .range() paging fetches ALL matches
+    // (no silent 1000-row cap).
+    const buildVoucherQuery = () => {
+      let qy = db.from('pt_vouchers').select('*')
+        .order('date', { ascending: sortAsc })
+        .order('voucher_number', { ascending: sortAsc });
+      if (dateFrom) qy = qy.gte('date', dateFrom);
+      if (dateTo) qy = qy.lte('date', dateTo);
+      if (kind && VOUCHER_KINDS.includes(kind)) qy = qy.eq('kind', kind);
+      if (categoryId) qy = qy.eq('category_id', categoryId);
+      if (accountId) qy = qy.eq('account_id', accountId);
+      if (term) qy = qy.or(`counterparty.ilike.%${term}%,description.ilike.%${term}%,reference.ilike.%${term}%`);
+      return qy;
+    };
 
-    const { data: vouchers, error } = await query.limit(1000);
-    if (error) {
+    let vouchers: { account_id: string | null; category_id: string | null }[];
+    try {
+      vouchers = await fetchAllPaged((from, to) => buildVoucherQuery().range(from, to));
+    } catch (error) {
       console.error('Vouchers fetch error:', error);
       return NextResponse.json({ error: 'Failed to fetch vouchers' }, { status: 500 });
     }

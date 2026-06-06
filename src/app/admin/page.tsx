@@ -21,7 +21,7 @@ import {
 
 // ─── API helpers (server-side writes via service role) ───
 function adminHeaders(extra?: Record<string, string>): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin, ...extra };
+  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, ...extra };
 }
 
 async function apiUpsertSetting(key: string, value: unknown): Promise<boolean> {
@@ -167,10 +167,8 @@ function getOrderStatus(order: Order): OrderStatus {
   return 'pendiente';
 }
 
-// Session token stored after server-side auth validation
+// Session token stored after server-side auth validation (single source of truth)
 let _adminToken = '';
-// Keep PIN for backward compat with API headers
-let _adminPin = '';
 // Role: 'admin' has full access, 'vendedora' sees only Pedidos (no stats)
 let _adminRole: 'admin' | 'vendedora' = 'admin';
 
@@ -361,7 +359,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
         body: JSON.stringify({ orderId: order.id, discount: val, discountType: dtype }),
       });
       if (res.ok) {
@@ -448,7 +446,7 @@ const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, p
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
         body: JSON.stringify({ orderId: order.id, transportCostConfirmed: val }),
       });
       if (res.ok) {
@@ -887,7 +885,7 @@ function OrdersTab() {
   const patchOrder = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/orders', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken },
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
       body: JSON.stringify(body),
     });
     return res.ok;
@@ -897,7 +895,7 @@ function OrdersTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken } });
+      const res = await fetch('/api/orders', { headers: { 'x-admin-token': _adminToken } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
@@ -945,7 +943,7 @@ function OrdersTab() {
   const deleteOrder = useCallback(async (orderId: number, orderNumber: number) => {
     if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
     try {
-      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
+      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
       if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); showToast('Pedido eliminado'); }
       else { showToast('Error al eliminar pedido'); }
     } catch (e) {
@@ -1494,7 +1492,7 @@ function ProductsTab() {
       formData.append('productId', productId);
       formData.append('folder', 'products');
       formData.append('imageIndex', String(imageIndex));
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const newUrl = data.path + '?t=' + Date.now();
@@ -1522,7 +1520,10 @@ function ProductsTab() {
           if (!ok) showToast('Galeria no se guardo en la base de datos');
         });
         showToast('Foto actualizada');
-      } else { showToast('Error al subir foto'); }
+      } else {
+        const errBody = await res.json().catch(() => null);
+        showToast(errBody?.error || (res.status === 401 ? 'Sesión expirada — recarga la página' : 'Error al subir foto'));
+      }
     } catch (e) { console.error('Upload error:', e); showToast('Error de conexion'); }
     finally { setUploading(''); }
   };
@@ -1538,11 +1539,11 @@ function ProductsTab() {
       formData.append('productId', `${productId}_variant_${variantId}`);
       formData.append('folder', 'variants');
       formData.append('imageIndex', '0');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
+        const errBody = await res.json().catch(() => null);
         console.error('Variant upload failed:', res.status, errBody);
-        showToast(res.status === 401 ? 'Sesión expirada — recarga la página' : 'Error al subir foto');
+        showToast(errBody?.error || (res.status === 401 ? 'Sesión expirada — recarga la página' : 'Error al subir foto'));
         return;
       }
       const data = await res.json();
@@ -1626,11 +1627,16 @@ function ProductsTab() {
     const product: DBProduct = { id, name: newProduct.name, category: newProduct.cat, price: Number(newProduct.price) || 0, description: newProduct.desc, image_url: null, active: true, featured: false, popular: false, max_quantity: null, min_quantity: null, quantity_step: null, variant_label: null, sort_order: products.length };
     setProducts(prev => [...prev, product]);
     const ok = await apiUpsertProduct(product);
-    if (ok) revalidateSite();
-    else showToast('Error al guardar');
     setNewProduct({ name: '', cat: 'planes', price: '', desc: '' });
     setShowAdd(false);
-    showToast('Producto agregado');
+    if (ok) {
+      revalidateSite();
+      showToast('Producto agregado');
+    } else {
+      // Roll back the optimistic insert so the UI matches reality.
+      setProducts(prev => prev.filter(p => p.id !== id));
+      showToast('Error al guardar el producto');
+    }
   };
 
   // ─── DELETE PRODUCT ───
@@ -1668,6 +1674,8 @@ function ProductsTab() {
 
   // ─── DELETE VARIANT ───
   const handleDeleteVariant = async (productId: string, variantId: string) => {
+    const target = variants.find(v => v.product_id === productId && v.id === variantId);
+    if (!window.confirm(`¿Eliminar la variante "${target?.label || variantId}"? Esta acción no se puede deshacer.`)) return;
     setVariants(prev => prev.filter(v => !(v.product_id === productId && v.id === variantId)));
     const remaining = variants.filter(v => v.product_id === productId && v.id !== variantId);
     if (remaining.length === 0) {
@@ -2392,7 +2400,7 @@ const WI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body tex
 function revalidateSite() {
   fetch('/api/revalidate', {
     method: 'POST',
-    headers: { 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin },
+    headers: { 'x-admin-token': _adminToken },
   }).catch(() => {});
 }
 
@@ -2422,7 +2430,8 @@ function WebsiteTab() {
   const saveHomepage = async () => {
     setSavingSection('homepage');
     try {
-      await apiUpsertSetting('homepage_content', hp);
+      const ok = await apiUpsertSetting('homepage_content', hp);
+      if (!ok) { showToast('Error al guardar'); return; }
       revalidateSite();
       showToast('Homepage guardado');
     } catch { showToast('Error al guardar'); }
@@ -2463,9 +2472,10 @@ function WebsiteTab() {
   const saveFeatured = async () => {
     setSavingSection('featured');
     try {
-      await apiUpsertSetting('featured_products', featuredIds);
-      await apiUpsertSetting('cart_suggestions', cartSuggestIds);
-      await apiUpsertSetting('checkout_suggestions', checkoutSuggestIds);
+      const ok = (await apiUpsertSetting('featured_products', featuredIds))
+        && (await apiUpsertSetting('cart_suggestions', cartSuggestIds))
+        && (await apiUpsertSetting('checkout_suggestions', checkoutSuggestIds));
+      if (!ok) { showToast('Error al guardar'); return; }
       revalidateSite();
       showToast('Productos destacados guardados');
     } catch { showToast('Error al guardar'); }
@@ -2487,7 +2497,8 @@ function WebsiteTab() {
     setSavingSection('areas');
     try {
       const clean = areas.filter(a => a.name.trim());
-      await apiUpsertSetting('event_areas', clean);
+      const ok = await apiUpsertSetting('event_areas', clean);
+      if (!ok) { showToast('Error al guardar'); return; }
       setAreas(clean);
       revalidateSite();
       showToast('\u00c1reas guardadas');
@@ -2518,7 +2529,8 @@ function WebsiteTab() {
   const saveContact = async () => {
     setSavingSection('contact');
     try {
-      await apiUpsertSetting('contact_info', contactInfo);
+      const ok = await apiUpsertSetting('contact_info', contactInfo);
+      if (!ok) { showToast('Error al guardar'); return; }
       revalidateSite();
       showToast('Contacto guardado');
     } catch { showToast('Error al guardar'); }
@@ -2542,21 +2554,26 @@ function WebsiteTab() {
       formData.append('file', file);
       formData.append('productId', 'site-logo');
       formData.append('folder', 'logos');
-      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-pin': _adminPin, 'x-admin-token': _adminToken }, body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-admin-token': _adminToken }, body: formData });
       if (res.ok) {
         const data = await res.json();
         const url = data.path + '?t=' + Date.now();
-        await apiUpsertSetting('site_logo_url', url);
+        const okSet = await apiUpsertSetting('site_logo_url', url);
+        if (!okSet) { showToast('Logo subido pero no se guard\u00f3 en la base de datos'); return; }
         setLogoUrl(url);
         revalidateSite();
         showToast('Logo actualizado');
-      } else { showToast('Error al subir logo'); }
+      } else {
+        const errBody = await res.json().catch(() => null);
+        showToast(errBody?.error || (res.status === 401 ? 'Sesi\u00f3n expirada \u2014 recarga la p\u00e1gina' : 'Error al subir logo'));
+      }
     } catch { showToast('Error de conexi\u00f3n'); }
     finally { setLogoUploading(false); }
   };
 
   const resetLogo = async () => {
-    await apiUpsertSetting('site_logo_url', null);
+    const ok = await apiUpsertSetting('site_logo_url', null);
+    if (!ok) { showToast('Error al restaurar el logo'); return; }
     setLogoUrl(null);
     revalidateSite();
     showToast('Logo tipogr\u00e1fico restaurado');
@@ -2586,7 +2603,8 @@ function WebsiteTab() {
     setSavingSection('testimonials');
     try {
       const clean = testimonials.filter(t => t.name.trim() && t.text.trim());
-      await apiUpsertSetting('testimonials', clean);
+      const ok = await apiUpsertSetting('testimonials', clean);
+      if (!ok) { showToast('Error al guardar'); return; }
       revalidateSite();
       showToast('Testimonios guardados');
     } catch { showToast('Error al guardar'); }
@@ -2620,7 +2638,8 @@ function WebsiteTab() {
     setSavingSection('terms');
     try {
       const clean = terms.filter(t => t.title.trim() && t.text.trim());
-      await apiUpsertSetting('terms_conditions', clean);
+      const ok = await apiUpsertSetting('terms_conditions', clean);
+      if (!ok) { showToast('Error al guardar'); return; }
       revalidateSite();
       showToast('T\u00e9rminos guardados');
     } catch { showToast('Error al guardar'); }
@@ -2648,7 +2667,8 @@ function WebsiteTab() {
           overrides[key] = siteTexts[key];
         }
       }
-      await apiUpsertSetting('site_texts', overrides);
+      const ok = await apiUpsertSetting('site_texts', overrides);
+      if (!ok) { showToast('Error al guardar'); return; }
       clearSiteTextsCache();
       revalidateSite();
       showToast('Textos guardados');
@@ -2977,7 +2997,7 @@ function WebsiteTab() {
                   <span className="font-body text-sm text-gray-400">$</span>
                   <input type="number" value={area.price} onChange={e => setAreas(prev => prev.map((a, j) => j === i ? { ...a, price: Number(e.target.value) || 0 } : a))} className={`w-20 ${WI_CLS}`} min="0" />
                 </div>
-                <button onClick={() => setAreas(prev => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                <button onClick={() => { if (window.confirm(`¿Eliminar el área "${area.name || 'sin nombre'}"?`)) setAreas(prev => prev.filter((_, j) => j !== i)); }} className="text-gray-400 hover:text-red-500 transition-colors p-1">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
               </div>
@@ -3078,11 +3098,9 @@ export default function AdminPage() {
   useEffect(() => {
     try {
       const savedToken = sessionStorage.getItem('adminToken');
-      const savedPin = sessionStorage.getItem('adminPin');
       const savedRole = sessionStorage.getItem('adminRole');
-      if (savedToken && savedPin) {
+      if (savedToken) {
         _adminToken = savedToken;
-        _adminPin = savedPin;
         _adminRole = (savedRole === 'vendedora' ? 'vendedora' : 'admin');
         setAuthenticated(true);
       }
@@ -3138,12 +3156,10 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        _adminPin = pin;
         _adminToken = data.token || '';
         _adminRole = data.role || 'admin';
         try {
           sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminPin', _adminPin);
           sessionStorage.setItem('adminRole', _adminRole);
         } catch {}
         setAuthenticated(true);

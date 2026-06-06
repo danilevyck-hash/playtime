@@ -102,7 +102,6 @@ export default function PedidoDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [token, setToken] = useState('');
-  const [pin, setPin] = useState('');
   const [savingAction, setSavingAction] = useState<string | null>(null);
 
   // UI state
@@ -128,13 +127,11 @@ export default function PedidoDetailPage() {
   useEffect(() => {
     try {
       const t = sessionStorage.getItem('adminToken') || '';
-      const p = sessionStorage.getItem('adminPin') || '';
-      if (!t && !p) {
+      if (!t) {
         router.push('/admin');
         return;
       }
       setToken(t);
-      setPin(p);
       setAuthReady(true);
     } catch {
       router.push('/admin');
@@ -144,9 +141,8 @@ export default function PedidoDetailPage() {
   const authHeaders = useCallback((extra?: Record<string, string>) => ({
     'Content-Type': 'application/json',
     'x-admin-token': token,
-    'x-admin-pin': pin,
     ...extra,
-  }), [token, pin]);
+  }), [token]);
 
   const loadOrder = useCallback(async () => {
     if (!authReady || !orderId || Number.isNaN(orderId)) return;

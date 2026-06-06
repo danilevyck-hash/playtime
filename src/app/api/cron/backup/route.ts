@@ -32,19 +32,31 @@ export async function GET(req: NextRequest) {
   const counts: Record<string, number> = {};
   const data: Record<string, unknown[]> = {};
 
-  // Export all tables
+  // Export all tables — page through .range() so we back up ALL rows (not just the
+  // first 1000). A fetch error means a partial/broken backup, so fail loudly (500)
+  // instead of silently uploading an incomplete snapshot.
+  const PAGE = 1000;
   for (const table of TABLES) {
-    const { data: rows, error } = await supabaseAdmin
-      .from(table)
-      .select("*");
-
-    if (error) {
-      console.error(`Error fetching ${table}:`, error.message);
-      data[table] = [];
-      counts[table] = 0;
-    } else {
-      data[table] = rows || [];
-      counts[table] = rows?.length || 0;
+    try {
+      const rows: unknown[] = [];
+      for (let from = 0; from < 1_000_000; from += PAGE) {
+        const { data: page, error } = await supabaseAdmin
+          .from(table)
+          .select("*")
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(error.message);
+        if (!page || page.length === 0) break;
+        rows.push(...page);
+        if (page.length < PAGE) break;
+      }
+      data[table] = rows;
+      counts[table] = rows.length;
+    } catch (e) {
+      console.error(`Error fetching ${table}:`, e);
+      return NextResponse.json(
+        { error: `Backup failed fetching ${table}`, details: e instanceof Error ? e.message : String(e) },
+        { status: 500 }
+      );
     }
   }
 
@@ -69,7 +81,13 @@ export async function GET(req: NextRequest) {
     });
 
   if (storageErr) {
+    // Fail loudly so Vercel Cron marks the run as failed and alerts — a backup that
+    // wasn't actually stored must NOT report success.
     console.error("Storage upload error:", storageErr);
+    return NextResponse.json(
+      { error: "Backup upload failed", details: storageErr.message },
+      { status: 500 }
+    );
   }
 
   // Clean old backups (keep last 30 days)
@@ -95,6 +113,6 @@ export async function GET(req: NextRequest) {
     ok: true,
     date: today,
     counts,
-    storage: !storageErr,
+    storage: true,
   });
 }

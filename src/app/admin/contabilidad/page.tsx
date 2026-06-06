@@ -11,10 +11,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 // ─── Session (shared with /admin via sessionStorage) ───
 let _adminToken = '';
-let _adminPin = '';
 
 function adminHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin };
+  return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken };
 }
 
 /**
@@ -245,20 +244,19 @@ export default function ContabilidadPage() {
   const [orders, setOrders] = useState<OrderLite[]>([]);
   const [allVouchers, setAllVouchers] = useState<Voucher[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     try {
       const t = sessionStorage.getItem('adminToken');
-      const p = sessionStorage.getItem('adminPin');
       const role = sessionStorage.getItem('adminRole');
-      if (t && p) {
+      if (t) {
         // Contabilidad is admin-only. A vendedora session must not see it.
         if (role === 'vendedora') {
           router.replace('/admin');
           return;
         }
         _adminToken = t;
-        _adminPin = p;
         setAuthed(true);
       }
     } catch {}
@@ -268,42 +266,38 @@ export default function ContabilidadPage() {
   const loadAccounts = useCallback(async () => {
     try {
       const res = await fetch('/api/accounting?resource=accounts', { headers: adminHeaders() });
-      if (res.ok) {
-        const d = await res.json();
-        setAccounts(d.accounts || []);
-      }
-    } catch {}
+      if (!res.ok) { setLoadError(true); return; }
+      const d = await res.json();
+      setAccounts(d.accounts || []);
+    } catch { setLoadError(true); }
   }, []);
 
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch('/api/accounting?resource=categories', { headers: adminHeaders() });
-      if (res.ok) {
-        const d = await res.json();
-        setCategories(d.categories || []);
-      }
-    } catch {}
+      if (!res.ok) { setLoadError(true); return; }
+      const d = await res.json();
+      setCategories(d.categories || []);
+    } catch { setLoadError(true); }
   }, []);
 
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/accounting?resource=orders', { headers: adminHeaders() });
-      if (res.ok) {
-        const d = await res.json();
-        setOrders(d.orders || []);
-      }
-    } catch {}
+      if (!res.ok) { setLoadError(true); return; }
+      const d = await res.json();
+      setOrders(d.orders || []);
+    } catch { setLoadError(true); }
   }, []);
 
   // Shared voucher dataset for Panel / Ventas / Informes (Transacciones fetches its own filtered list)
   const loadVouchers = useCallback(async () => {
     try {
       const res = await fetch('/api/accounting?resource=vouchers&sort=asc', { headers: adminHeaders() });
-      if (res.ok) {
-        const d = await res.json();
-        setAllVouchers(d.vouchers || []);
-      }
-    } catch {}
+      if (!res.ok) { setLoadError(true); return; }
+      const d = await res.json();
+      setAllVouchers(d.vouchers || []);
+    } catch { setLoadError(true); }
   }, []);
 
   // Anulados NEVER sum — filtered out once, here.
@@ -314,14 +308,19 @@ export default function ContabilidadPage() {
     loadVouchers();
   }, [loadAccounts, loadVouchers]);
 
-  useEffect(() => {
-    if (!authed) return;
+  const reloadAll = useCallback(() => {
+    setLoadError(false);
     loadAccounts();
     loadCategories();
     loadOrders();
     loadVouchers();
+  }, [loadAccounts, loadCategories, loadOrders, loadVouchers]);
+
+  useEffect(() => {
+    if (!authed) return;
+    reloadAll();
     fetchLogoUrl().then(setLogoUrl).catch(() => {});
-  }, [authed, loadAccounts, loadCategories, loadOrders, loadVouchers]);
+  }, [authed, reloadAll]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,12 +332,10 @@ export default function ContabilidadPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        _adminPin = pin;
         _adminToken = data.token || '';
         const role = data.role || 'admin';
         try {
           sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminPin', _adminPin);
           sessionStorage.setItem('adminRole', role);
         } catch {}
         // Contabilidad is admin-only: send vendedora to the orders admin.
@@ -426,6 +423,16 @@ export default function ContabilidadPage() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-center">
+          <p className="font-heading font-bold text-red-600 mb-1">No se pudieron cargar los datos</p>
+          <p className="font-body text-sm text-red-500 mb-3">Revisa tu conexión. Si la sesión expiró, vuelve a entrar.</p>
+          <button onClick={reloadAll} className="bg-purple text-white font-heading font-bold px-5 py-2 rounded-xl hover:bg-purple-light transition-colors">
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {nav === 'panel' && (
         <PanelView active={active} accounts={accounts} orders={orders} onGoToVentas={() => setNav('ventas')} />
       )}
@@ -472,6 +479,7 @@ function ComprobantesTab({
 }) {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [preset, setPreset] = useState<PresetKey>('mes');
   const [from, setFrom] = useState(presetRange('mes').from);
   const [to, setTo] = useState(presetRange('mes').to);
@@ -488,6 +496,7 @@ function ComprobantesTab({
 
   const loadVouchers = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const params = new URLSearchParams({ resource: 'vouchers' });
       if (from) params.set('dateFrom', from);
@@ -497,11 +506,10 @@ function ComprobantesTab({
       if (accountFilter) params.set('accountId', accountFilter);
       if (search.trim()) params.set('q', search.trim());
       const res = await fetch(`/api/accounting?${params.toString()}`, { headers: adminHeaders() });
-      if (res.ok) {
-        const d = await res.json();
-        setVouchers(d.vouchers || []);
-      }
-    } catch {} finally {
+      if (!res.ok) { setError(true); return; }
+      const d = await res.json();
+      setVouchers(d.vouchers || []);
+    } catch { setError(true); } finally {
       setLoading(false);
     }
   }, [from, to, kindFilter, categoryFilter, accountFilter, search]);
@@ -689,6 +697,12 @@ function ComprobantesTab({
         <div className="space-y-2">
           {[0, 1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
         </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p className="font-heading font-bold text-red-600 mb-1">No se pudieron cargar las transacciones</p>
+          <p className="font-body text-sm text-red-500 mb-3">Revisa tu conexión e intenta de nuevo.</p>
+          <button onClick={loadVouchers} className="bg-purple text-white font-heading font-bold px-5 py-2 rounded-xl hover:bg-purple-light transition-colors">Reintentar</button>
+        </div>
       ) : vouchers.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-4xl mb-2">🧾</p>
@@ -811,7 +825,7 @@ function VoucherFormModal({
       fd.append('file', file);
       const res = await fetch('/api/accounting/upload', {
         method: 'POST',
-        headers: { 'x-admin-token': _adminToken, 'x-admin-pin': _adminPin },
+        headers: { 'x-admin-token': _adminToken },
         body: fd,
       });
       const d = await res.json();
@@ -1330,18 +1344,20 @@ function CuentasTab({ accounts, reload, showToast }: { accounts: Account[]; relo
 function AccountMovementsModal({ account, onClose }: { account: Account; onClose: () => void }) {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/accounting?resource=vouchers&accountId=${account.id}&sort=asc`, { headers: adminHeaders() });
-        if (res.ok) {
-          const d = await res.json();
-          setVouchers(d.vouchers || []);
-        }
-      } catch {} finally { setLoading(false); }
-    })();
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/accounting?resource=vouchers&accountId=${account.id}&sort=asc`, { headers: adminHeaders() });
+      if (!res.ok) { setError(true); return; }
+      const d = await res.json();
+      setVouchers(d.vouchers || []);
+    } catch { setError(true); } finally { setLoading(false); }
   }, [account.id]);
+
+  useEffect(() => { load(); }, [load]);
 
   // Running balance over active vouchers
   let running = Number(account.initial_balance) || 0;
@@ -1369,6 +1385,11 @@ function AccountMovementsModal({ account, onClose }: { account: Account; onClose
           </div>
           {loading ? (
             <div className="space-y-2">{[0, 1, 2].map(i => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}</div>
+          ) : error ? (
+            <div className="text-center py-6">
+              <p className="font-body text-sm text-red-500 mb-2">No se pudieron cargar los movimientos.</p>
+              <button onClick={load} className="bg-purple text-white font-heading font-bold px-4 py-1.5 rounded-lg text-sm">Reintentar</button>
+            </div>
           ) : rows.length === 0 ? (
             <p className="text-center text-gray-400 py-8 font-body">Sin movimientos</p>
           ) : (
