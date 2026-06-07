@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     if (resource === 'orders') {
       const { data, error } = await db
         .from('pt_orders')
-        .select('id, order_number, customer_name, event_date, total, deposit_amount, status, created_at')
+        .select('id, order_number, customer_name, event_date, total, deposit_amount, status, confirmed, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(300);
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     if (resource === 'bootstrap') {
       const { data: orders } = await db
         .from('pt_orders')
-        .select('id, order_number, customer_name, event_date, total, deposit_amount, status, created_at')
+        .select('id, order_number, customer_name, event_date, total, deposit_amount, status, confirmed, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(300);

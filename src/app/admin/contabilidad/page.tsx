@@ -65,6 +65,7 @@ interface OrderLite {
   total: number;
   deposit_amount?: number | null;
   status?: string | null;
+  confirmed?: boolean | null;
   created_at?: string | null;
 }
 
@@ -1553,10 +1554,25 @@ function PeriodPills({ periodKey, setPeriodKey, customFrom, setCustomFrom, custo
 // pedidos viejos que ya estaban cobrados antes de existir los vouchers.
 const CXC_VOUCHER_CUTOFF = '2026-06-07';
 
+// Normaliza el status crudo de la DB al pipeline canónico. Espeja getOrderStatus()
+// (admin/page.tsx) y canonicalStatus() (api/orders/route.ts): mapea valores legacy
+// 'aprobada'/'deposito'/'nuevo' y el flag `confirmed` (filas viejas con status null).
+// CxC compara contra ESTO, no contra el crudo, para no perder pedidos viejos ya
+// confirmados que aún deben plata.
+type CxcStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
+function canonOrderStatus(o: OrderLite): CxcStatus {
+  const s = o.status;
+  if (s === 'realizado') return 'realizado';
+  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
+  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
+  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
+  if (o.confirmed) return 'confirmado';
+  return 'pendiente';
+}
+
 // Cuentas por cobrar: SOLO pedidos confirmados o realizados (saldo>0 = pendiente de cobro).
 // Un pendiente aún no es CxC (puede no concretarse); rechazados/archivados ya quedaban fuera.
 // unpostedDeposit = depósito reportado por la vendedora aún no asentado en Contabilidad.
-const CXC_STATUSES = ['confirmado', 'realizado'];
 interface Receivable { o: OrderLite; paid: number; saldo: number; unpostedDeposit: number }
 function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[] {
   const voucherPaid = new Map<number, number>();
@@ -1565,7 +1581,7 @@ function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[
     voucherPaid.set(v.order_id, (voucherPaid.get(v.order_id) || 0) + (Number(v.amount) || 0));
   }
   return orders
-    .filter(o => CXC_STATUSES.includes((o.status || '').toLowerCase()))
+    .filter(o => { const st = canonOrderStatus(o); return st === 'confirmado' || st === 'realizado'; })
     .map(o => {
       const fromVouchers = voucherPaid.get(o.id) || 0;
       const deposit = Number(o.deposit_amount) || 0;
