@@ -1685,7 +1685,7 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
                   <div><p className="text-[10px] text-gray-400 uppercase font-heading">Saldo</p><p className="font-heading font-bold text-sm text-gray-800">{formatCurrency(Math.max(0, r.saldo))}</p></div>
                 </div>
                 {r.unpostedDeposit > 0.005 && (
-                  <p className="mt-2 text-[11px] text-amber-600 font-body">Depósito reportado por cobrar de asentar: {formatCurrency(r.unpostedDeposit)}</p>
+                  <p className="mt-2 text-[11px] text-amber-600 font-body">Depósito reportado, pendiente de asentar: {formatCurrency(r.unpostedDeposit)}</p>
                 )}
                 {r.saldo > 0.005 && (
                   <button
@@ -1723,7 +1723,7 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
                         <p className="font-heading font-semibold text-gray-800 truncate max-w-[120px]">{r.o.customer_name}</p>
                         <p className="text-[10px] text-gray-400 whitespace-nowrap">#{r.o.order_number}</p>
                         {r.unpostedDeposit > 0.005 && (
-                          <p className="text-[10px] text-amber-600 mt-0.5 max-w-[180px]">Depósito reportado por cobrar de asentar: {formatCurrency(r.unpostedDeposit)}</p>
+                          <p className="text-[10px] text-amber-600 mt-0.5 max-w-[180px]">Depósito reportado, pendiente de asentar: {formatCurrency(r.unpostedDeposit)}</p>
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap text-xs">{formatDate(r.o.event_date)}</td>
