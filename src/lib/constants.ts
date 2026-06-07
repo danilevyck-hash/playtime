@@ -1,5 +1,9 @@
 import { Product, Category } from './types';
 
+/** URL pública del sitio. Fuente única reutilizada por layout.tsx (metadata/OG) y
+ *  telegram.ts (links a /admin en las alertas de pedido). Sin env var. */
+export const SITE_URL = 'https://playtime-kids.vercel.app';
+
 export const BANK_INFO = {
   bank: 'Banco Aliado',
   name: 'Nathalie Levy',

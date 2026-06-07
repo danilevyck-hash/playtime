@@ -9,6 +9,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import { SITE_URL } from "@/lib/constants";
 import "./globals.css";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://playtime-kids.vercel.app'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "PlayTime - Creando Momentos",
     template: "%s | PlayTime Panam\u00e1",
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PlayTime - Creando Momentos",
     description: "Fiestas infantiles en Panamá. Animación, alquiler de equipos y manualidades para cumpleaños y eventos. ¡Todo hasta tu puerta!",
-    url: "https://playtime-kids.vercel.app",
+    url: SITE_URL,
     siteName: "PlayTime Panamá",
     locale: "es_PA",
     type: "website",

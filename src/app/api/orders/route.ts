@@ -8,6 +8,7 @@ import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { EVENT_AREAS } from '@/lib/types';
 import { sendOrderNotification } from '@/lib/email';
 import { sendPushNotification } from '@/lib/push';
+import { sendTelegramNotification } from '@/lib/telegram';
 
 /** Server-validated transport areas: pt_settings('event_areas') with EVENT_AREAS fallback.
  *  Transport is ALWAYS derived from this list by area name, never trusted from the client. */
@@ -259,6 +260,22 @@ export async function POST(request: NextRequest) {
       );
     } catch (err) {
       console.error('Push notification error:', err);
+    }
+
+    try {
+      await sendTelegramNotification({
+        orderNumber: order.order_number,
+        orderId: order.id,
+        customerName: customer.name.trim(),
+        total: serverTotal,
+        eventDate: event.date,
+        eventTime: event.time || undefined,
+        transportCost: serverTransport,
+        transportPending,
+        paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
+      });
+    } catch (err) {
+      console.error('Telegram notification error:', err);
     }
 
     return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
