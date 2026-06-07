@@ -65,6 +65,7 @@ interface OrderLite {
   total: number;
   deposit_amount?: number | null;
   status?: string | null;
+  created_at?: string | null;
 }
 
 interface Voucher {
@@ -1543,19 +1544,36 @@ function PeriodPills({ periodKey, setPeriodKey, customFrom, setCustomFrom, custo
   );
 }
 
-// Receivables: ALL non-rejected orders with paid/saldo (saldo>0 means outstanding)
-interface Receivable { o: OrderLite; paid: number; saldo: number }
+// Cutoff de transición CxC (día en que entró este cambio). A partir de esta fecha,
+// "pagado/saldo" cuenta SOLO comprobantes de ingreso activos vinculados (pt_vouchers),
+// IGNORANDO deposit_amount del pedido (el depósito operativo de la vendedora ya no
+// doble-cuenta en CxC; el admin lo asienta como voucher cuando la plata llega al banco).
+// Excepción histórica: pedidos creados ANTES del cutoff con deposit_amount > 0 y SIN
+// vouchers vinculados siguen contando deposit_amount, para no mostrar como deudores
+// pedidos viejos que ya estaban cobrados antes de existir los vouchers.
+const CXC_VOUCHER_CUTOFF = '2026-06-07';
+
+// Receivables: ALL non-rejected orders with paid/saldo (saldo>0 means outstanding).
+// unpostedDeposit = depósito reportado por la vendedora aún no asentado en Contabilidad.
+interface Receivable { o: OrderLite; paid: number; saldo: number; unpostedDeposit: number }
 function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[] {
-  const paid = new Map<number, number>();
+  const voucherPaid = new Map<number, number>();
   for (const v of active) {
     if (v.kind !== 'ingreso' || v.order_id == null) continue;
-    paid.set(v.order_id, (paid.get(v.order_id) || 0) + (Number(v.amount) || 0));
+    voucherPaid.set(v.order_id, (voucherPaid.get(v.order_id) || 0) + (Number(v.amount) || 0));
   }
   return orders
     .filter(o => { const st = (o.status || '').toLowerCase(); return st !== 'rechazado' && st !== 'rechazada'; })
     .map(o => {
-      const paidAmt = (Number(o.deposit_amount) || 0) + (paid.get(o.id) || 0);
-      return { o, paid: paidAmt, saldo: (Number(o.total) || 0) - paidAmt };
+      const fromVouchers = voucherPaid.get(o.id) || 0;
+      const deposit = Number(o.deposit_amount) || 0;
+      // Pedido histórico (creado antes del cutoff) sin vouchers → cae al fallback de deposit_amount.
+      const isLegacy = String(o.created_at || '') < CXC_VOUCHER_CUTOFF;
+      const useDepositFallback = isLegacy && deposit > 0 && fromVouchers === 0;
+      const paidAmt = fromVouchers + (useDepositFallback ? deposit : 0);
+      // Depósito reportado por encima de lo asentado (solo cuando NO usamos el fallback histórico).
+      const unpostedDeposit = useDepositFallback ? 0 : Math.max(0, deposit - fromVouchers);
+      return { o, paid: paidAmt, saldo: (Number(o.total) || 0) - paidAmt, unpostedDeposit };
     });
 }
 
@@ -1666,6 +1684,9 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
                   <div><p className="text-[10px] text-gray-400 uppercase font-heading">Pagado</p><p className="font-body text-sm text-emerald-700">{formatCurrency(r.paid)}</p></div>
                   <div><p className="text-[10px] text-gray-400 uppercase font-heading">Saldo</p><p className="font-heading font-bold text-sm text-gray-800">{formatCurrency(Math.max(0, r.saldo))}</p></div>
                 </div>
+                {r.unpostedDeposit > 0.005 && (
+                  <p className="mt-2 text-[11px] text-amber-600 font-body">Depósito reportado por cobrar de asentar: {formatCurrency(r.unpostedDeposit)}</p>
+                )}
                 {r.saldo > 0.005 && (
                   <button
                     onClick={() => setPayPrefill({ orderId: String(r.o.id), amount: r.saldo.toFixed(2), counterparty: r.o.customer_name, description: `Pago pedido #${r.o.order_number}` })}
@@ -1698,9 +1719,12 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
                   const badge = ventaBadge(r, today);
                   return (
                     <tr key={r.o.id} className="font-body">
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2.5 px-3">
                         <p className="font-heading font-semibold text-gray-800 truncate max-w-[120px]">{r.o.customer_name}</p>
-                        <p className="text-[10px] text-gray-400">#{r.o.order_number}</p>
+                        <p className="text-[10px] text-gray-400 whitespace-nowrap">#{r.o.order_number}</p>
+                        {r.unpostedDeposit > 0.005 && (
+                          <p className="text-[10px] text-amber-600 mt-0.5 max-w-[180px]">Depósito reportado por cobrar de asentar: {formatCurrency(r.unpostedDeposit)}</p>
+                        )}
                       </td>
                       <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap text-xs">{formatDate(r.o.event_date)}</td>
                       <td className="py-2.5 px-2 text-right text-gray-700 whitespace-nowrap">{formatCurrency(Number(r.o.total) || 0)}</td>
