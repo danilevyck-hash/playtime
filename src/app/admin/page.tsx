@@ -187,7 +187,7 @@ function OrdersTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected' | 'archived'>('all');
   const [eventMonthFilter, setEventMonthFilter] = useState<string>('all'); // 'all' or 'YYYY-MM'
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -199,6 +199,7 @@ function OrdersTab() {
     total: number;
     counts: { pendiente: number; confirmado: number; realizado: number; rechazado: number };
     confirmedRevenue: number;
+    archived: number;
     months: { key: string; label: string }[];
   } | null>(null);
 
@@ -210,7 +211,8 @@ function OrdersTab() {
     p.set('limit', String(PAGE_SIZE));
     p.set('offset', String(offset));
     if (search.trim()) p.set('q', search.trim());
-    if (statusFilter !== 'all') p.set('status', statusFilter);
+    if (statusFilter === 'archived') p.set('deleted', 'true');
+    else if (statusFilter !== 'all') p.set('status', statusFilter);
     if (eventMonthFilter !== 'all') p.set('month', eventMonthFilter);
     return p;
   }, [search, statusFilter, eventMonthFilter]);
@@ -344,6 +346,7 @@ function OrdersTab() {
   const realizadoOrders = stats?.counts.realizado ?? 0;
   const rejectedOrders = stats?.counts.rechazado ?? 0;
   const confirmedRevenue = stats?.confirmedRevenue ?? 0;
+  const archivedOrders = stats?.archived ?? 0;
 
   const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
 
@@ -404,6 +407,7 @@ function OrdersTab() {
           ['realizado', `Realizados (${realizadoOrders})`],
           ['rejected', `Rechazados (${rejectedOrders})`],
           ['all', `Todos (${totalOrders})`],
+          ['archived', `Archivados (${archivedOrders})`],
         ] as const).map(([key, label]) => (
           <button
             key={key}

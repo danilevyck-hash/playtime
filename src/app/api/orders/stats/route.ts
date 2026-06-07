@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 
-type OrderRow = { status: string | null; confirmed: boolean | null; total: number | null; event_date: string | null };
+type OrderRow = { status: string | null; confirmed: boolean | null; total: number | null; event_date: string | null; deleted_at: string | null };
 
 /** Canonical status — mirrors getOrderStatus() in the admin client. */
 function canonicalStatus(o: OrderRow): 'pendiente' | 'confirmado' | 'realizado' | 'rechazado' {
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     for (let from = 0; from < 500000; from += PAGE) {
       const { data, error } = await db
         .from('pt_orders')
-        .select('status, confirmed, total, event_date')
+        .select('status, confirmed, total, event_date, deleted_at')
         .range(from, from + PAGE - 1);
       if (error) {
         console.error('Stats fetch error:', error);
@@ -51,8 +51,10 @@ export async function GET(request: NextRequest) {
 
     const counts = { pendiente: 0, confirmado: 0, realizado: 0, rechazado: 0 };
     let confirmedRevenue = 0;
+    let archived = 0;
     const monthSet = new Set<string>();
     for (const o of rows) {
+      if (o.deleted_at) { archived++; continue; } // archivados no cuentan
       counts[canonicalStatus(o)]++;
       if (o.confirmed) confirmedRevenue += Number(o.total) || 0;
       if (o.event_date) monthSet.add(o.event_date.substring(0, 7));
@@ -72,7 +74,8 @@ export async function GET(request: NextRequest) {
       });
 
     return NextResponse.json({
-      total: rows.length,
+      total: rows.length - archived,
+      archived,
       counts,
       confirmedRevenue: Math.round(confirmedRevenue * 100) / 100,
       months,

@@ -60,6 +60,24 @@ function recalcTotals(items: { line_total: number }[], opts: { transport: number
   return { itemsTotal, surcharge, total };
 }
 
+// ─── Status transition matrix (validated server-side, mirrors UI) ───
+type CanonStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
+function canonicalStatus(o: { status?: string | null; confirmed?: boolean | null }): CanonStatus {
+  const s = o.status;
+  if (s === 'realizado') return 'realizado';
+  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
+  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
+  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
+  if (o.confirmed) return 'confirmado';
+  return 'pendiente';
+}
+const STATUS_TRANSITIONS: Record<CanonStatus, CanonStatus[]> = {
+  pendiente: ['confirmado', 'rechazado'],
+  confirmado: ['realizado', 'rechazado'],
+  realizado: [], // estado cerrado
+  rechazado: ['pendiente'], // reactivar
+};
+
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request.headers);
@@ -277,7 +295,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem } = body;
+    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem, restore } = body;
 
     if (!orderId || typeof orderId !== 'number') {
       return NextResponse.json({ error: 'orderId requerido' }, { status: 400 });
@@ -306,10 +324,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (restore !== undefined) {
+      // Un-archive: clear the soft-delete marker.
+      const { error } = await db.from('pt_orders').update({ deleted_at: null }).eq('id', orderId);
+      if (error) {
+        console.error('restore error:', error);
+        return NextResponse.json({ error: 'No se pudo restaurar el pedido' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     if (status !== undefined) {
       const validStatuses = ['pendiente', 'confirmado', 'realizado', 'rechazado'];
       if (!validStatuses.includes(status)) {
         return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
+      }
+      // Validate the transition against the matrix (server-side, not just UI).
+      const { data: cur } = await db.from('pt_orders').select('status, confirmed').eq('id', orderId).single();
+      const current = canonicalStatus(cur || {});
+      if (status !== current && !STATUS_TRANSITIONS[current].includes(status as CanonStatus)) {
+        return NextResponse.json({ error: `Transición no permitida: ${current} → ${status}` }, { status: 400 });
       }
       const isConfirmed = status === 'confirmado' || status === 'realizado';
       const { error: statusError } = await db.from('pt_orders').update({ status, confirmed: isConfirmed }).eq('id', orderId);
@@ -615,6 +649,7 @@ export async function GET(request: NextRequest) {
     const q = (url.searchParams.get('q') || '').trim();
     const status = url.searchParams.get('status') || 'all';
     const month = url.searchParams.get('month') || '';
+    const showDeleted = url.searchParams.get('deleted') === 'true';
 
     // event_date DESC: the first page carries all upcoming/recent events; "load more"
     // pages back into the past. count: 'exact' gives total for pagination + "load more".
@@ -623,6 +658,9 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact' })
       .order('event_date', { ascending: false })
       .order('id', { ascending: false });
+
+    // Soft-delete: default hides archived orders; ?deleted=true shows ONLY archived.
+    query = showDeleted ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null);
 
     // Status filter — mirrors getOrderStatus() mapping (incl. legacy values + null).
     if (status === 'pending') query = query.or('status.is.null,status.eq.pendiente,status.eq.nuevo');
@@ -697,18 +735,15 @@ export async function DELETE(request: NextRequest) {
     }
     const { orderId } = await request.json();
 
-    // Delete items first; if this fails, do NOT delete the order (avoid orphaning
-    // items / leaving the order in an inconsistent half-deleted state).
-    const { error: itemsDelErr } = await db.from('pt_order_items').delete().eq('order_id', orderId);
-    if (itemsDelErr) {
-      console.error('Delete items error:', itemsDelErr);
-      return NextResponse.json({ error: 'Failed to delete order items' }, { status: 500 });
-    }
-
-    const { error } = await db.from('pt_orders').delete().eq('id', orderId);
+    // Soft-delete (archivar): marca deleted_at en vez de borrar el registro contable.
+    // Reversible vía PATCH { restore: true }. Los items se conservan.
+    const { error } = await db
+      .from('pt_orders')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', orderId);
     if (error) {
-      console.error('Delete error:', error);
-      return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
+      console.error('Soft-delete error:', error);
+      return NextResponse.json({ error: 'Failed to archive order' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
