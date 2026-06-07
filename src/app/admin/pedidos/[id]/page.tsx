@@ -833,7 +833,7 @@ export default function PedidoDetailPage() {
                   {liveDisc > 0 ? (
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
-                      <button onClick={() => saveDiscount(0, 'fixed')} className="text-gray-400 hover:text-red-400 text-xs">{'✕'}</button>
+                      <button onClick={() => { if (window.confirm(`¿Quitar el descuento de ${formatCurrency(liveDisc)}?`)) saveDiscount(0, 'fixed'); }} className="text-gray-400 hover:text-red-400 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Quitar descuento">{'✕'}</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
@@ -841,7 +841,7 @@ export default function PedidoDetailPage() {
                         <button onClick={() => setDiscountType('fixed')} className={`px-2 py-1 text-xs font-heading font-semibold ${discountType === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
                         <button onClick={() => setDiscountType('percent')} className={`px-2 py-1 text-xs font-heading font-semibold ${discountType === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
                       </div>
-                      <input type="number" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs" />
+                      <input type="number" inputMode="decimal" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 min-h-[44px] text-right text-sm" />
                       {discountInput && <button onClick={() => saveDiscount()} disabled={savingAction === 'discount'} className="text-xs font-heading font-semibold text-purple hover:underline disabled:opacity-50">Aplicar</button>}
                     </div>
                   )}
@@ -851,13 +851,13 @@ export default function PedidoDetailPage() {
                   {order.transport_cost_confirmed !== null && !isEditingTransport ? (
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-semibold text-gray-700">{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
-                      <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange text-xs">✎</button>
+                      <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Editar transporte">✎</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <input type="number" value={transportInput} onChange={e => setTransportInput(e.target.value)} placeholder="$0" min="0" step="0.01" className="w-20 border border-orange/40 rounded px-2 py-1 text-right text-xs bg-orange/5" />
-                      <button onClick={saveTransport} disabled={!transportInput || savingAction === 'transport'} className="text-xs font-heading font-semibold text-orange hover:underline disabled:opacity-50">Confirmar</button>
-                      {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>}
+                      <input type="number" inputMode="decimal" value={transportInput} onChange={e => setTransportInput(e.target.value)} placeholder="$0" min="0" step="0.01" className="w-20 border border-orange/40 rounded px-2 min-h-[44px] text-right text-sm bg-orange/5" />
+                      <button onClick={saveTransport} disabled={!transportInput || savingAction === 'transport'} className="min-h-[44px] px-2 text-sm font-heading font-semibold text-orange hover:underline disabled:opacity-50">Confirmar</button>
+                      {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Cancelar">✕</button>}
                     </div>
                   )}
                 </div>
@@ -918,14 +918,14 @@ export default function PedidoDetailPage() {
                   <span className="font-body text-gray-600">{d.date}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Eliminar depósito">✕</button>
                   </div>
                 </div>
               ))}
               <div className="flex gap-2 pt-2">
-                <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm" />
-                <input type="number" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(balance) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm" />
-                <button onClick={addDeposit} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40">{savingAction === 'deposit' ? '...' : 'Registrar'}</button>
+                <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg min-h-[44px] px-2 font-body text-sm" />
+                <input type="number" inputMode="decimal" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(balance) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg min-h-[44px] px-2.5 font-body text-sm" />
+                <button onClick={addDeposit} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 min-h-[44px] rounded-lg text-sm disabled:opacity-40">{savingAction === 'deposit' ? '...' : 'Registrar'}</button>
               </div>
             </div>
           )}
