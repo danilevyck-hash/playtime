@@ -47,19 +47,6 @@ function isOrderRateLimited(ip: string): boolean {
   return entry.count > ORDER_MAX;
 }
 
-/** Recalculate order totals from items, applying discount before surcharge */
-function recalcTotals(items: { line_total: number }[], opts: { transport: number; discount: number; discountType?: string; paymentMethod: string }) {
-  const itemsTotal = round2(items.reduce((s, i) => s + i.line_total, 0));
-  const discRaw = Math.max(0, opts.discount);
-  const disc = opts.discountType === 'percent' ? round2(itemsTotal * discRaw / 100) : discRaw;
-  const subtotalAfterDiscount = Math.max(0, itemsTotal - disc);
-  const transportVal = Math.max(0, opts.transport);
-  const base = subtotalAfterDiscount + transportVal;
-  const surcharge = opts.paymentMethod === 'credit_card' ? round2(base * CREDIT_CARD_SURCHARGE) : 0;
-  const total = round2(base + surcharge);
-  return { itemsTotal, surcharge, total };
-}
-
 // ─── Status transition matrix (validated server-side, mirrors UI) ───
 type CanonStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
 function canonicalStatus(o: { status?: string | null; confirmed?: boolean | null }): CanonStatus {
@@ -186,37 +173,31 @@ export async function POST(request: NextRequest) {
     const serverSurcharge = paymentMethod === 'credit_card' ? round2(surchargeBase * CREDIT_CARD_SURCHARGE) : 0;
     const serverTotal = round2(surchargeBase + serverSurcharge);
 
-    // Insert order with server-calculated totals
-    const { data: order, error: orderError } = await db
-      .from('pt_orders')
-      .insert({
-        customer_name: customer.name.trim(),
-        customer_phone: customer.phone,
-        customer_email: customer.email || null,
-        event_date: event.date,
-        event_time: event.time,
-        event_area: event.area || null,
-        event_address: event.address,
-        birthday_child_name: event.birthdayChildName || null,
-        birthday_child_age: event.birthdayChildAge || null,
-        payment_method: paymentMethod,
-        subtotal: serverSubtotal,
-        transport_cost_confirmed: transportPending ? null : serverTransport,
-        surcharge: serverSurcharge,
-        total: serverTotal,
-        notes: event.theme ? `Tema: ${event.theme}` : null,
-      })
-      .select('id, order_number')
-      .single();
+    // Persist order + items ATOMICALLY via the create_order RPC (one transaction →
+    // no "order without items"). Idempotent by idempotency_key: a double-submit/retry
+    // with the same key returns the existing order instead of duplicating.
+    const idemRaw = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+    const idempotencyKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idemRaw) ? idemRaw : null;
 
-    if (orderError) {
-      console.error('Order insert error:', orderError);
-      return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
-    }
-
-    // Insert order items with server-calculated line totals
-    const orderItems = items.map((item: { productId: string; name: string; category: string; quantity: number; unitPrice: number }) => ({
-      order_id: order.id,
+    const orderPayload = {
+      customer_name: customer.name.trim(),
+      customer_phone: customer.phone,
+      customer_email: customer.email || null,
+      event_date: event.date,
+      event_time: event.time,
+      event_area: event.area || null,
+      event_address: event.address,
+      birthday_child_name: event.birthdayChildName || null,
+      birthday_child_age: event.birthdayChildAge || null,
+      payment_method: paymentMethod,
+      subtotal: serverSubtotal,
+      transport_cost_confirmed: transportPending ? null : serverTransport,
+      surcharge: serverSurcharge,
+      total: serverTotal,
+      notes: event.theme ? `Tema: ${event.theme}` : null,
+      idempotency_key: idempotencyKey,
+    };
+    const itemsPayload = items.map((item: { productId: string; name: string; category: string; quantity: number; unitPrice: number }) => ({
       product_id: item.productId,
       product_name: item.name,
       category: item.category,
@@ -225,16 +206,18 @@ export async function POST(request: NextRequest) {
       line_total: round2(item.quantity * item.unitPrice),
     }));
 
-    const { error: itemsError } = await db
-      .from('pt_order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      // Never report success for an order with no items. Roll back the order row
-      // we just created and return an error so the client can retry cleanly.
-      console.error('Order items insert error, rolling back order', order.id, ':', itemsError);
-      await db.from('pt_orders').delete().eq('id', order.id);
-      return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 });
+    const { data: created, error: createError } = await db.rpc('create_order', {
+      p_order: orderPayload,
+      p_items: itemsPayload,
+    });
+    if (createError || !created?.id) {
+      console.error('create_order RPC error:', createError);
+      return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    }
+    const order = { id: created.id as number, order_number: created.order_number as number };
+    // Idempotent hit: the order already existed → don't re-send email/push.
+    if (created.deduped === true) {
+      return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
     }
 
     // Notifications must be AWAITED: on serverless the function is frozen/killed once
@@ -417,6 +400,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Atomic recalc helper: every mutating branch calls recalc_order_totals(p_order_id)
+    // (compute + UPDATE in one RPC) instead of refetch + recalc-in-JS + update.
+    type RecalcResult = { subtotal: number; surcharge: number; total: number };
+
     if (transportCostConfirmed !== undefined) {
       const val = Number(transportCostConfirmed);
       if (isNaN(val) || val < 0) {
@@ -427,25 +414,13 @@ export async function PATCH(request: NextRequest) {
         console.error('transport update error:', tErr);
         return NextResponse.json({ error: 'No se pudo actualizar el transporte' }, { status: 500 });
       }
-      // Recalculate totals — a null/failed refetch means the stored total would be stale.
-      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (itemsErr || !updatedItems) {
-        console.error('transport recalc refetch error:', itemsErr);
+      const { data: totals, error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr || !totals) {
+        console.error('transport recalc RPC error:', rErr);
         return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
       }
-      const { data: orderData } = await db.from('pt_orders').select('discount, discount_type, payment_method').eq('id', orderId).single();
-      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-        transport: val,
-        discount: orderData?.discount ?? 0,
-        discountType: orderData?.discount_type ?? 'fixed',
-        paymentMethod: orderData?.payment_method ?? '',
-      });
-      const { error: updErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-      if (updErr) {
-        console.error('transport total update error:', updErr);
-        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
+      const t = totals as RecalcResult;
+      return NextResponse.json({ ok: true, subtotal: t.subtotal, surcharge: t.surcharge, total: t.total });
     }
 
     if (discount !== undefined) {
@@ -457,8 +432,7 @@ export async function PATCH(request: NextRequest) {
       if (dtype === 'percent' && val > 100) {
         return NextResponse.json({ error: 'Porcentaje debe ser <= 100' }, { status: 400 });
       }
-      const updateData: Record<string, unknown> = { discount: val, discount_type: dtype };
-      const { error: discError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
+      const { error: discError } = await db.from('pt_orders').update({ discount: val, discount_type: dtype }).eq('id', orderId);
       if (discError) {
         // Fallback for DBs without a discount_type column.
         const { error: fbErr } = await db.from('pt_orders').update({ discount: val }).eq('id', orderId);
@@ -467,36 +441,21 @@ export async function PATCH(request: NextRequest) {
           return NextResponse.json({ error: 'No se pudo guardar el descuento' }, { status: 500 });
         }
       }
-      // Recalculate totals — a null/failed refetch means the stored total would be stale.
-      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (itemsErr || !updatedItems) {
-        console.error('discount recalc refetch error:', itemsErr);
+      const { data: totals, error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr || !totals) {
+        console.error('discount recalc RPC error:', rErr);
         return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
       }
-      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, payment_method').eq('id', orderId).single();
-      const itemsTotal = round2(updatedItems.reduce((s, i) => s + i.line_total, 0));
-      const discountAmount = dtype === 'percent' ? round2(itemsTotal * val / 100) : val;
-      const { surcharge, total } = recalcTotals(updatedItems, {
-        transport: orderData?.transport_cost_confirmed ?? 0,
-        discount: discountAmount,
-        paymentMethod: orderData?.payment_method ?? '',
-      });
-      const { error: updErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-      if (updErr) {
-        console.error('discount total update error:', updErr);
-        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true, subtotal: itemsTotal, surcharge, total });
+      const t = totals as RecalcResult;
+      return NextResponse.json({ ok: true, subtotal: t.subtotal, surcharge: t.surcharge, total: t.total });
     }
 
     if (editItems !== undefined) {
-      // Validate items
       for (const item of editItems) {
         if (!item.id || typeof item.quantity !== 'number' || item.quantity < 1 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
           return NextResponse.json({ error: 'Datos de item inválidos' }, { status: 400 });
         }
       }
-      // editItems: array of { id, quantity, unit_price }
       for (const item of editItems) {
         const lineTotal = round2(item.quantity * item.unit_price);
         const { error: updErr } = await db.from('pt_order_items').update({
@@ -509,29 +468,15 @@ export async function PATCH(request: NextRequest) {
           return NextResponse.json({ error: 'No se pudieron actualizar los items' }, { status: 500 });
         }
       }
-      // Recalculate order totals (discount before surcharge)
-      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (itemsErr || !updatedItems) {
-        console.error('editItems recalc refetch error:', itemsErr);
+      const { error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr) {
+        console.error('editItems recalc RPC error:', rErr);
         return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
-      }
-      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
-      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-        transport: orderData?.transport_cost_confirmed ?? 0,
-        discount: orderData?.discount ?? 0,
-        discountType: orderData?.discount_type ?? 'fixed',
-        paymentMethod: orderData?.payment_method ?? '',
-      });
-      const { error: totErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-      if (totErr) {
-        console.error('editItems total update error:', totErr);
-        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
 
     if (addItem !== undefined) {
-      // Validate
       if (!addItem.product_name || typeof addItem.product_name !== 'string' || addItem.product_name.trim().length === 0) {
         return NextResponse.json({ error: 'Nombre de producto requerido' }, { status: 400 });
       }
@@ -546,7 +491,6 @@ export async function PATCH(request: NextRequest) {
       if (isNaN(price) || price < 0 || price > 99999) {
         return NextResponse.json({ error: 'Precio inválido' }, { status: 400 });
       }
-      // addItem: { product_name, quantity, unit_price }
       const lineTotal = round2(qty * price);
       const { error: insertError } = await db.from('pt_order_items').insert({
         order_id: orderId,
@@ -561,57 +505,24 @@ export async function PATCH(request: NextRequest) {
         console.error('addItem insert error:', insertError);
         return NextResponse.json({ error: insertError.message || 'Error al guardar item' }, { status: 500 });
       }
-      // Recalculate totals
-      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (itemsErr) {
-        console.error('addItem refetch items error:', itemsErr);
-        return NextResponse.json({ ok: true, warning: 'Item agregado pero no se pudieron recalcular los totales' });
-      }
-      if (updatedItems) {
-        const { data: orderData, error: orderErr } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
-        if (orderErr) {
-          console.error('addItem fetch order error:', orderErr);
-          return NextResponse.json({ ok: true, warning: 'Item agregado pero no se pudo recalcular el total' });
-        }
-        const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-          transport: orderData?.transport_cost_confirmed ?? 0,
-          discount: orderData?.discount ?? 0,
-          discountType: orderData?.discount_type ?? 'fixed',
-          paymentMethod: orderData?.payment_method ?? '',
-        });
-        const { error: updateErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-        if (updateErr) {
-          console.error('addItem update totals error:', updateErr);
-          return NextResponse.json({ ok: true, warning: 'Item agregado pero el total puede estar desactualizado' });
-        }
+      const { error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr) {
+        console.error('addItem recalc RPC error:', rErr);
+        return NextResponse.json({ error: 'Item agregado pero no se pudo recalcular el total' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
 
     if (removeItem !== undefined) {
-      // Validate ownership before deleting
-      const { error: delErr } = await db.from('pt_order_items').delete().eq('id', removeItem).eq('order_id', orderId);
+      const { error: delErr } = await db.from('pt_order_items').delete().eq('id', removeItem).eq('order_id', orderId); // Validate ownership
       if (delErr) {
         console.error('removeItem delete error:', delErr);
         return NextResponse.json({ error: 'No se pudo eliminar el item' }, { status: 500 });
       }
-      // Recalculate totals — a null/failed refetch means the stored total would be stale.
-      const { data: updatedItems, error: itemsErr } = await db.from('pt_order_items').select('line_total').eq('order_id', orderId);
-      if (itemsErr || !updatedItems) {
-        console.error('removeItem recalc refetch error:', itemsErr);
+      const { error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr) {
+        console.error('removeItem recalc RPC error:', rErr);
         return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
-      }
-      const { data: orderData } = await db.from('pt_orders').select('transport_cost_confirmed, discount, discount_type, payment_method').eq('id', orderId).single();
-      const { itemsTotal, surcharge, total } = recalcTotals(updatedItems, {
-        transport: orderData?.transport_cost_confirmed ?? 0,
-        discount: orderData?.discount ?? 0,
-        discountType: orderData?.discount_type ?? 'fixed',
-        paymentMethod: orderData?.payment_method ?? '',
-      });
-      const { error: totErr } = await db.from('pt_orders').update({ subtotal: itemsTotal, surcharge, total }).eq('id', orderId);
-      if (totErr) {
-        console.error('removeItem total update error:', totErr);
-        return NextResponse.json({ error: 'No se pudo guardar el total' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
