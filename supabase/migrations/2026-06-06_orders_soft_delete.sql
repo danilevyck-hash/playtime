@@ -1,0 +1,71 @@
+-- ============================================================================
+-- Migration (GATE FUERTE, aditivo): soft-delete de pedidos — columna deleted_at
+-- File:      2026-06-06_orders_soft_delete.sql
+-- ============================================================================
+--
+-- CONTEXTO (ítem 3 Sprint 3): hoy DELETE /api/orders es hard-delete irreversible
+-- (destruye el registro contable). Vamos a pasar a soft-delete:
+--   DELETE → UPDATE deleted_at = now();  GET filtra deleted_at IS NULL;  vista "Archivados".
+-- Esta migración SOLO agrega la columna. Es ADITIVA y segura: una columna nullable
+-- nueva no rompe ningún lector/escritor actual (el `select('*')` la incluye como null;
+-- el código todavía NO la usa). El código dependiente (filtrar deleted_at IS NULL,
+-- soft-delete, restaurar) llega en el commit del ítem 3, DESPUÉS de aplicar esto.
+--
+-- ⚠️ APLICAR ESTE GATE ANTES de mergear/deployar el código del ítem 3. Si el código
+--    que filtra `deleted_at IS NULL` corre contra una tabla sin la columna → error.
+--
+-- ============================================================================
+-- GATE (antes) — anotar a mano
+-- ============================================================================
+-- 1) La columna NO debe existir todavía:
+--      SELECT column_name, data_type, is_nullable
+--      FROM information_schema.columns
+--      WHERE table_name = 'pt_orders' AND column_name = 'deleted_at';
+--      -- esperado: 0 filas.
+--
+-- 2) Conteo total (debe quedar igual después):
+--      SELECT count(*) AS total FROM pt_orders;
+--
+-- ============================================================================
+-- MIGRACIÓN
+-- ============================================================================
+
+ALTER TABLE pt_orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Índice parcial para acelerar el filtro "no borrados" (la lista normal).
+-- Opcional en tablas chicas; útil si crece. Indexa solo las filas vivas.
+CREATE INDEX IF NOT EXISTS idx_pt_orders_not_deleted
+  ON pt_orders (event_date DESC)
+  WHERE deleted_at IS NULL;
+
+-- ============================================================================
+-- VERIFICACIÓN (después)
+-- ============================================================================
+-- 1) La columna existe y es nullable, sin default:
+--      SELECT column_name, data_type, is_nullable, column_default
+--      FROM information_schema.columns
+--      WHERE table_name = 'pt_orders' AND column_name = 'deleted_at';
+--      -- esperado: 1 fila, data_type = timestamp with time zone, is_nullable = YES, default null.
+--
+-- 2) TODAS las filas existentes quedan deleted_at IS NULL (ningún pedido se "borró"):
+--      SELECT count(*) FILTER (WHERE deleted_at IS NULL)  AS vivos,
+--             count(*) FILTER (WHERE deleted_at IS NOT NULL) AS borrados,
+--             count(*) AS total
+--      FROM pt_orders;
+--      -- esperado: vivos = total = (el conteo del GATE), borrados = 0.
+--
+-- 3) El índice parcial existe:
+--      SELECT indexname FROM pg_indexes
+--      WHERE tablename = 'pt_orders' AND indexname = 'idx_pt_orders_not_deleted';
+--
+-- ============================================================================
+-- POST-CHECK funcional
+-- ============================================================================
+-- La app sigue igual: la columna existe pero el código todavía NO la usa (el
+-- soft-delete/filtro llega en el commit del ítem 3). El admin lista y edita pedidos
+-- con normalidad. Recién cuando se deploye el código del ítem 3, DELETE pasará a
+-- marcar deleted_at y la lista filtrará los borrados.
+--
+-- ROLLBACK: `ALTER TABLE pt_orders DROP COLUMN deleted_at;`
+--           (solo si NO se deployó aún el código que la usa).
+-- ============================================================================
