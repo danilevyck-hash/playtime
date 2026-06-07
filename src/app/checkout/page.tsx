@@ -62,6 +62,9 @@ export default function CheckoutPage() {
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
   const [areasLoaded, setAreasLoaded] = useState(false);
   const submittingRef = useRef(false);
+  // Idempotency key: generated once per order attempt, REUSED on retry so a
+  // double-submit / retry-after-timeout returns the same order (no duplicate).
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchEventAreas().then(setEventAreas).catch((e) => console.error('Error loading areas:', e)).finally(() => setAreasLoaded(true));
@@ -145,6 +148,7 @@ export default function CheckoutPage() {
       // cart, stay on this page, and surface a retry — never a fake "success".
       let orderNumber: string | number = '';
       try {
+        if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
         const res = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -153,6 +157,7 @@ export default function CheckoutPage() {
             event,
             paymentMethod,
             items,
+            idempotencyKey: idempotencyKeyRef.current,
           }),
         });
         if (!res.ok) {

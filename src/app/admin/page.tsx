@@ -1,18 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { useToast } from '@/context/ToastContext';
 import {
-  fetchProductOverrides,
-  fetchAllCustomProducts,
   fetchSetting,
   fetchProductImages,
-
-  fetchLogoUrl,
   fetchDBProducts,
   fetchDBProductVariants,
   DBProduct,
@@ -81,9 +77,8 @@ async function apiBulkUpdateOrder(ids: string[]) {
   });
   return res.ok;
 }
-import { PRODUCTS, CATEGORIES } from '@/lib/constants';
+import { CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
-import { downloadOrderPDF } from '@/lib/pdf-order';
 
 type OrderStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
@@ -172,11 +167,7 @@ let _adminToken = '';
 // Role: 'admin' has full access, 'vendedora' sees only Pedidos (no stats)
 let _adminRole: 'admin' | 'vendedora' = 'admin';
 
-function round2(n: number) { return Math.round(n * 100) / 100; }
-
 // ─── ORDERS TAB ───
-const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
-
 function fmtTime12h(t: string) {
   if (!t) return '';
   const trimmed = t.trim();
@@ -189,683 +180,6 @@ function fmtTime12h(t: string) {
   return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')} ${ap}`;
 }
 
-// Convert "HH:MM" 24h format to "h:mm am/pm" for display in free-text editor.
-// Already-free-text values pass through unchanged.
-function timeToEditable(t: string | undefined | null): string {
-  if (!t) return '';
-  const trimmed = t.trim();
-  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
-  if (!match) return trimmed;
-  const h = Number(match[1]);
-  const m = Number(match[2]);
-  if (Number.isNaN(h) || Number.isNaN(m)) return trimmed;
-  const ap = h >= 12 ? 'pm' : 'am';
-  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hr}:${String(m).padStart(2, '0')} ${ap}`;
-}
-
-
-interface OrderCardProps {
-  order: Order;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  patchOrder: (body: Record<string, unknown>) => Promise<boolean>;
-  fetchOrders: () => Promise<void>;
-  onDeleteOrder: (orderId: number, orderNumber: number) => void;
-  onSetStatus: (orderId: number, status: OrderStatus) => void;
-  onUpdateOrder: (orderId: number, updates: Partial<Order>) => void;
-  allProducts: { id: string; name: string; price: number }[];
-}
-
-const OrderCard = memo(function OrderCard({ order, isExpanded, onToggleExpand, patchOrder, fetchOrders, onDeleteOrder, onSetStatus, onUpdateOrder, allProducts }: OrderCardProps) {
-  const { showToast } = useToast();
-  const router = useRouter();
-
-  // Local state (previously in OrdersTab, keyed by orderId)
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, string>>({});
-  const [isEditingItems, setIsEditingItems] = useState(false);
-  const [itemEdits, setItemEdits] = useState<Record<number, { quantity: string; unit_price: string }>>({});
-  const [newItemForm, setNewItemForm] = useState<{ name: string; qty: string; price: string }>({ name: '', qty: '1', price: '' });
-
-  // Sync newly added items (from server) into itemEdits without clobbering in-progress edits
-  useEffect(() => {
-    if (!isEditingItems) return;
-    setItemEdits(prev => {
-      let changed = false;
-      const next = { ...prev };
-      for (const item of order.items) {
-        if (item.id && !next[item.id]) {
-          next[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [order.items, isEditingItems]);
-  const [productSuggestions, setProductSuggestions] = useState<typeof PRODUCTS>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [transportInput, setTransportInput] = useState('');
-  const [isEditingTransport, setIsEditingTransport] = useState(false);
-  const [discountInput, setDiscountInput] = useState('');
-  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
-  const [depositInput, setDepositInput] = useState('');
-  const [depositDate, setDepositDate] = useState('');
-  const [noteInput, setNoteInput] = useState('');
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [savingAction, setSavingAction] = useState<string | null>(null);
-
-  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
-
-  // Reset local edit state when card collapses
-  useEffect(() => {
-    if (!isExpanded) {
-      setIsEditing(false);
-      setIsEditingItems(false);
-      setShowMoreMenu(false);
-    }
-  }, [isExpanded]);
-
-  // ─── Handlers ───
-
-  const saveNote = async () => {
-    const text = noteInput.trim();
-    if (!text) return;
-    setSavingAction('note');
-    try {
-      if (await patchOrder({ orderId: order.id, internalNote: text })) {
-        onUpdateOrder(order.id, { internal_note: text });
-        setNoteInput('');
-        showToast('Nota guardada');
-      } else { showToast('Error al guardar nota'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const startEditOrder = () => {
-    setIsEditing(true);
-    setEditForm({
-      customer_name: order.customer_name, customer_phone: order.customer_phone, customer_email: order.customer_email || '',
-      event_date: order.event_date, event_time: timeToEditable(order.event_time), event_area: order.event_area || '', event_address: order.event_address,
-      birthday_child_name: order.birthday_child_name || '', birthday_child_age: order.birthday_child_age ? String(order.birthday_child_age) : '',
-      notes: order.notes || '',
-    });
-  };
-
-  const saveEditOrder = async () => {
-    const f = editForm;
-    if (!f.customer_name?.trim()) { showToast('Nombre requerido'); return; }
-    const phoneDigits = (f.customer_phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 7 || phoneDigits.length > 15) { showToast('Tel\u00e9fono inv\u00e1lido (7-15 d\u00edgitos)'); return; }
-    const editFields = {
-      customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email,
-      event_date: f.event_date, event_time: f.event_time, event_area: f.event_area, event_address: f.event_address,
-      birthday_child_name: f.birthday_child_name, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
-      notes: f.notes,
-    };
-    setSavingAction('edit');
-    try {
-      if (await patchOrder({ orderId: order.id, editFields })) {
-        onUpdateOrder(order.id, {
-          customer_name: f.customer_name, customer_phone: f.customer_phone, customer_email: f.customer_email || null,
-          event_date: f.event_date, event_time: f.event_time, event_area: f.event_area || null, event_address: f.event_address,
-          birthday_child_name: f.birthday_child_name || null, birthday_child_age: f.birthday_child_age ? Number(f.birthday_child_age) : null,
-          notes: f.notes || null,
-        });
-        setIsEditing(false);
-        showToast('Pedido actualizado');
-      } else { showToast('Error al guardar cambios'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const addDeposit = async () => {
-    const val = Number(depositInput);
-    if (isNaN(val) || val <= 0) return;
-    const date = depositDate || new Date().toISOString().slice(0, 10);
-    const newDeposits = [...(order.deposits || []), { amount: val, date }];
-    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
-    setSavingAction('deposit');
-    try {
-      if (await patchOrder({ orderId: order.id, deposits: newDeposits, depositAmount: totalDep })) {
-        onUpdateOrder(order.id, { deposits: newDeposits, deposit_amount: totalDep });
-        setDepositInput('');
-        showToast('Dep\u00f3sito agregado');
-      } else { showToast('Error al guardar dep\u00f3sito'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const removeDeposit = async (index: number) => {
-    const newDeposits = (order.deposits || []).filter((_, i) => i !== index);
-    const totalDep = newDeposits.reduce((s, d) => s + d.amount, 0);
-    setSavingAction('deposit');
-    try {
-      if (await patchOrder({ orderId: order.id, deposits: newDeposits, depositAmount: totalDep })) {
-        onUpdateOrder(order.id, { deposits: newDeposits, deposit_amount: totalDep });
-        showToast('Dep\u00f3sito eliminado');
-      } else { showToast('Error al eliminar dep\u00f3sito'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const saveDiscount = async (overrideVal?: number, overrideType?: 'fixed' | 'percent') => {
-    const val = overrideVal !== undefined ? overrideVal : Number(discountInput);
-    if (isNaN(val) || val < 0) return;
-    const dtype = overrideType !== undefined ? overrideType : discountType;
-    if (dtype === 'percent' && val > 100) return;
-    setSavingAction('discount');
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
-        body: JSON.stringify({ orderId: order.id, discount: val, discountType: dtype }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onUpdateOrder(order.id, {
-          discount: val, discount_type: dtype,
-          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
-        });
-        setDiscountInput('');
-        showToast('Descuento guardado');
-      } else { showToast('Error al guardar descuento'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const startEditItems = () => {
-    setIsEditingItems(true);
-    const edits: Record<number, { quantity: string; unit_price: string }> = {};
-    for (const item of order.items) {
-      if (item.id) edits[item.id] = { quantity: String(item.quantity), unit_price: String(item.unit_price) };
-    }
-    setItemEdits(edits);
-    setNewItemForm({ name: '', qty: '1', price: '' });
-  };
-
-  const saveItemEdits = async () => {
-    const editItems = Object.entries(itemEdits).map(([id, vals]) => ({
-      id: Number(id),
-      quantity: Number(vals.quantity) || 1,
-      unit_price: Number(vals.unit_price) || 0,
-    }));
-    setSavingAction('items');
-    try {
-      if (await patchOrder({ orderId: order.id, editItems })) {
-        await fetchOrders();
-        setIsEditingItems(false);
-        showToast('Items actualizados');
-      } else { showToast('Error al guardar items'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const handleAddItem = async () => {
-    const name = newItemForm.name.trim();
-    const qty = Number(newItemForm.qty) || 1;
-    const price = Number(newItemForm.price);
-    if (!name) return;
-    if (Number.isNaN(price) || price < 0) { showToast('Precio inválido'); return; }
-    setSavingAction('additem');
-    try {
-      const pendingEdits = Object.entries(itemEdits).map(([id, vals]) => ({
-        id: Number(id),
-        quantity: Number(vals.quantity) || 1,
-        unit_price: Number(vals.unit_price) || 0,
-      }));
-      if (pendingEdits.length > 0) {
-        await patchOrder({ orderId: order.id, editItems: pendingEdits });
-      }
-      if (await patchOrder({ orderId: order.id, addItem: { product_name: name, quantity: qty, unit_price: price } })) {
-        await fetchOrders();
-        setNewItemForm({ name: '', qty: '1', price: '' });
-        showToast('Item agregado');
-      } else { showToast('Error al agregar item'); }
-    } catch { showToast('Error al agregar'); }
-    finally { setSavingAction(null); }
-  };
-
-  const handleRemoveItem = async (itemId: number) => {
-    if (!window.confirm('\u00bfEliminar este item?')) return;
-    setSavingAction('removeitem');
-    try {
-      if (await patchOrder({ orderId: order.id, removeItem: itemId })) {
-        await fetchOrders();
-        showToast('Item eliminado');
-      } else { showToast('Error al eliminar item'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  const saveTransport = async () => {
-    const val = Number(transportInput);
-    if (isNaN(val) || val < 0) return;
-    setSavingAction('transport');
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
-        body: JSON.stringify({ orderId: order.id, transportCostConfirmed: val }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onUpdateOrder(order.id, {
-          transport_cost_confirmed: val,
-          ...(data.total !== undefined ? { subtotal: data.subtotal, surcharge: data.surcharge, total: data.total } : {}),
-        });
-        setTransportInput('');
-        showToast('Transporte confirmado');
-      } else { showToast('Error al confirmar transporte'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-    finally { setSavingAction(null); }
-  };
-
-  // ─── Computed values ───
-  const st = getOrderStatus(order);
-  const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
-  const ef = editForm;
-  const deposits = order.deposits || [];
-  const totalDeposits = deposits.reduce((s, d) => s + d.amount, 0) || (order.deposit_amount ?? 0);
-  const areaSuggestion = order.transport_cost_confirmed === null && order.event_area
-    ? EVENT_AREAS.find(a => a.name === order.event_area)?.price
-    : undefined;
-
-  // Live-calculated totals (single source of truth)
-  const liveItemsTotal = order.items.reduce((s, i) => {
-    if (isEditingItems && i.id && itemEdits[i.id]) {
-      return s + (Number(itemEdits[i.id].unit_price) || 0) * (Number(itemEdits[i.id].quantity) || 1);
-    }
-    return s + i.unit_price * i.quantity;
-  }, 0);
-  const liveDiscRaw = order.discount || 0;
-  const liveDisc = order.discount_type === 'percent' ? round2(liveItemsTotal * liveDiscRaw / 100) : liveDiscRaw;
-  const liveTrans = order.transport_cost_confirmed ?? 0;
-  const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
-  const liveSurch = order.payment_method === 'credit_card' ? liveBase * 0.05 : 0;
-  const liveTotal = liveBase + liveSurch;
-  const payMethodLabel = order.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      {/* ─── HEADER (collapsed card) ─── */}
-      <button
-        onClick={() => {
-          try {
-            router.push(`/admin/pedidos/${order.id}`);
-          } catch {
-            // Fallback: expand inline
-            onToggleExpand();
-            if (isEditing) setIsEditing(false);
-            setShowMoreMenu(false);
-          }
-        }}
-        className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          {/* Avatar with initials */}
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-heading font-semibold text-sm flex-shrink-0"
-            style={{ backgroundColor: STATUS_HEX[st] }}
-            aria-hidden="true"
-          >
-            {getInitials(order.customer_name)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: STATUS_HEX[st] }}
-                aria-hidden="true"
-              />
-              <span className="font-heading font-bold text-purple">#{order.order_number}</span>
-              {totalDeposits > 0 && <span className="text-xs" aria-label="Tiene dep\u00F3sitos">{'\uD83D\uDCB0'}</span>}
-              {liveDisc > 0 && <span className="text-xs" aria-label="Con descuento">{'\uD83C\uDFF7\uFE0F'}</span>}
-              {order.transport_cost_confirmed === null && <span className="text-xs" aria-label="Transporte pendiente">{'\uD83D\uDE9A'}</span>}
-            </div>
-            <p className="font-body text-gray-700 text-sm mt-0.5 truncate">{order.customer_name} {'\u00b7'} {order.event_date}</p>
-          </div>
-          {/* Trailing: total + status text */}
-          <div className="flex flex-col items-end flex-shrink-0">
-            <span className="font-heading font-bold text-lg text-purple leading-tight">{formatCurrency(liveTotal)}</span>
-            <span className="font-heading text-xs mt-0.5" style={{ color: STATUS_HEX[st] }}>{stInfo.label}</span>
-          </div>
-        </div>
-      </button>
-
-      {isExpanded && (
-        <div className="border-t border-gray-100 p-4 space-y-5">
-          {/* ─── 1. PIPELINE (segmented control) ─── */}
-          <div>
-            <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Estado</p>
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-              {ORDER_STATUSES.map(s => (
-                <button key={s.key} onClick={() => onSetStatus(order.id, s.key)}
-                  disabled={savingAction === 'status'}
-                  className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all disabled:opacity-50 ${st === s.key ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >{s.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* ─── 2. ACTIONS (circular icon buttons with labels) ─── */}
-          <div className="flex justify-around items-start gap-2 pt-1">
-            <a href={`https://wa.me/${order.customer_phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 group" aria-label="WhatsApp">
-              <span className="w-11 h-11 rounded-full flex items-center justify-center transition-transform group-active:scale-95" style={{ backgroundColor: '#25D366' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              </span>
-              <span className="font-heading text-xs text-gray-600">WhatsApp</span>
-            </a>
-            <button onClick={() => isEditing ? setIsEditing(false) : startEditOrder()} className="flex flex-col items-center gap-1 group" aria-label={isEditing ? 'Cancelar' : 'Editar'}>
-              <span className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform group-active:scale-95 ${isEditing ? 'bg-purple/10' : 'bg-gray-100'}`}>
-                {isEditing ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                )}
-              </span>
-              <span className="font-heading text-xs text-gray-600">{isEditing ? 'Cancelar' : 'Editar'}</span>
-            </button>
-            <button onClick={async () => {
-              const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
-              const logoUrl = await fetchLogoUrl().catch(() => null);
-              const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (EVENT_AREAS.find(a => a.name === order.event_area)?.price ?? 0) : 0);
-              const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
-              const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
-              const pdfTotal = pdfBase + pdfSurch;
-              await downloadOrderPDF({ orderNumber: order.order_number, customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' }, event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme }, items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })), subtotal: liveItemsTotal, discount: liveDisc, discountType: order.discount_type, transportCost: pdfTransport, surcharge: pdfSurch, total: pdfTotal, paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card', logoUrl, deposits });
-              showToast('PDF descargado');
-            }} className="flex flex-col items-center gap-1 group" aria-label="Descargar PDF">
-              <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              </span>
-              <span className="font-heading text-xs text-gray-600">PDF</span>
-            </button>
-            <button onClick={() => {
-              const url = `${window.location.origin}/api/orders?id=${order.id}`;
-              const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = `Pedido #${order.order_number}`; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('Copiado'); } catch { showToast('No se pudo copiar'); } };
-              if (navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(`Pedido #${order.order_number} - ${order.customer_name} - ${formatCurrency(liveTotal)}`).then(() => showToast('Resumen copiado')).catch(fallback);
-              } else { fallback(); }
-              void url;
-            }} className="flex flex-col items-center gap-1 group" aria-label="Compartir">
-              <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l-4-4-4 4" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
-                </svg>
-              </span>
-              <span className="font-heading text-xs text-gray-600">Compartir</span>
-            </button>
-            <div className="relative">
-              <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="flex flex-col items-center gap-1 group" aria-label="Más opciones">
-                <span className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center transition-transform group-active:scale-95">
-                  <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="10" r="2"/></svg>
-                </span>
-                <span className="font-heading text-xs text-gray-600">Más</span>
-              </button>
-              {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
-                  <button onClick={() => { setShowMoreMenu(false); onDeleteOrder(order.id, order.order_number); }} disabled={savingAction === 'delete'} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">Eliminar pedido</button>
-                </div>
-              )}
-            </div>
-          </div>
-
-
-          <div className="border-t border-gray-100" />
-
-          {/* ─── 3. DETAILS (edit form or read-only) ─── */}
-          {isEditing ? (
-            <div className="space-y-5">
-              {/* Cliente */}
-              <div>
-                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Cliente</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={ef.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={ef.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Tel\u00e9fono" className={`${OI_CLS} ${(ef.customer_phone || '').replace(/\D/g, '').length < 7 && (ef.customer_phone || '').length > 0 ? 'border-red-300 focus:border-red-500' : ''}`} />
-                </div>
-                <input value={ef.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={`${OI_CLS} mt-2`} />
-              </div>
-              <div className="border-t border-gray-100" />
-              {/* Evento */}
-              <div>
-                <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Evento</p>
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-                  <input type="date" value={ef.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
-                  <input
-                    type="text"
-                    value={ef.event_time || ''}
-                    onChange={e => setEditForm(p => ({ ...p, event_time: e.target.value }))}
-                    placeholder="Ej: 4:00 pm"
-                    className="border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none w-32 min-h-[44px]"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <select value={ef.event_area || ''} onChange={e => setEditForm(p => ({ ...p, event_area: e.target.value }))} className={OI_CLS}>
-                    <option value="">{'\u00c1'}rea</option>
-                    {EVENT_AREAS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
-                  </select>
-                  <input value={ef.event_address || ''} onChange={e => setEditForm(p => ({ ...p, event_address: e.target.value }))} placeholder="Direcci\u00f3n" className={OI_CLS} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-                  <input value={ef.birthday_child_name || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumplea\u00f1ero" className={OI_CLS} />
-                  <input type="number" value={ef.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
-                  <input value={ef.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => setIsEditing(false)} disabled={savingAction === 'edit'} className="flex-1 border border-gray-200 text-gray-600 font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">Cancelar</button>
-                <button onClick={() => saveEditOrder()} disabled={savingAction === 'edit'} className="flex-1 bg-purple text-white font-heading font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">{savingAction === 'edit' ? 'Guardando...' : 'Guardar'}</button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Evento</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Tel</span><br/><a href={`tel:${order.customer_phone}`} className="text-teal font-body">{order.customer_phone}</a></div>
-                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Hora</span><br/><span className="font-body">{fmtTime12h(order.event_time)}</span></div>
-                {order.event_area && <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">{'\u00c1'}rea</span><br/><span className="font-body">{order.event_area}</span></div>}
-                <div><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Pago</span><br/><span className="font-body">{payMethodLabel}</span></div>
-                <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Lugar</span><br/><span className="font-body">{order.event_address}</span></div>
-                {order.birthday_child_name && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Cumplea{'\u00f1'}ero/a</span><br/><span className="font-body">{order.birthday_child_name}{order.birthday_child_age ? ` (${order.birthday_child_age} a\u00f1os)` : ''}</span></div>}
-                {order.notes && <div className="col-span-2"><span className="text-gray-400 font-heading text-xs uppercase tracking-wider">Notas</span><br/><span className="font-body">{order.notes}</span></div>}
-              </div>
-            </div>
-          )}
-
-          <div className="border-t border-gray-100" />
-
-          {/* ─── 4. FACTURA estilo Wallet ─── */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Factura</p>
-              {isEditingItems ? (
-                <div className="flex gap-3">
-                  <button onClick={() => setIsEditingItems(false)} className="text-xs text-gray-500 font-heading font-semibold hover:text-gray-700">Cancelar</button>
-                  <button onClick={() => saveItemEdits()} disabled={savingAction === 'items'} className="text-xs text-purple font-heading font-semibold hover:text-purple/80">{savingAction === 'items' ? 'Guardando...' : 'Guardar'}</button>
-                </div>
-              ) : (
-                <button onClick={() => startEditItems()} className="text-xs text-purple font-heading font-semibold hover:underline">Editar</button>
-              )}
-            </div>
-            {/* Items */}
-            <div className="divide-y divide-gray-100">
-              {order.items.map((item, idx) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2.5 text-sm gap-2">
-                  {isEditingItems && item.id ? (
-                    <>
-                      <span className="flex-1 truncate text-gray-700 text-sm">{item.product_name}</span>
-                      <div className="flex items-center gap-2 sm:gap-1">
-                        <input type="number" value={itemEdits[item.id]?.quantity || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], quantity: e.target.value } }))} className="w-full sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-center text-sm" min="1" />
-                        <span className="text-gray-500 text-sm">x</span>
-                        <input type="number" value={itemEdits[item.id]?.unit_price || ''} onChange={e => setItemEdits(prev => ({ ...prev, [item.id!]: { ...prev[item.id!], unit_price: e.target.value } }))} className="w-full sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-right text-sm" min="0" step="0.01" />
-                        <span className="text-sm text-gray-500 w-20 text-right shrink-0">{formatCurrency((Number(itemEdits[item.id]?.quantity) || 1) * (Number(itemEdits[item.id]?.unit_price) || 0))}</span>
-                        <button onClick={() => handleRemoveItem(item.id!)} className="text-gray-400 hover:text-red-500 min-h-[40px] min-w-[40px] flex items-center justify-center"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-gray-700 font-body">{item.product_name} <span className="text-gray-500">x{item.quantity}</span></span>
-                      <span className="font-heading font-semibold">{formatCurrency(item.line_total)}</span>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            {/* Add item (when editing) */}
-            {isEditingItems && (
-              <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
-                <p className="text-xs font-heading font-semibold text-gray-500">Agregar item</p>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-1">
-                  <div className="flex-1 relative">
-                    <input type="text" value={newItemForm.name}
-                      onChange={e => { const q = e.target.value; setNewItemForm(p => ({ ...p, name: q })); if (q.trim().length >= 2) { setProductSuggestions(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8) as typeof PRODUCTS); setShowSuggestions(true); } else { setShowSuggestions(false); } }}
-                      onFocus={() => { if (newItemForm.name.trim().length >= 2) setShowSuggestions(true); }}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                      placeholder="Buscar producto..." className="w-full min-h-[44px] border border-gray-200 rounded px-3 py-2 text-sm font-body" />
-                    {showSuggestions && productSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-0.5 max-h-48 overflow-y-auto">
-                        {productSuggestions.map(p => (
-                          <button key={p.id} type="button" onMouseDown={() => { setNewItemForm({ name: p.name, qty: '1', price: String(p.price) }); setShowSuggestions(false); }} className="w-full text-left px-3 py-2.5 hover:bg-purple/5 text-sm font-body flex justify-between gap-2 min-h-[44px] items-center">
-                            <span className="truncate text-gray-700">{p.name}</span>
-                            <span className="text-purple font-heading font-semibold shrink-0">${p.price}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2 sm:gap-1">
-                    <input type="number" value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: e.target.value }))} placeholder="Qty" className="flex-1 sm:w-14 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-center text-sm" min="1" />
-                    <input type="number" value={newItemForm.price} onChange={e => setNewItemForm(p => ({ ...p, price: e.target.value }))} placeholder="$" className="flex-1 sm:w-24 min-h-[44px] border border-gray-200 rounded px-2 py-1 text-right text-sm" min="0" step="0.01" />
-                    <button onClick={() => handleAddItem()} disabled={!newItemForm.name.trim() || !newItemForm.price || savingAction === 'additem'} className="bg-purple text-white font-heading font-semibold px-4 min-h-[44px] min-w-[44px] rounded text-sm disabled:opacity-40">+</button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* ─── TOTALS + INLINE DISCOUNT/TRANSPORT ─── */}
-            <div className="border-t border-gray-100 pt-3 mt-2 space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span className="font-heading">{formatCurrency(liveItemsTotal)}</span>
-              </div>
-              {/* Discount (inline editable) */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Descuento</span>
-                {liveDisc > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
-                    <button onClick={() => { saveDiscount(0, 'fixed'); }} className="text-gray-400 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <div className="flex border border-gray-200 rounded overflow-hidden">
-                      <button onClick={() => setDiscountType('fixed')} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountType === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
-                      <button onClick={() => setDiscountType('percent')} className={`px-1.5 py-1 text-[10px] font-heading font-semibold ${discountType === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
-                    </div>
-                    <input type="number" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" max={discountType === 'percent' ? '100' : undefined} step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs font-body focus:border-purple focus:outline-none" />
-                    {discountInput && <button onClick={() => saveDiscount()} disabled={savingAction === 'discount'} className="text-[10px] font-heading font-semibold text-purple hover:underline disabled:opacity-50">{savingAction === 'discount' ? '...' : 'Aplicar'}</button>}
-                  </div>
-                )}
-              </div>
-              {/* Transport (inline editable) */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Transporte</span>
-                {order.transport_cost_confirmed !== null && !isEditingTransport ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className={`font-heading font-semibold ${liveTrans > 0 ? 'text-gray-700' : 'text-gray-400'}`}>{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
-                    <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <input type="number" value={transportInput || (areaSuggestion !== undefined ? String(areaSuggestion) : '')} onChange={e => setTransportInput(e.target.value)} placeholder={areaSuggestion !== undefined ? `$${areaSuggestion} sugerido` : '$0'} min="0" step="0.01" className="w-24 border border-orange/40 rounded px-2 py-1 text-right text-xs font-body focus:border-orange focus:outline-none bg-orange/5" />
-                    <button onClick={() => { saveTransport(); setIsEditingTransport(false); }} disabled={!transportInput || savingAction === 'transport'} className="text-[10px] font-heading font-semibold text-orange hover:underline disabled:opacity-50">{savingAction === 'transport' ? '...' : 'Confirmar'}</button>
-                    {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-500"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
-                  </div>
-                )}
-              </div>
-              {/* Payment method (combined with surcharge) */}
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Pago</span>
-                <span className="font-heading">
-                  {payMethodLabel}
-                  {liveSurch > 0 && <span className="text-orange"> · +{formatCurrency(liveSurch)} recargo</span>}
-                </span>
-              </div>
-              {/* Total */}
-              <div className="flex justify-between items-baseline border-t border-gray-100 pt-4 mt-2">
-                <span className="font-heading text-base text-gray-700">Total</span>
-                <span className="font-heading font-semibold text-xl text-purple">{formatCurrency(liveTotal)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* ─── 5. DEPÓSITOS (simplified, with progress bar) ─── */}
-          <div className="border-t border-gray-100" />
-
-          <div>
-            <button onClick={() => toggleSection('dep')} className="w-full flex items-center justify-between py-1 hover:opacity-80 transition-opacity">
-              <span className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Dep{'ó'}sitos</span>
-              <div className="flex items-center gap-3 text-xs">
-                {totalDeposits > 0 && <span className="text-teal font-heading font-semibold">{formatCurrency(totalDeposits)}</span>}
-                {totalDeposits > 0 && <span className="text-purple font-heading font-bold">Saldo: {formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span>}
-                <span className="text-gray-400">{openSections['dep'] ? '\u25BE' : '\u25B8'}</span>
-              </div>
-            </button>
-            {totalDeposits > 0 && (
-              <div className="pt-2"><div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-teal h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, liveTotal > 0 ? (totalDeposits / liveTotal) * 100 : 0)}%` }} /></div></div>
-            )}
-            {openSections['dep'] && (
-              <div className="pt-3 space-y-2">
-                {deposits.length > 0 && (
-                  <div className="space-y-1">
-                    {deposits.map((d, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm py-1.5">
-                        <span className="font-body text-gray-600">{d.date}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                          <button onClick={() => removeDeposit(i)} className="text-gray-400 hover:text-red-500 text-xs">{'\u2715'}</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {totalDeposits > 0 && <p className="font-body text-xs text-gray-500">Saldo pendiente: <span className="font-semibold text-purple">{formatCurrency(Math.max(0, liveTotal - totalDeposits))}</span></p>}
-                <div className="flex gap-2">
-                  <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm focus:border-teal focus:outline-none" />
-                  <input type="number" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(liveTotal) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-teal focus:outline-none" />
-                  <button onClick={() => addDeposit()} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-teal/80 transition-colors">{savingAction === 'deposit' ? '...' : '+'}</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-gray-100" />
-
-          {/* ─── 6. NOTA INTERNA ─── */}
-          <div>
-            <button onClick={() => toggleSection('note')} className="w-full flex items-center justify-between py-1 hover:opacity-80 transition-opacity">
-              <span className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider">Nota interna {order.internal_note ? '(1)' : ''}</span>
-              <span className="text-gray-400 text-xs">{openSections['note'] ? '\u25BE' : '\u25B8'}</span>
-            </button>
-            {openSections['note'] && (
-              <div className="pt-3 space-y-2">
-                {order.internal_note && <p className="font-body text-sm text-gray-700 bg-gray-50 rounded-lg px-2.5 py-2">{order.internal_note}</p>}
-                <div className="flex gap-2">
-                  <input type="text" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Agregar nota interna..." className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm focus:border-purple focus:outline-none" />
-                  <button onClick={() => saveNote()} disabled={!noteInput.trim() || savingAction === 'note'} className="bg-purple text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40 hover:bg-purple/80 transition-colors">{savingAction === 'note' ? '...' : 'Guardar'}</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
-
 function OrdersTab() {
   const { showToast } = useToast();
   const router = useRouter();
@@ -873,93 +187,98 @@ function OrdersTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected' | 'archived'>('all');
   const [eventMonthFilter, setEventMonthFilter] = useState<string>('all'); // 'all' or 'YYYY-MM'
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [allProducts, setAllProducts] = useState<{ id: string; name: string; price: number }[]>(
-    PRODUCTS.map(p => ({ id: p.id, name: p.name, price: p.price }))
-  );
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [stats, setStats] = useState<{
+    total: number;
+    counts: { pendiente: number; confirmado: number; realizado: number; rechazado: number };
+    confirmedRevenue: number;
+    archived: number;
+    months: { key: string; label: string }[];
+  } | null>(null);
 
-  const patchOrder = useCallback(async (body: Record<string, unknown>) => {
-    const res = await fetch('/api/orders', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken },
-      body: JSON.stringify(body),
-    });
-    return res.ok;
-  }, []);
+  const PAGE_SIZE = 100;
+  // Server-side filters: search / status / month go to the API (so orders older than
+  // the first page are still findable). Returns to offset 0 whenever a filter changes.
+  const buildParams = useCallback((offset: number) => {
+    const p = new URLSearchParams();
+    p.set('limit', String(PAGE_SIZE));
+    p.set('offset', String(offset));
+    if (search.trim()) p.set('q', search.trim());
+    if (statusFilter === 'archived') p.set('deleted', 'true');
+    else if (statusFilter !== 'all') p.set('status', statusFilter);
+    if (eventMonthFilter !== 'all') p.set('month', eventMonthFilter);
+    return p;
+  }, [search, statusFilter, eventMonthFilter]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-token': _adminToken } });
+      const res = await fetch(`/api/orders?${buildParams(0).toString()}`, { headers: { 'x-admin-token': _adminToken } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
+      setTotal(data.total ?? (data.orders?.length || 0));
+      setHasMore(!!data.hasMore);
       if (data.message) setError(data.message);
     } catch {
       setError('No se pudieron cargar los pedidos. Verifica que Supabase est\u00e9 configurado.');
     } finally {
       setLoading(false);
     }
+  }, [buildParams]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/orders?${buildParams(orders.length).toString()}`, { headers: { 'x-admin-token': _adminToken } });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(prev => [...prev, ...(data.orders || [])]);
+        setTotal(data.total ?? orders.length);
+        setHasMore(!!data.hasMore);
+      }
+    } catch {} finally {
+      setLoadingMore(false);
+    }
+  }, [buildParams, orders.length]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders/stats', { headers: { 'x-admin-token': _adminToken } });
+      if (res.ok) setStats(await res.json());
+    } catch {}
   }, []);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
-
+  // Debounced refetch when search/status/month change (fetchOrders identity tracks them).
   useEffect(() => {
-    async function loadAllProducts() {
-      try {
-        const [overrides, custom] = await Promise.all([fetchProductOverrides(), fetchAllCustomProducts()]);
-        const ovMap = new Map(overrides.map(o => [o.id, o]));
-        const merged = PRODUCTS.map(p => {
-          const ov = ovMap.get(p.id);
-          return { id: p.id, name: ov?.name_override || p.name, price: ov?.price_override ?? p.price };
-        });
-        const customMapped = custom.map(cp => ({ id: cp.id, name: cp.name, price: cp.price }));
-        setAllProducts([...merged, ...customMapped]);
-      } catch { /* fallback: keep PRODUCTS */ }
+    const t = setTimeout(() => { fetchOrders(); }, search ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [fetchOrders, search]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  const exportCSV = async () => {
+    // Export ALL orders matching the current filter (not just the loaded page).
+    const all: Order[] = [];
+    for (let off = 0; off < 100000; off += 100) {
+      const p = buildParams(off); p.set('limit', '100'); p.set('offset', String(off));
+      const res = await fetch(`/api/orders?${p.toString()}`, { headers: { 'x-admin-token': _adminToken } });
+      if (!res.ok) break;
+      const data = await res.json();
+      const batch: Order[] = data.orders || [];
+      all.push(...batch);
+      if (!data.hasMore || batch.length === 0) break;
     }
-    loadAllProducts();
-  }, []);
-
-  const setOrderStatus = useCallback(async (orderId: number, newStatus: OrderStatus) => {
-    const confirmed = newStatus === 'confirmado' || newStatus === 'realizado';
-    const label = ORDER_STATUSES.find(s => s.key === newStatus)?.label || newStatus;
-    try {
-      if (await patchOrder({ orderId, status: newStatus })) {
-        setOrders(prev => {
-          const current = prev.find(o => o.id === orderId);
-          if (current && getOrderStatus(current) === newStatus) return prev;
-          return prev.map(o => o.id === orderId ? { ...o, status: newStatus, confirmed } : o);
-        });
-        showToast(`Estado: ${label}`);
-      } else { showToast('Error al cambiar estado'); }
-    } catch { showToast('Error de conexi\u00f3n'); }
-  }, [patchOrder, showToast]);
-
-  const deleteOrder = useCallback(async (orderId: number, orderNumber: number) => {
-    if (!window.confirm(`\u00bfEliminar pedido #${orderNumber}? Esta acci\u00f3n no se puede deshacer.`)) return;
-    try {
-      const res = await fetch('/api/orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-admin-token': _adminToken }, body: JSON.stringify({ orderId }) });
-      if (res.ok) { setOrders(prev => prev.filter(o => o.id !== orderId)); showToast('Pedido eliminado'); }
-      else { showToast('Error al eliminar pedido'); }
-    } catch (e) {
-      console.error('Delete order error:', e);
-      showToast('Error de conexi\u00f3n al eliminar');
-    }
-  }, [showToast]);
-
-  const updateOrder = useCallback((orderId: number, updates: Partial<Order>) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
-  }, []);
-
-  const exportCSV = () => {
     const headers = ['#Pedido','Cliente','Tel\u00e9fono','Email','Fecha Evento','Hora','\u00c1rea','Direcci\u00f3n','Cumplea\u00f1ero','Edad','Tema','M\u00e9todo Pago','Subtotal','Transporte','Recargo','Total','Dep\u00f3sito','Saldo Pendiente','Estado','Nota Interna','Fecha Creaci\u00f3n'];
     const esc = (v: string | number | null | undefined) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
-    const rows = filteredOrders.map(o => {
+    const rows = all.map(o => {
       const dep = o.deposit_amount ?? 0;
       const theme = o.notes?.replace(/^Tema:\s*/, '') || '';
       return [o.order_number, o.customer_name, o.customer_phone, o.customer_email, o.event_date, o.event_time, o.event_area, o.event_address, o.birthday_child_name, o.birthday_child_age, theme, o.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta', o.subtotal, o.transport_cost_confirmed ?? '', o.surcharge, o.total, dep, dep > 0 ? o.total - dep : '', getOrderStatus(o), o.internal_note, o.created_at].map(esc).join(',');
@@ -971,26 +290,11 @@ function OrdersTab() {
     URL.revokeObjectURL(url);
   };
 
-  // Filter orders by search + status + event month
+  // Filtering (search/status/month) is server-side now; here we only sort the loaded
+  // page for display: upcoming events first (asc), past events at the bottom (reverse).
   const filteredOrders = useMemo(() => {
-    let result = orders;
-    if (statusFilter === 'confirmed') result = result.filter(o => getOrderStatus(o) === 'confirmado');
-    else if (statusFilter === 'realizado') result = result.filter(o => getOrderStatus(o) === 'realizado');
-    else if (statusFilter === 'pending') result = result.filter(o => getOrderStatus(o) === 'pendiente');
-    else if (statusFilter === 'rejected') result = result.filter(o => getOrderStatus(o) === 'rechazado');
-    if (eventMonthFilter !== 'all') {
-      result = result.filter(o => (o.event_date || '').startsWith(eventMonthFilter));
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      result = result.filter(o =>
-        o.customer_name.toLowerCase().includes(q) || o.event_date.includes(q) ||
-        String(o.order_number).includes(q) || (o.customer_phone && o.customer_phone.includes(q))
-      );
-    }
-    // Sort: upcoming events first (asc from today), past events at the bottom (reverse chrono)
     const today = new Date().toISOString().split('T')[0];
-    return [...result].sort((a, b) => {
+    return [...orders].sort((a, b) => {
       const aFuture = (a.event_date || '') >= today;
       const bFuture = (b.event_date || '') >= today;
       if (aFuture && !bFuture) return -1;
@@ -998,7 +302,7 @@ function OrdersTab() {
       if (aFuture && bFuture) return (a.event_date || '').localeCompare(b.event_date || '');
       return (b.event_date || '').localeCompare(a.event_date || '');
     });
-  }, [orders, search, statusFilter, eventMonthFilter]);
+  }, [orders]);
 
   // Group by date for "by event" view.
   // Exception: en el filtro "Pendientes" se ordena/agrupa por fecha de CREACI\u00d3N
@@ -1033,72 +337,16 @@ function OrdersTab() {
     return groups;
   }, [filteredOrders, sortMode, statusFilter]);
 
-  // Monthly summary — grouped by EVENT date (solo confirmados)
-  // Próximos meses arriba, pasados al final
-  const monthlySummary = useMemo(() => {
-    const confirmedOnly = orders.filter(o => o.confirmed);
-    const months: Record<string, { total: number; count: number }> = {};
-    for (const o of confirmedOnly) {
-      if (!o.event_date) continue;
-      const key = o.event_date.substring(0, 7); // 'YYYY-MM'
-      if (!months[key]) months[key] = { total: 0, count: 0 };
-      months[key].total += o.total;
-      months[key].count += 1;
-    }
-    const todayKey = new Date().toISOString().substring(0, 7);
-    const entries = Object.entries(months).sort(([a], [b]) => {
-      const aFuture = a >= todayKey;
-      const bFuture = b >= todayKey;
-      if (aFuture && !bFuture) return -1;
-      if (!aFuture && bFuture) return 1;
-      if (aFuture && bFuture) return a.localeCompare(b); // próximos ascendente
-      return b.localeCompare(a); // pasados reverse
-    });
-    return entries.map(([month, data]) => {
-      const [y, m] = month.split('-');
-      const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      return { key: month, label: `${MESES[Number(m) - 1]} ${y}`, isFuture: month >= todayKey, ...data };
-    });
-  }, [orders]);
-
-  // Event months available for the dropdown filter (all months that have orders)
-  const eventMonthOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of orders) {
-      if (o.event_date) set.add(o.event_date.substring(0, 7));
-    }
-    const todayKey = new Date().toISOString().substring(0, 7);
-    return Array.from(set).sort((a, b) => {
-      const aFuture = a >= todayKey;
-      const bFuture = b >= todayKey;
-      if (aFuture && !bFuture) return -1;
-      if (!aFuture && bFuture) return 1;
-      if (aFuture && bFuture) return a.localeCompare(b);
-      return b.localeCompare(a);
-    }).map(month => {
-      const [y, m] = month.split('-');
-      const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      return { key: month, label: `${MESES[Number(m) - 1]} ${y}` };
-    });
-  }, [orders]);
-
-  const { totalOrders, confirmedOrders, realizadoOrders, rejectedOrders, pendingOrders, confirmedRevenue } = useMemo(() => {
-    const confirmed = orders.filter(o => getOrderStatus(o) === 'confirmado').length;
-    const realizado = orders.filter(o => getOrderStatus(o) === 'realizado').length;
-    const rejected = orders.filter(o => getOrderStatus(o) === 'rechazado').length;
-    const pending = orders.filter(o => getOrderStatus(o) === 'pendiente').length;
-    return {
-      totalOrders: orders.length,
-      confirmedOrders: confirmed,
-      realizadoOrders: realizado,
-      rejectedOrders: rejected,
-      pendingOrders: pending,
-      confirmedRevenue: orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0),
-    };
-  }, [orders]);
-
-  // Keep callbacks alive (used by detail page; reserved for inline expand fallback)
-  void OrderCard; void deleteOrder; void patchOrder; void updateOrder; void setOrderStatus; void monthlySummary; void allProducts;
+  // Months + stats come from the server (aggregated over ALL orders), so they stay
+  // correct regardless of how many pages are loaded.
+  const eventMonthOptions = stats?.months || [];
+  const totalOrders = stats?.total ?? 0;
+  const pendingOrders = stats?.counts.pendiente ?? 0;
+  const confirmedOrders = stats?.counts.confirmado ?? 0;
+  const realizadoOrders = stats?.counts.realizado ?? 0;
+  const rejectedOrders = stats?.counts.rechazado ?? 0;
+  const confirmedRevenue = stats?.confirmedRevenue ?? 0;
+  const archivedOrders = stats?.archived ?? 0;
 
   const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
 
@@ -1159,6 +407,7 @@ function OrdersTab() {
           ['realizado', `Realizados (${realizadoOrders})`],
           ['rejected', `Rechazados (${rejectedOrders})`],
           ['all', `Todos (${totalOrders})`],
+          ['archived', `Archivados (${archivedOrders})`],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -1309,6 +558,19 @@ function OrdersTab() {
         </div>
       ) : null}
 
+      {/* ─── LOAD MORE ─── */}
+      {!loading && hasMore && (
+        <div className="text-center mt-5">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-6 py-2.5 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? 'Cargando…' : `Cargar más (${Math.max(0, total - orders.length)} restantes)`}
+          </button>
+        </div>
+      )}
+
       {/* ─── FILTERS BOTTOM SHEET ─── */}
       {filtersOpen && (
         <div className="fixed inset-0 z-50 flex items-end" onClick={() => setFiltersOpen(false)}>
@@ -1364,13 +626,13 @@ function OrdersTab() {
                 <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Acciones</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { exportCSV(); showToast('CSV descargado'); }}
+                    onClick={async () => { await exportCSV(); showToast('CSV descargado'); }}
                     className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                   >
                     Exportar CSV
                   </button>
                   <button
-                    onClick={() => { fetchOrders(); }}
+                    onClick={() => { fetchOrders(); fetchStats(); }}
                     disabled={loading}
                     className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
                   >

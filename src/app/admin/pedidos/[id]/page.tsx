@@ -18,6 +18,14 @@ const ORDER_STATUSES: { key: OrderStatus; label: string }[] = [
   { key: 'rechazado', label: 'Rechazado' },
 ];
 
+// Transiciones permitidas (validadas también en el server).
+const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pendiente: ['confirmado', 'rechazado'],
+  confirmado: ['realizado', 'rechazado'],
+  realizado: [], // cerrado
+  rechazado: ['pendiente'], // reactivar
+};
+
 const STATUS_HEX: Record<OrderStatus, string> = {
   pendiente: '#888780',
   confirmado: '#580459',
@@ -33,7 +41,7 @@ interface OrderItem {
   line_total: number;
 }
 
-interface Deposit { amount: number; date: string }
+interface Deposit { id?: string; amount: number; date: string }
 
 interface Order {
   id: number;
@@ -54,6 +62,7 @@ interface Order {
   notes: string | null;
   internal_note: string | null;
   status: OrderStatus;
+  deleted_at: string | null;
   deposit_amount: number | null;
   deposits: Deposit[];
   discount: number;
@@ -197,14 +206,14 @@ export default function PedidoDetailPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const patchOrder = useCallback(async (body: Record<string, unknown>): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const patchOrder = useCallback(async (body: Record<string, unknown>): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> => {
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ orderId, ...body }),
       });
-      if (res.ok) return { ok: true };
+      if (res.ok) return { ok: true, data: await res.json().catch(() => ({})) };
       if (res.status === 401) {
         router.push('/admin');
         return { ok: false, error: 'Sesión expirada' };
@@ -279,14 +288,27 @@ export default function PedidoDetailPage() {
 
   // ── Handlers ──
   const setStatus = async (s: OrderStatus) => {
+    if (s === status) return;
+    if (!STATUS_TRANSITIONS[status].includes(s)) { showToast('Transición no permitida'); return; }
+    if (s === 'rechazado' && !window.confirm(`¿Rechazar el pedido #${order.order_number}?`)) return;
+    if (status === 'rechazado' && s === 'pendiente' && !window.confirm('¿Reactivar este pedido (volver a Pendiente)?')) return;
     setSavingAction('status');
     try {
       const result = await patchOrder({ status: s });
       if (result.ok) {
         setOrder(o => o ? { ...o, status: s, confirmed: s === 'confirmado' || s === 'realizado' } : o);
-        showToast(`Estado: ${s}`);
+        const label = ORDER_STATUSES.find(x => x.key === s)?.label || s;
+        showToast(`Estado: ${label}`);
       } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
+  };
+
+  const handleRestore = async () => {
+    const result = await patchOrder({ restore: true });
+    if (result.ok) {
+      setOrder(o => o ? { ...o, deleted_at: null } : o);
+      showToast('Pedido restaurado');
+    } else { showToast('❌ ' + result.error); }
   };
 
   const startEdit = () => {
@@ -420,32 +442,40 @@ export default function PedidoDetailPage() {
     } finally { setSavingAction(null); }
   };
 
+  // Refresca SIEMPRE desde la respuesta real del RPC (deposits + deposit_amount
+  // authoritative), nunca desde un array armado en el cliente.
+  const applyDepositsFromResponse = (data: Record<string, unknown>) => {
+    setOrder(o => o ? {
+      ...o,
+      deposits: (data.deposits as Deposit[]) ?? o.deposits,
+      deposit_amount: (data.deposit_amount as number) ?? o.deposit_amount,
+    } : o);
+  };
+
   const addDeposit = async () => {
     const amt = Number(depositInput);
     if (Number.isNaN(amt) || amt <= 0) return;
     const date = depositDate || new Date().toISOString().slice(0, 10);
-    const newDeposits = [...(order.deposits || []), { amount: amt, date }];
-    const total = newDeposits.reduce((s, d) => s + d.amount, 0);
     setSavingAction('deposit');
     try {
-      const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+      const result = await patchOrder({ addDeposit: { amount: amt, date } });
       if (result.ok) {
+        applyDepositsFromResponse(result.data);
         setDepositInput('');
         showToast('Depósito agregado');
-        loadOrder();
       } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
-  const removeDeposit = async (idx: number) => {
-    const dep = (order.deposits || [])[idx];
-    if (!window.confirm(`¿Eliminar el depósito de ${formatCurrency(dep?.amount || 0)}? Esta acción no se puede deshacer.`)) return;
-    const newDeposits = (order.deposits || []).filter((_, i) => i !== idx);
-    const total = newDeposits.reduce((s, d) => s + d.amount, 0);
-    const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+  const removeDeposit = async (dep: Deposit) => {
+    if (!dep.id) { showToast('Recargá la página para eliminar este depósito'); return; }
+    if (!window.confirm(`¿Eliminar el depósito de ${formatCurrency(dep.amount || 0)}? Esta acción no se puede deshacer.`)) return;
+    const before = (order.deposits || []).length;
+    const result = await patchOrder({ removeDeposit: dep.id });
     if (result.ok) {
-      showToast('Depósito eliminado');
-      loadOrder();
+      applyDepositsFromResponse(result.data);
+      const after = ((result.data.deposits as Deposit[]) || []).length;
+      showToast(after < before ? 'Depósito eliminado' : 'El depósito ya no existía');
     } else { showToast('❌ ' + result.error); }
   };
 
@@ -460,14 +490,14 @@ export default function PedidoDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`¿Eliminar pedido #${order.order_number}?`)) return;
+    if (!window.confirm(`¿Archivar el pedido #${order.order_number}? Se puede restaurar después.`)) return;
     const res = await fetch('/api/orders', {
       method: 'DELETE',
       headers: authHeaders(),
       body: JSON.stringify({ orderId }),
     });
-    if (res.ok) { showToast('Pedido eliminado'); router.push('/admin'); }
-    else showToast('Error al eliminar');
+    if (res.ok) { showToast('Pedido archivado'); router.push('/admin'); }
+    else showToast('Error al archivar');
   };
 
   const handleDownloadPDF = async () => {
@@ -533,6 +563,19 @@ export default function PedidoDetailPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-5 pb-20">
+        {/* ─── ARCHIVED BANNER ─── */}
+        {order.deleted_at && (
+          <div className="flex items-center justify-between gap-3 bg-gray-100 border border-gray-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="font-heading font-bold text-sm text-gray-700">Pedido archivado</p>
+              <p className="font-body text-xs text-gray-400">No aparece en la lista ni en contabilidad.</p>
+            </div>
+            <button onClick={handleRestore} className="shrink-0 bg-purple text-white font-heading font-bold text-xs px-4 py-2 rounded-lg hover:bg-purple-light transition-colors">
+              Restaurar
+            </button>
+          </div>
+        )}
+
         {/* ─── AVATAR HERO ─── */}
         <div className="flex items-center gap-3 pt-1">
           <div
@@ -553,16 +596,20 @@ export default function PedidoDetailPage() {
         <div>
           <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Estado</p>
           <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-            {ORDER_STATUSES.map(s => (
-              <button
-                key={s.key}
-                onClick={() => setStatus(s.key)}
-                disabled={savingAction === 'status'}
-                className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all disabled:opacity-50 ${status === s.key ? 'bg-white text-purple shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                {s.label}
-              </button>
-            ))}
+            {ORDER_STATUSES.map(s => {
+              const isCurrent = status === s.key;
+              const allowed = isCurrent || STATUS_TRANSITIONS[status].includes(s.key);
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setStatus(s.key)}
+                  disabled={savingAction === 'status' || !allowed}
+                  className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all ${isCurrent ? 'bg-white text-purple shadow-sm' : allowed ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -605,7 +652,7 @@ export default function PedidoDetailPage() {
             </button>
             {showMoreMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[160px]">
-                <button onClick={() => { setShowMoreMenu(false); handleDelete(); }} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors">Eliminar pedido</button>
+                <button onClick={() => { setShowMoreMenu(false); handleDelete(); }} className="w-full text-left px-3 py-2 text-sm font-body text-red-500 hover:bg-red-50 transition-colors">Archivar pedido</button>
               </div>
             )}
           </div>
@@ -867,11 +914,11 @@ export default function PedidoDetailPage() {
           {openSections.dep && (
             <div className="pt-3 space-y-2">
               {(order.deposits || []).map((d, i) => (
-                <div key={i} className="flex items-center justify-between text-sm py-1.5">
+                <div key={d.id || i} className="flex items-center justify-between text-sm py-1.5">
                   <span className="font-body text-gray-600">{d.date}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                    <button onClick={() => removeDeposit(i)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
                   </div>
                 </div>
               ))}
