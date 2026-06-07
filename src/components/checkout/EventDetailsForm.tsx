@@ -343,6 +343,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
           }
         }}
         placeholder="Edificio, residencia, piso..."
+        autoComplete="street-address"
       />
 
       {/* Birthday child — always visible, optional */}
@@ -350,7 +351,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         <p className="font-heading font-semibold text-sm text-gray-400">{'🎂'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
         <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumpleañero/a" />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Edad" type="number" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
+          <Input label="Edad" type="number" inputMode="numeric" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
           <Input label="Temática" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
         </div>
       </div>

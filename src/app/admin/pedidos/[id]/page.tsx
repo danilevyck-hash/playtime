@@ -537,7 +537,7 @@ export default function PedidoDetailPage() {
 
   const toggleSection = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
 
-  const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
+  const OI_CLS = 'w-full border border-gray-200 rounded-lg min-h-[44px] py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
   return (
     <div className="min-h-screen bg-white">
@@ -604,7 +604,7 @@ export default function PedidoDetailPage() {
                   key={s.key}
                   onClick={() => setStatus(s.key)}
                   disabled={savingAction === 'status' || !allowed}
-                  className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all ${isCurrent ? 'bg-white text-purple shadow-sm' : allowed ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
+                  className={`flex-1 py-1.5 min-h-[44px] rounded-lg text-xs font-heading font-semibold transition-all ${isCurrent ? 'bg-white text-purple shadow-sm' : allowed ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
                 >
                   {s.label}
                 </button>
@@ -668,12 +668,12 @@ export default function PedidoDetailPage() {
           </button>
           {openSections.event && (
             isEditing ? (
-              <div className="space-y-3 pt-3">
+              <div className="space-y-3 pt-3" onFocus={e => { const t = e.target as HTMLElement; if (t.matches('input,select,textarea')) t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={editForm.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={editForm.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Teléfono" className={OI_CLS} />
+                  <input value={editForm.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" autoComplete="name" className={OI_CLS} />
+                  <input type="tel" inputMode="numeric" autoComplete="tel" value={editForm.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Teléfono" className={OI_CLS} />
                 </div>
-                <input value={editForm.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={OI_CLS} />
+                <input type="email" inputMode="email" autoComplete="email" value={editForm.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={OI_CLS} />
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
                   <input type="date" value={editForm.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
                   <input type="text" value={editForm.event_time || ''} onChange={e => setEditForm(p => ({ ...p, event_time: e.target.value }))} placeholder="Ej: 4:00 pm" className={`${OI_CLS} min-h-[44px] sm:w-32`} />
@@ -687,7 +687,7 @@ export default function PedidoDetailPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input value={editForm.birthday_child_name || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumpleañero" className={OI_CLS} />
-                  <input type="number" value={editForm.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
+                  <input type="number" inputMode="numeric" value={editForm.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
                   <input value={editForm.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
                 </div>
               </div>
@@ -833,7 +833,7 @@ export default function PedidoDetailPage() {
                   {liveDisc > 0 ? (
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-semibold text-green-600">-{formatCurrency(liveDisc)}{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</span>
-                      <button onClick={() => saveDiscount(0, 'fixed')} className="text-gray-400 hover:text-red-400 text-xs">{'✕'}</button>
+                      <button onClick={() => { if (window.confirm(`¿Quitar el descuento de ${formatCurrency(liveDisc)}?`)) saveDiscount(0, 'fixed'); }} className="text-gray-400 hover:text-red-400 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Quitar descuento">{'✕'}</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
@@ -841,7 +841,7 @@ export default function PedidoDetailPage() {
                         <button onClick={() => setDiscountType('fixed')} className={`px-2 py-1 text-xs font-heading font-semibold ${discountType === 'fixed' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>$</button>
                         <button onClick={() => setDiscountType('percent')} className={`px-2 py-1 text-xs font-heading font-semibold ${discountType === 'percent' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}>%</button>
                       </div>
-                      <input type="number" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 py-1 text-right text-xs" />
+                      <input type="number" inputMode="decimal" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder={discountType === 'percent' ? '10' : '$0'} min="0" step={discountType === 'percent' ? '1' : '0.01'} className="w-16 border border-gray-200 rounded px-2 min-h-[44px] text-right text-sm" />
                       {discountInput && <button onClick={() => saveDiscount()} disabled={savingAction === 'discount'} className="text-xs font-heading font-semibold text-purple hover:underline disabled:opacity-50">Aplicar</button>}
                     </div>
                   )}
@@ -851,13 +851,13 @@ export default function PedidoDetailPage() {
                   {order.transport_cost_confirmed !== null && !isEditingTransport ? (
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-semibold text-gray-700">{liveTrans > 0 ? formatCurrency(liveTrans) : '$0 (gratis)'}</span>
-                      <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange text-xs">✎</button>
+                      <button onClick={() => { setIsEditingTransport(true); setTransportInput(String(liveTrans)); }} className="text-gray-400 hover:text-orange min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Editar transporte">✎</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <input type="number" value={transportInput} onChange={e => setTransportInput(e.target.value)} placeholder="$0" min="0" step="0.01" className="w-20 border border-orange/40 rounded px-2 py-1 text-right text-xs bg-orange/5" />
-                      <button onClick={saveTransport} disabled={!transportInput || savingAction === 'transport'} className="text-xs font-heading font-semibold text-orange hover:underline disabled:opacity-50">Confirmar</button>
-                      {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>}
+                      <input type="number" inputMode="decimal" value={transportInput} onChange={e => setTransportInput(e.target.value)} placeholder="$0" min="0" step="0.01" className="w-20 border border-orange/40 rounded px-2 min-h-[44px] text-right text-sm bg-orange/5" />
+                      <button onClick={saveTransport} disabled={!transportInput || savingAction === 'transport'} className="min-h-[44px] px-2 text-sm font-heading font-semibold text-orange hover:underline disabled:opacity-50">Confirmar</button>
+                      {isEditingTransport && <button onClick={() => setIsEditingTransport(false)} className="text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Cancelar">✕</button>}
                     </div>
                   )}
                 </div>
@@ -918,14 +918,14 @@ export default function PedidoDetailPage() {
                   <span className="font-body text-gray-600">{d.date}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Eliminar depósito">✕</button>
                   </div>
                 </div>
               ))}
               <div className="flex gap-2 pt-2">
-                <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg py-1.5 px-2 font-body text-sm" />
-                <input type="number" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(balance) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg py-1.5 px-2.5 font-body text-sm" />
-                <button onClick={addDeposit} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 py-1.5 rounded-lg text-sm disabled:opacity-40">{savingAction === 'deposit' ? '...' : 'Registrar'}</button>
+                <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg min-h-[44px] px-2 font-body text-sm" />
+                <input type="number" inputMode="decimal" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(balance) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg min-h-[44px] px-2.5 font-body text-sm" />
+                <button onClick={addDeposit} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 min-h-[44px] rounded-lg text-sm disabled:opacity-40">{savingAction === 'deposit' ? '...' : 'Registrar'}</button>
               </div>
             </div>
           )}

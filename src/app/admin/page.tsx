@@ -1007,6 +1007,15 @@ function ProductsTab() {
   };
 
   // ─── REORDER ───
+  // Persiste el nuevo orden; revierte y avisa si el server lo rechaza (no éxito silencioso).
+  const persistOrder = (newProducts: DBProduct[], prevProducts: DBProduct[]) => {
+    setProducts(newProducts);
+    apiBulkUpdateOrder(newProducts.map(p => p.id)).then(ok => {
+      if (ok) revalidateSite();
+      else { setProducts(prevProducts); showToast('No se pudo guardar el orden'); }
+    }).catch(() => { setProducts(prevProducts); showToast('No se pudo guardar el orden'); });
+  };
+
   const handleDrop = (targetId: string) => {
     if (!draggingId || draggingId === targetId) return;
     const fromIdx = products.findIndex(p => p.id === draggingId);
@@ -1015,10 +1024,22 @@ function ProductsTab() {
     const newProducts = [...products];
     const [moved] = newProducts.splice(fromIdx, 1);
     newProducts.splice(toIdx, 0, moved);
-    setProducts(newProducts);
-    apiBulkUpdateOrder(newProducts.map(p => p.id)).then(() => revalidateSite()).catch(e => console.error('Save order error:', e));
+    persistOrder(newProducts, products);
     setDraggingId(null);
     setDragOverId(null);
+  };
+
+  // Reorder táctil con flechas: intercambia el producto con su vecino visible (misma categoría).
+  const moveProduct = (productId: string, dir: -1 | 1) => {
+    const visibleIdx = filtered.findIndex(p => p.id === productId);
+    const neighbor = filtered[visibleIdx + dir];
+    if (!neighbor) return;
+    const a = products.findIndex(p => p.id === productId);
+    const b = products.findIndex(p => p.id === neighbor.id);
+    if (a === -1 || b === -1) return;
+    const newProducts = [...products];
+    [newProducts[a], newProducts[b]] = [newProducts[b], newProducts[a]];
+    persistOrder(newProducts, products);
   };
 
   const filtered = useMemo(() => {
@@ -1092,6 +1113,13 @@ function ProductsTab() {
         ))}
       </div>
 
+      {/* Hint para reorder táctil */}
+      {reorderMode && (!filter || productSearch.trim()) && (
+        <div className="bg-teal/10 border border-teal/30 rounded-xl px-3 py-2.5">
+          <p className="font-body text-xs text-gray-600">Selecciona <strong>una categoría</strong>{productSearch.trim() ? ' y limpia la búsqueda' : ''} para ordenar con las flechas {'▲▼'}.</p>
+        </div>
+      )}
+
       {/* Product list */}
       {filtered.length === 0 ? (
         <div className="text-center py-6">
@@ -1099,11 +1127,12 @@ function ProductsTab() {
         </div>
       ) : (
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
-        {filtered.map((product) => {
+        {filtered.map((product, idx) => {
           const isEditing = editingId === product.id;
           const imgSrc = product.image_url || '';
           const prodVariants = getVariants(product.id);
           const isCombineSelected = combineSelected.has(product.id);
+          const canArrows = reorderMode && !!filter && !productSearch.trim();
 
           return (
             <div
@@ -1123,7 +1152,14 @@ function ProductsTab() {
                     {isCombineSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                   </div>
                 ) : reorderMode ? (
-                  <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg leading-none px-1">{'\u2807'}</div>
+                  canArrows ? (
+                    <div className="flex-shrink-0 flex flex-col -my-1">
+                      <button onClick={(e) => { e.stopPropagation(); moveProduct(product.id, -1); }} disabled={idx === 0} className="min-h-[24px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-purple disabled:opacity-20 disabled:cursor-not-allowed text-sm leading-none" aria-label="Subir">{'\u25b2'}</button>
+                      <button onClick={(e) => { e.stopPropagation(); moveProduct(product.id, 1); }} disabled={idx === filtered.length - 1} className="min-h-[24px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-purple disabled:opacity-20 disabled:cursor-not-allowed text-sm leading-none" aria-label="Bajar">{'\u25bc'}</button>
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg leading-none px-1">{'\u2807'}</div>
+                  )
                 ) : (
                   <button onClick={(e) => { e.stopPropagation(); toggleActive(product.id); }} className={`flex-shrink-0 transition-colors relative rounded-full`} style={{ width: 44, height: 26, backgroundColor: product.active ? '#1D9E75' : '#D1D5DB' }} aria-label={product.active ? 'Desactivar' : 'Activar'}>
                     <div className="bg-white rounded-full absolute transition-all shadow-sm" style={{ width: 20, height: 20, top: 3, left: product.active ? 21 : 3 }} />
@@ -1443,6 +1479,14 @@ function CatalogTab() {
 
   useEffect(() => { fetchDBProducts().then(setDbProducts).catch(() => {}); }, []);
 
+  const persistCatOrder = (newCats: typeof categories, prevCats: typeof categories) => {
+    setCategories(newCats);
+    apiUpsertSetting('category_order', newCats.map(c => c.id)).then(ok => {
+      if (ok) showToast('Orden guardado');
+      else { setCategories(prevCats); showToast('No se pudo guardar el orden'); }
+    }).catch(() => { setCategories(prevCats); showToast('No se pudo guardar el orden'); });
+  };
+
   const handleCatDrop = (targetId: string) => {
     if (!catDragging || catDragging === targetId) return;
     const fromIdx = categories.findIndex(c => c.id === catDragging);
@@ -1451,11 +1495,18 @@ function CatalogTab() {
     const newCats = [...categories];
     const [moved] = newCats.splice(fromIdx, 1);
     newCats.splice(toIdx, 0, moved);
-    setCategories(newCats);
-    apiUpsertSetting('category_order', newCats.map(c => c.id)).catch(e => console.error('Save cat order:', e));
+    persistCatOrder(newCats, categories);
     setCatDragging(null);
     setCatDragOver(null);
-    showToast('Orden guardado');
+  };
+
+  const moveCat = (catId: string, dir: -1 | 1) => {
+    const idx = categories.findIndex(c => c.id === catId);
+    const target = idx + dir;
+    if (idx === -1 || target < 0 || target >= categories.length) return;
+    const newCats = [...categories];
+    [newCats[idx], newCats[target]] = [newCats[target], newCats[idx]];
+    persistCatOrder(newCats, categories);
   };
 
   // Count products per category
@@ -1589,7 +1640,10 @@ function CatalogTab() {
               className={`transition-all ${catDragging === cat.id ? 'opacity-40 scale-95' : ''} ${catDragOver === cat.id && catDragging !== cat.id ? 'border-t-2 border-t-purple' : ''}`}
             >
               <div className="flex items-center">
-                <div className="pl-3 pr-1 cursor-grab active:cursor-grabbing text-gray-400 hover:text-purple select-none text-lg">{'\u2807'}</div>
+                <div className="flex flex-col pl-2">
+                  <button onClick={() => moveCat(cat.id, -1)} disabled={idx === 0} className="min-h-[24px] min-w-[36px] flex items-center justify-center text-gray-400 hover:text-purple disabled:opacity-20 disabled:cursor-not-allowed text-sm leading-none" aria-label="Subir categor\u00eda">{'\u25b2'}</button>
+                  <button onClick={() => moveCat(cat.id, 1)} disabled={idx === categories.length - 1} className="min-h-[24px] min-w-[36px] flex items-center justify-center text-gray-400 hover:text-purple disabled:opacity-20 disabled:cursor-not-allowed text-sm leading-none" aria-label="Bajar categor\u00eda">{'\u25bc'}</button>
+                </div>
                 <button onClick={() => { setExpandedCatId(isExpanded ? null : cat.id); if (isEditing) setEditingCatId(null); }} className="flex-1 text-left p-3 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">

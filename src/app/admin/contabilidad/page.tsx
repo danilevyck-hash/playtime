@@ -1647,7 +1647,39 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
           <p className="font-body">No hay ventas en esta vista</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
+        <>
+        {/* Móvil: tarjetas */}
+        <div className="sm:hidden space-y-2 mb-3">
+          {rows.map(r => {
+            const badge = ventaBadge(r, today);
+            return (
+              <div key={r.o.id} className="bg-white border border-gray-200 rounded-xl p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-heading font-semibold text-gray-800 truncate">{r.o.customer_name}</p>
+                    <p className="text-[11px] text-gray-400">#{r.o.order_number} · {formatDate(r.o.event_date)}</p>
+                  </div>
+                  <span className={`inline-block text-[10px] font-heading font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${badge.cls}`}>{badge.label}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                  <div><p className="text-[10px] text-gray-400 uppercase font-heading">Total</p><p className="font-body text-sm text-gray-700">{formatCurrency(Number(r.o.total) || 0)}</p></div>
+                  <div><p className="text-[10px] text-gray-400 uppercase font-heading">Pagado</p><p className="font-body text-sm text-emerald-700">{formatCurrency(r.paid)}</p></div>
+                  <div><p className="text-[10px] text-gray-400 uppercase font-heading">Saldo</p><p className="font-heading font-bold text-sm text-gray-800">{formatCurrency(Math.max(0, r.saldo))}</p></div>
+                </div>
+                {r.saldo > 0.005 && (
+                  <button
+                    onClick={() => setPayPrefill({ orderId: String(r.o.id), amount: r.saldo.toFixed(2), counterparty: r.o.customer_name, description: `Pago pedido #${r.o.order_number}` })}
+                    className="w-full mt-3 bg-emerald-600 text-white font-heading font-bold text-sm min-h-[44px] rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    Recibir pago
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Desktop: tabla */}
+        <div className="hidden sm:block bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1694,6 +1726,7 @@ function VentasView({ active, orders, accounts, categories, onMutated, showToast
             </table>
           </div>
         </div>
+        </>
       )}
 
       {rows.length > 0 && <ExportButton onClick={exportCSV} />}
