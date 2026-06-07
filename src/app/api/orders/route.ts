@@ -278,7 +278,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote, status, editFields, depositAmount, deposits, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem, restore } = body;
+    const { orderId, confirmed, internalNote, status, editFields, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem, restore, addDeposit, removeDeposit } = body;
 
     if (!orderId || typeof orderId !== 'number') {
       return NextResponse.json({ error: 'orderId requerido' }, { status: 400 });
@@ -371,33 +371,44 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (deposits !== undefined) {
-      const updateData: Record<string, unknown> = { deposits };
-      if (depositAmount !== undefined) updateData.deposit_amount = depositAmount;
-      const { error: depError } = await db.from('pt_orders').update(updateData).eq('id', orderId);
-      if (depError) {
-        console.error('Deposits update error (deposits column may not exist):', depError);
-        // Fallback: deposit_amount only (DBs without a deposits JSONB column).
-        if (depositAmount !== undefined) {
-          const { error: fbErr } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
-          if (fbErr) {
-            console.error('Deposits fallback error:', fbErr);
-            return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
-          }
-        } else {
-          return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
-        }
+    // Depósitos atómicos vía RPC (SELECT FOR UPDATE en SQL → sin last-write-wins).
+    // El RPC recalcula deposit_amount server-side y devuelve el array real → la UI
+    // refresca desde la respuesta (no asume que agregó/borró).
+    if (addDeposit !== undefined) {
+      const amt = Number(addDeposit?.amount);
+      if (isNaN(amt) || amt <= 0) {
+        return NextResponse.json({ error: 'El monto del depósito debe ser mayor a 0' }, { status: 400 });
       }
-      return NextResponse.json({ ok: true });
-    }
-
-    if (depositAmount !== undefined && deposits === undefined) {
-      const { error } = await db.from('pt_orders').update({ deposit_amount: depositAmount }).eq('id', orderId);
-      if (error) {
-        console.error('deposit_amount update error:', error);
+      if (amt > 9999999) {
+        return NextResponse.json({ error: 'Monto demasiado grande' }, { status: 400 });
+      }
+      const rawDate = typeof addDeposit?.date === 'string' ? addDeposit.date : '';
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+        ? rawDate
+        : new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10); // hoy (Panamá UTC-5)
+      const { data, error } = await db.rpc('add_deposit', { p_order_id: orderId, p_amount: amt, p_date: date });
+      if (error || !data) {
+        console.error('add_deposit RPC error:', error);
         return NextResponse.json({ error: 'No se pudo guardar el depósito' }, { status: 500 });
       }
-      return NextResponse.json({ ok: true });
+      const r = data as { deposits: unknown[]; deposit_amount: number };
+      return NextResponse.json({ ok: true, deposits: r.deposits, deposit_amount: r.deposit_amount });
+    }
+
+    if (removeDeposit !== undefined) {
+      const depId = String(removeDeposit);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(depId)) {
+        return NextResponse.json({ error: 'ID de depósito inválido' }, { status: 400 });
+      }
+      // Si el id no existe el RPC es no-op (devuelve el array sin cambios) — la UI
+      // se actualiza desde `deposits` real y detecta que no borró nada.
+      const { data, error } = await db.rpc('remove_deposit', { p_order_id: orderId, p_deposit_id: depId });
+      if (error || !data) {
+        console.error('remove_deposit RPC error:', error);
+        return NextResponse.json({ error: 'No se pudo eliminar el depósito' }, { status: 500 });
+      }
+      const r = data as { deposits: unknown[]; deposit_amount: number };
+      return NextResponse.json({ ok: true, deposits: r.deposits, deposit_amount: r.deposit_amount });
     }
 
     // Atomic recalc helper: every mutating branch calls recalc_order_totals(p_order_id)

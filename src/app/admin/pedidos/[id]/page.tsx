@@ -41,7 +41,7 @@ interface OrderItem {
   line_total: number;
 }
 
-interface Deposit { amount: number; date: string }
+interface Deposit { id?: string; amount: number; date: string }
 
 interface Order {
   id: number;
@@ -206,14 +206,14 @@ export default function PedidoDetailPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const patchOrder = useCallback(async (body: Record<string, unknown>): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const patchOrder = useCallback(async (body: Record<string, unknown>): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> => {
     try {
       const res = await fetch('/api/orders', {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ orderId, ...body }),
       });
-      if (res.ok) return { ok: true };
+      if (res.ok) return { ok: true, data: await res.json().catch(() => ({})) };
       if (res.status === 401) {
         router.push('/admin');
         return { ok: false, error: 'Sesión expirada' };
@@ -442,32 +442,40 @@ export default function PedidoDetailPage() {
     } finally { setSavingAction(null); }
   };
 
+  // Refresca SIEMPRE desde la respuesta real del RPC (deposits + deposit_amount
+  // authoritative), nunca desde un array armado en el cliente.
+  const applyDepositsFromResponse = (data: Record<string, unknown>) => {
+    setOrder(o => o ? {
+      ...o,
+      deposits: (data.deposits as Deposit[]) ?? o.deposits,
+      deposit_amount: (data.deposit_amount as number) ?? o.deposit_amount,
+    } : o);
+  };
+
   const addDeposit = async () => {
     const amt = Number(depositInput);
     if (Number.isNaN(amt) || amt <= 0) return;
     const date = depositDate || new Date().toISOString().slice(0, 10);
-    const newDeposits = [...(order.deposits || []), { amount: amt, date }];
-    const total = newDeposits.reduce((s, d) => s + d.amount, 0);
     setSavingAction('deposit');
     try {
-      const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+      const result = await patchOrder({ addDeposit: { amount: amt, date } });
       if (result.ok) {
+        applyDepositsFromResponse(result.data);
         setDepositInput('');
         showToast('Depósito agregado');
-        loadOrder();
       } else { showToast('❌ ' + result.error); }
     } finally { setSavingAction(null); }
   };
 
-  const removeDeposit = async (idx: number) => {
-    const dep = (order.deposits || [])[idx];
-    if (!window.confirm(`¿Eliminar el depósito de ${formatCurrency(dep?.amount || 0)}? Esta acción no se puede deshacer.`)) return;
-    const newDeposits = (order.deposits || []).filter((_, i) => i !== idx);
-    const total = newDeposits.reduce((s, d) => s + d.amount, 0);
-    const result = await patchOrder({ deposits: newDeposits, depositAmount: total });
+  const removeDeposit = async (dep: Deposit) => {
+    if (!dep.id) { showToast('Recargá la página para eliminar este depósito'); return; }
+    if (!window.confirm(`¿Eliminar el depósito de ${formatCurrency(dep.amount || 0)}? Esta acción no se puede deshacer.`)) return;
+    const before = (order.deposits || []).length;
+    const result = await patchOrder({ removeDeposit: dep.id });
     if (result.ok) {
-      showToast('Depósito eliminado');
-      loadOrder();
+      applyDepositsFromResponse(result.data);
+      const after = ((result.data.deposits as Deposit[]) || []).length;
+      showToast(after < before ? 'Depósito eliminado' : 'El depósito ya no existía');
     } else { showToast('❌ ' + result.error); }
   };
 
@@ -906,11 +914,11 @@ export default function PedidoDetailPage() {
           {openSections.dep && (
             <div className="pt-3 space-y-2">
               {(order.deposits || []).map((d, i) => (
-                <div key={i} className="flex items-center justify-between text-sm py-1.5">
+                <div key={d.id || i} className="flex items-center justify-between text-sm py-1.5">
                   <span className="font-body text-gray-600">{d.date}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-heading font-semibold text-teal">{formatCurrency(d.amount)}</span>
-                    <button onClick={() => removeDeposit(i)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                    <button onClick={() => removeDeposit(d)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
                   </div>
                 </div>
               ))}
