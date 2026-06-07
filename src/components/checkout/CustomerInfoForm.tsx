@@ -70,6 +70,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
         onChange={(e) => { onChange({ ...data, name: e.target.value }); if (e.target.value.trim()) setErrors(prev => { const n = { ...prev }; delete n.name; return n; }); }}
         placeholder="María García"
         error={errors.name}
+        autoComplete="name"
       />
 
       {/* Phone with country code */}
@@ -89,6 +90,8 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
           </select>
           <input
             type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
             value={localNumber}
             onChange={(e) => handlePhoneChange(countryCode, e.target.value)}
             placeholder="6XXX-XXXX"
@@ -105,6 +108,8 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
       <Input
         label="Email (opcional)"
         type="email"
+        inputMode="email"
+        autoComplete="email"
         value={data.email}
         onChange={(e) => { onChange({ ...data, email: e.target.value }); if (errors.email) setErrors(prev => { const n = { ...prev }; delete n.email; return n; }); }}
         placeholder="maria@ejemplo.com"
