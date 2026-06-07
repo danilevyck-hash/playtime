@@ -610,14 +610,42 @@ export async function GET(request: NextRequest) {
     }
 
     const url = new URL(request.url);
-    const limit = Math.min(Number(url.searchParams.get('limit')) || 200, 500);
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 50, 1), 100);
     const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+    const q = (url.searchParams.get('q') || '').trim();
+    const status = url.searchParams.get('status') || 'all';
+    const month = url.searchParams.get('month') || '';
 
-    const { data: orders, error } = await db
+    // event_date DESC: the first page carries all upcoming/recent events; "load more"
+    // pages back into the past. count: 'exact' gives total for pagination + "load more".
+    let query = db
       .from('pt_orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .select('*', { count: 'exact' })
+      .order('event_date', { ascending: false })
+      .order('id', { ascending: false });
+
+    // Status filter — mirrors getOrderStatus() mapping (incl. legacy values + null).
+    if (status === 'pending') query = query.or('status.is.null,status.eq.pendiente,status.eq.nuevo');
+    else if (status === 'confirmed') query = query.in('status', ['confirmado', 'aprobada', 'deposito']);
+    else if (status === 'realizado') query = query.eq('status', 'realizado');
+    else if (status === 'rejected') query = query.in('status', ['rechazado', 'rechazada']);
+
+    // Event month filter (YYYY-MM).
+    if (/^\d{4}-\d{2}$/.test(month)) {
+      query = query.gte('event_date', `${month}-01`).lte('event_date', `${month}-31`);
+    }
+
+    // Text search: name/phone ilike + exact order_number when the term is numeric.
+    if (q) {
+      const term = q.replace(/[,%()*]/g, '').slice(0, 80);
+      if (term) {
+        let orFilter = `customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`;
+        if (/^\d+$/.test(term)) orFilter += `,order_number.eq.${term}`;
+        query = query.or(orFilter);
+      }
+    }
+
+    const { data: orders, count, error } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Orders fetch error:', error);
@@ -646,7 +674,12 @@ export async function GET(request: NextRequest) {
       items: allItems[o.id] || [],
     }));
 
-    return NextResponse.json({ orders: enriched });
+    const total = count ?? enriched.length;
+    return NextResponse.json({
+      orders: enriched,
+      total,
+      hasMore: offset + (orders?.length || 0) < total,
+    });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

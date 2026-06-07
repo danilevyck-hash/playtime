@@ -192,28 +192,91 @@ function OrdersTab() {
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [stats, setStats] = useState<{
+    total: number;
+    counts: { pendiente: number; confirmado: number; realizado: number; rechazado: number };
+    confirmedRevenue: number;
+    months: { key: string; label: string }[];
+  } | null>(null);
+
+  const PAGE_SIZE = 100;
+  // Server-side filters: search / status / month go to the API (so orders older than
+  // the first page are still findable). Returns to offset 0 whenever a filter changes.
+  const buildParams = useCallback((offset: number) => {
+    const p = new URLSearchParams();
+    p.set('limit', String(PAGE_SIZE));
+    p.set('offset', String(offset));
+    if (search.trim()) p.set('q', search.trim());
+    if (statusFilter !== 'all') p.set('status', statusFilter);
+    if (eventMonthFilter !== 'all') p.set('month', eventMonthFilter);
+    return p;
+  }, [search, statusFilter, eventMonthFilter]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/orders', { headers: { 'x-admin-token': _adminToken } });
+      const res = await fetch(`/api/orders?${buildParams(0).toString()}`, { headers: { 'x-admin-token': _adminToken } });
       if (!res.ok) throw new Error('Error');
       const data = await res.json();
       setOrders(data.orders || []);
+      setTotal(data.total ?? (data.orders?.length || 0));
+      setHasMore(!!data.hasMore);
       if (data.message) setError(data.message);
     } catch {
       setError('No se pudieron cargar los pedidos. Verifica que Supabase est\u00e9 configurado.');
     } finally {
       setLoading(false);
     }
+  }, [buildParams]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/orders?${buildParams(orders.length).toString()}`, { headers: { 'x-admin-token': _adminToken } });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(prev => [...prev, ...(data.orders || [])]);
+        setTotal(data.total ?? orders.length);
+        setHasMore(!!data.hasMore);
+      }
+    } catch {} finally {
+      setLoadingMore(false);
+    }
+  }, [buildParams, orders.length]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders/stats', { headers: { 'x-admin-token': _adminToken } });
+      if (res.ok) setStats(await res.json());
+    } catch {}
   }, []);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
-  const exportCSV = () => {
+  // Debounced refetch when search/status/month change (fetchOrders identity tracks them).
+  useEffect(() => {
+    const t = setTimeout(() => { fetchOrders(); }, search ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [fetchOrders, search]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  const exportCSV = async () => {
+    // Export ALL orders matching the current filter (not just the loaded page).
+    const all: Order[] = [];
+    for (let off = 0; off < 100000; off += 100) {
+      const p = buildParams(off); p.set('limit', '100'); p.set('offset', String(off));
+      const res = await fetch(`/api/orders?${p.toString()}`, { headers: { 'x-admin-token': _adminToken } });
+      if (!res.ok) break;
+      const data = await res.json();
+      const batch: Order[] = data.orders || [];
+      all.push(...batch);
+      if (!data.hasMore || batch.length === 0) break;
+    }
     const headers = ['#Pedido','Cliente','Tel\u00e9fono','Email','Fecha Evento','Hora','\u00c1rea','Direcci\u00f3n','Cumplea\u00f1ero','Edad','Tema','M\u00e9todo Pago','Subtotal','Transporte','Recargo','Total','Dep\u00f3sito','Saldo Pendiente','Estado','Nota Interna','Fecha Creaci\u00f3n'];
     const esc = (v: string | number | null | undefined) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
-    const rows = filteredOrders.map(o => {
+    const rows = all.map(o => {
       const dep = o.deposit_amount ?? 0;
       const theme = o.notes?.replace(/^Tema:\s*/, '') || '';
       return [o.order_number, o.customer_name, o.customer_phone, o.customer_email, o.event_date, o.event_time, o.event_area, o.event_address, o.birthday_child_name, o.birthday_child_age, theme, o.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta', o.subtotal, o.transport_cost_confirmed ?? '', o.surcharge, o.total, dep, dep > 0 ? o.total - dep : '', getOrderStatus(o), o.internal_note, o.created_at].map(esc).join(',');
@@ -225,26 +288,11 @@ function OrdersTab() {
     URL.revokeObjectURL(url);
   };
 
-  // Filter orders by search + status + event month
+  // Filtering (search/status/month) is server-side now; here we only sort the loaded
+  // page for display: upcoming events first (asc), past events at the bottom (reverse).
   const filteredOrders = useMemo(() => {
-    let result = orders;
-    if (statusFilter === 'confirmed') result = result.filter(o => getOrderStatus(o) === 'confirmado');
-    else if (statusFilter === 'realizado') result = result.filter(o => getOrderStatus(o) === 'realizado');
-    else if (statusFilter === 'pending') result = result.filter(o => getOrderStatus(o) === 'pendiente');
-    else if (statusFilter === 'rejected') result = result.filter(o => getOrderStatus(o) === 'rechazado');
-    if (eventMonthFilter !== 'all') {
-      result = result.filter(o => (o.event_date || '').startsWith(eventMonthFilter));
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      result = result.filter(o =>
-        o.customer_name.toLowerCase().includes(q) || o.event_date.includes(q) ||
-        String(o.order_number).includes(q) || (o.customer_phone && o.customer_phone.includes(q))
-      );
-    }
-    // Sort: upcoming events first (asc from today), past events at the bottom (reverse chrono)
     const today = new Date().toISOString().split('T')[0];
-    return [...result].sort((a, b) => {
+    return [...orders].sort((a, b) => {
       const aFuture = (a.event_date || '') >= today;
       const bFuture = (b.event_date || '') >= today;
       if (aFuture && !bFuture) return -1;
@@ -252,7 +300,7 @@ function OrdersTab() {
       if (aFuture && bFuture) return (a.event_date || '').localeCompare(b.event_date || '');
       return (b.event_date || '').localeCompare(a.event_date || '');
     });
-  }, [orders, search, statusFilter, eventMonthFilter]);
+  }, [orders]);
 
   // Group by date for "by event" view.
   // Exception: en el filtro "Pendientes" se ordena/agrupa por fecha de CREACI\u00d3N
@@ -287,41 +335,15 @@ function OrdersTab() {
     return groups;
   }, [filteredOrders, sortMode, statusFilter]);
 
-  // Event months available for the dropdown filter (all months that have orders)
-  const eventMonthOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of orders) {
-      if (o.event_date) set.add(o.event_date.substring(0, 7));
-    }
-    const todayKey = new Date().toISOString().substring(0, 7);
-    return Array.from(set).sort((a, b) => {
-      const aFuture = a >= todayKey;
-      const bFuture = b >= todayKey;
-      if (aFuture && !bFuture) return -1;
-      if (!aFuture && bFuture) return 1;
-      if (aFuture && bFuture) return a.localeCompare(b);
-      return b.localeCompare(a);
-    }).map(month => {
-      const [y, m] = month.split('-');
-      const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      return { key: month, label: `${MESES[Number(m) - 1]} ${y}` };
-    });
-  }, [orders]);
-
-  const { totalOrders, confirmedOrders, realizadoOrders, rejectedOrders, pendingOrders, confirmedRevenue } = useMemo(() => {
-    const confirmed = orders.filter(o => getOrderStatus(o) === 'confirmado').length;
-    const realizado = orders.filter(o => getOrderStatus(o) === 'realizado').length;
-    const rejected = orders.filter(o => getOrderStatus(o) === 'rechazado').length;
-    const pending = orders.filter(o => getOrderStatus(o) === 'pendiente').length;
-    return {
-      totalOrders: orders.length,
-      confirmedOrders: confirmed,
-      realizadoOrders: realizado,
-      rejectedOrders: rejected,
-      pendingOrders: pending,
-      confirmedRevenue: orders.filter(o => o.confirmed).reduce((s, o) => s + o.total, 0),
-    };
-  }, [orders]);
+  // Months + stats come from the server (aggregated over ALL orders), so they stay
+  // correct regardless of how many pages are loaded.
+  const eventMonthOptions = stats?.months || [];
+  const totalOrders = stats?.total ?? 0;
+  const pendingOrders = stats?.counts.pendiente ?? 0;
+  const confirmedOrders = stats?.counts.confirmado ?? 0;
+  const realizadoOrders = stats?.counts.realizado ?? 0;
+  const rejectedOrders = stats?.counts.rechazado ?? 0;
+  const confirmedRevenue = stats?.confirmedRevenue ?? 0;
 
   const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
 
@@ -532,6 +554,19 @@ function OrdersTab() {
         </div>
       ) : null}
 
+      {/* ─── LOAD MORE ─── */}
+      {!loading && hasMore && (
+        <div className="text-center mt-5">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-6 py-2.5 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? 'Cargando…' : `Cargar más (${Math.max(0, total - orders.length)} restantes)`}
+          </button>
+        </div>
+      )}
+
       {/* ─── FILTERS BOTTOM SHEET ─── */}
       {filtersOpen && (
         <div className="fixed inset-0 z-50 flex items-end" onClick={() => setFiltersOpen(false)}>
@@ -587,13 +622,13 @@ function OrdersTab() {
                 <p className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Acciones</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { exportCSV(); showToast('CSV descargado'); }}
+                    onClick={async () => { await exportCSV(); showToast('CSV descargado'); }}
                     className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                   >
                     Exportar CSV
                   </button>
                   <button
-                    onClick={() => { fetchOrders(); }}
+                    onClick={() => { fetchOrders(); fetchStats(); }}
                     disabled={loading}
                     className="flex-1 py-3 rounded-xl font-heading font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
                   >
