@@ -537,7 +537,7 @@ export default function PedidoDetailPage() {
 
   const toggleSection = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
 
-  const OI_CLS = 'w-full border border-gray-200 rounded-lg py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
+  const OI_CLS = 'w-full border border-gray-200 rounded-lg min-h-[44px] py-2 px-3 font-body text-sm focus:border-purple focus:outline-none';
 
   return (
     <div className="min-h-screen bg-white">
@@ -604,7 +604,7 @@ export default function PedidoDetailPage() {
                   key={s.key}
                   onClick={() => setStatus(s.key)}
                   disabled={savingAction === 'status' || !allowed}
-                  className={`flex-1 py-1.5 min-h-[36px] rounded-lg text-xs font-heading font-semibold transition-all ${isCurrent ? 'bg-white text-purple shadow-sm' : allowed ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
+                  className={`flex-1 py-1.5 min-h-[44px] rounded-lg text-xs font-heading font-semibold transition-all ${isCurrent ? 'bg-white text-purple shadow-sm' : allowed ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
                 >
                   {s.label}
                 </button>
@@ -668,12 +668,12 @@ export default function PedidoDetailPage() {
           </button>
           {openSections.event && (
             isEditing ? (
-              <div className="space-y-3 pt-3">
+              <div className="space-y-3 pt-3" onFocus={e => { const t = e.target as HTMLElement; if (t.matches('input,select,textarea')) t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={editForm.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" className={OI_CLS} />
-                  <input value={editForm.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Teléfono" className={OI_CLS} />
+                  <input value={editForm.customer_name || ''} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nombre" autoComplete="name" className={OI_CLS} />
+                  <input type="tel" inputMode="numeric" autoComplete="tel" value={editForm.customer_phone || ''} onChange={e => setEditForm(p => ({ ...p, customer_phone: e.target.value }))} placeholder="Teléfono" className={OI_CLS} />
                 </div>
-                <input value={editForm.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={OI_CLS} />
+                <input type="email" inputMode="email" autoComplete="email" value={editForm.customer_email || ''} onChange={e => setEditForm(p => ({ ...p, customer_email: e.target.value }))} placeholder="Email (opcional)" className={OI_CLS} />
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
                   <input type="date" value={editForm.event_date || ''} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))} className={OI_CLS} />
                   <input type="text" value={editForm.event_time || ''} onChange={e => setEditForm(p => ({ ...p, event_time: e.target.value }))} placeholder="Ej: 4:00 pm" className={`${OI_CLS} min-h-[44px] sm:w-32`} />
@@ -687,7 +687,7 @@ export default function PedidoDetailPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input value={editForm.birthday_child_name || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_name: e.target.value }))} placeholder="Cumpleañero" className={OI_CLS} />
-                  <input type="number" value={editForm.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
+                  <input type="number" inputMode="numeric" value={editForm.birthday_child_age || ''} onChange={e => setEditForm(p => ({ ...p, birthday_child_age: e.target.value }))} placeholder="Edad" className={OI_CLS} />
                   <input value={editForm.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tema/Notas" className={OI_CLS} />
                 </div>
               </div>
