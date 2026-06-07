@@ -1553,8 +1553,10 @@ function PeriodPills({ periodKey, setPeriodKey, customFrom, setCustomFrom, custo
 // pedidos viejos que ya estaban cobrados antes de existir los vouchers.
 const CXC_VOUCHER_CUTOFF = '2026-06-07';
 
-// Receivables: ALL non-rejected orders with paid/saldo (saldo>0 means outstanding).
+// Cuentas por cobrar: SOLO pedidos confirmados o realizados (saldo>0 = pendiente de cobro).
+// Un pendiente aún no es CxC (puede no concretarse); rechazados/archivados ya quedaban fuera.
 // unpostedDeposit = depósito reportado por la vendedora aún no asentado en Contabilidad.
+const CXC_STATUSES = ['confirmado', 'realizado'];
 interface Receivable { o: OrderLite; paid: number; saldo: number; unpostedDeposit: number }
 function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[] {
   const voucherPaid = new Map<number, number>();
@@ -1563,7 +1565,7 @@ function computeReceivables(active: Voucher[], orders: OrderLite[]): Receivable[
     voucherPaid.set(v.order_id, (voucherPaid.get(v.order_id) || 0) + (Number(v.amount) || 0));
   }
   return orders
-    .filter(o => { const st = (o.status || '').toLowerCase(); return st !== 'rechazado' && st !== 'rechazada'; })
+    .filter(o => CXC_STATUSES.includes((o.status || '').toLowerCase()))
     .map(o => {
       const fromVouchers = voucherPaid.get(o.id) || 0;
       const deposit = Number(o.deposit_amount) || 0;
