@@ -169,18 +169,16 @@ function TimePicker({ value, onChange, defaultHour, defaultMinute, defaultAmpm }
   const [hour, setHour] = useState(parsed.hour);
   const [minute, setMinute] = useState(parsed.minute);
   const [ampm, setAmpm] = useState<'AM' | 'PM'>(parsed.ampm);
-  const initialized = useRef(false);
 
-  // Initialize stored value if empty
+  // Commit the displayed default as the real value whenever the stored value is
+  // empty, so the visible "4:00 PM" counts as selected from the first render —
+  // no hidden invalid state that the form rejects until the user spins the wheel.
+  // Keyed on `value` (not a one-shot mount ref) so it survives the step slide-in
+  // remounts and StrictMode double-mounts that dropped the old mount-only commit.
   useEffect(() => {
-    if (!initialized.current && !value) {
-      initialized.current = true;
-      onChange(formatTime(parsed.hour, parsed.minute, parsed.ampm));
-    } else if (!initialized.current) {
-      initialized.current = true;
-    }
+    if (!value) onChange(formatTime(defaultHour, defaultMinute, defaultAmpm));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [value]);
 
   const update = (h: number, m: number, ap: 'AM' | 'PM') => {
     setHour(h);
