@@ -494,6 +494,8 @@ function ComprobantesTab({
   const [formKind, setFormKind] = useState<'ingreso' | 'egreso' | null>(null);
   const [detail, setDetail] = useState<Voucher | null>(null);
   const [printing, setPrinting] = useState<Voucher | null>(null);
+  const [voidConfirm, setVoidConfirm] = useState<Voucher | null>(null);
+  const [voiding, setVoiding] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
 
   const loadVouchers = useCallback(async () => {
@@ -555,8 +557,10 @@ function ComprobantesTab({
     downloadCSV(`comprobantes_${from || 'inicio'}_${to || 'fin'}.csv`, headers, rows);
   };
 
+  // Confirmation is handled by the in-app modal below (setVoidConfirm), not
+  // window.confirm() — this runs only after the user taps "Anular" there.
   const handleVoid = async (v: Voucher) => {
-    if (!confirm(`¿Anular el comprobante ${voucherCode(v)}? No se elimina, queda marcado como anulado y deja de sumar en los totales.`)) return;
+    setVoiding(true);
     try {
       const res = await fetch('/api/accounting', {
         method: 'PATCH',
@@ -565,6 +569,7 @@ function ComprobantesTab({
       });
       if (res.ok) {
         showToast('Comprobante anulado');
+        setVoidConfirm(null);
         setDetail(null);
         loadVouchers();
         onMutated();
@@ -573,6 +578,8 @@ function ComprobantesTab({
       }
     } catch {
       showToast('Error de conexión');
+    } finally {
+      setVoiding(false);
     }
   };
 
@@ -759,10 +766,40 @@ function ComprobantesTab({
         <VoucherDetailModal
           voucher={detail}
           onClose={() => setDetail(null)}
-          onVoid={() => handleVoid(detail)}
+          onVoid={() => setVoidConfirm(detail)}
           onPrint={() => { setPrinting(detail); }}
           showToast={showToast}
         />
+      )}
+
+      {voidConfirm && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
+          onClick={() => { if (!voiding) setVoidConfirm(null); }}
+        >
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-3xl mb-2" aria-hidden="true">⚠️</p>
+            <h3 className="font-heading font-bold text-lg text-gray-800 mb-1">¿Anular este comprobante?</h3>
+            <p className="font-body text-sm text-gray-500 mb-1">{voucherCode(voidConfirm)}</p>
+            <p className="font-body text-sm text-gray-500 mb-5">No se puede deshacer.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVoidConfirm(null)}
+                disabled={voiding}
+                className="flex-1 py-3 rounded-xl font-heading font-bold text-gray-600 bg-gray-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleVoid(voidConfirm)}
+                disabled={voiding}
+                className="flex-1 py-3 rounded-xl font-heading font-bold text-white bg-red-600 disabled:opacity-50"
+              >
+                {voiding ? 'Anulando…' : 'Anular'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {printing && (
