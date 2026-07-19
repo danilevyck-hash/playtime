@@ -15,12 +15,17 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(ids)) {
       return NextResponse.json({ error: 'ids array required' }, { status: 400 });
     }
-    const updates = ids.map((id: string, i: number) =>
-      supabaseAdmin!.from('pt_products').update({ sort_order: i }).eq('id', id)
+    // A Supabase query builder RESOLVES with { error } on a DB failure — it does
+    // not reject — so Promise.allSettled always reports "fulfilled" and hid every
+    // failure. Inspect each response's .error instead.
+    const results = await Promise.all(
+      ids.map((id: string, i: number) =>
+        supabaseAdmin!.from('pt_products').update({ sort_order: i }).eq('id', id)
+      )
     );
-    const results = await Promise.allSettled(updates);
-    const allOk = results.every(r => r.status === 'fulfilled');
-    if (!allOk) {
+    const failed = results.filter((r) => r.error);
+    if (failed.length > 0) {
+      console.error('Product order update errors:', failed.map((r) => r.error));
       return NextResponse.json({ error: 'Some updates failed' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });

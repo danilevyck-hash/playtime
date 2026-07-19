@@ -264,9 +264,14 @@ export async function deleteDBVariant(productId: string, variantId: string): Pro
 export async function bulkUpdateProductOrder(ids: string[]): Promise<boolean> {
   const db = supabaseAdmin || supabase;
   if (!db) return false;
-  const updates = ids.map((id, i) => db.from('pt_products').update({ sort_order: i }).eq('id', id));
-  const results = await Promise.allSettled(updates);
-  return results.every(r => r.status === 'fulfilled');
+  // Supabase builders resolve with { error } on failure (they don't reject), so
+  // allSettled's "fulfilled" was always true and silently swallowed DB errors.
+  const results = await Promise.all(
+    ids.map((id, i) => db.from('pt_products').update({ sort_order: i }).eq('id', id))
+  );
+  const failed = results.filter((r) => r.error);
+  if (failed.length > 0) { console.error('bulkUpdateProductOrder errors:', failed.map((r) => r.error)); return false; }
+  return true;
 }
 
 export async function upsertSetting(key: string, value: unknown): Promise<boolean> {

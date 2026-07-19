@@ -6,14 +6,25 @@
 import webpush from 'web-push';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 
-webpush.setVapidDetails(
-  'mailto:playtimekidspty@gmail.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+// Defensive init: setVapidDetails throws on missing/invalid keys. Running it at
+// import time with non-null assertions meant a single missing env var crashed
+// EVERY route that imports this module — including POST /api/orders, so orders
+// died with a 500. Now we only configure web-push when all three inputs exist;
+// otherwise push is silently disabled and orders keep working.
+const VAPID_SUBJECT = 'mailto:playtimekidspty@gmail.com';
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const pushConfigured = Boolean(VAPID_SUBJECT && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+
+if (pushConfigured) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY!, VAPID_PRIVATE_KEY!);
+} else {
+  console.warn('[Push] VAPID keys not configured — push notifications disabled');
+}
 
 export async function sendPushNotification(title: string, body: string, url?: string) {
   console.log('[Push] sendPushNotification called:', title);
+  if (!pushConfigured) { console.warn('[Push] Skipped — VAPID not configured'); return; }
   if (!supabase || !supabaseAdmin) { console.warn('[Push] No supabase client'); return; }
 
   const { data, error: fetchErr } = await supabase

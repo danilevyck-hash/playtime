@@ -11,11 +11,19 @@ interface CartSummaryProps {
   paymentMethod?: 'bank_transfer' | 'credit_card';
 }
 
+/** Round to 2 decimal places — mirrors checkout/page.tsx so totals match. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export default function CartSummary({ showSurcharge, paymentMethod }: CartSummaryProps) {
   const { subtotal, itemCount } = useCart();
   const [texts, setTexts] = useState<SiteTexts>(DEFAULT_SITE_TEXTS);
-  const surcharge = paymentMethod === 'credit_card' ? subtotal * CREDIT_CARD_SURCHARGE : 0;
-  const total = subtotal + surcharge;
+  // Same shape as checkout/page.tsx:117-119: surcharge on (subtotal + transport),
+  // rounded. Transport isn't known in the cart yet (picked at checkout), so it's 0
+  // here — but the base and the round2 now match so the total never drifts by a cent.
+  const surcharge = paymentMethod === 'credit_card' ? round2(subtotal * CREDIT_CARD_SURCHARGE) : 0;
+  const total = round2(subtotal + surcharge);
 
   useEffect(() => {
     getSiteTexts().then(setTexts);

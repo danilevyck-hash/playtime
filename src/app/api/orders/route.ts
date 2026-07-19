@@ -340,8 +340,14 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
       }
       // Validate the transition against the matrix (server-side, not just UI).
-      const { data: cur } = await db.from('pt_orders').select('status, confirmed').eq('id', orderId).single();
-      const current = canonicalStatus(cur || {});
+      // If the read fails we must NOT proceed: a null row canonicalizes to
+      // 'pendiente', which would wrongly allow reopening a closed order.
+      const { data: cur, error: readErr } = await db.from('pt_orders').select('status, confirmed').eq('id', orderId).single();
+      if (readErr || !cur) {
+        console.error('status read error:', readErr);
+        return NextResponse.json({ error: 'No se pudo verificar el estado actual del pedido' }, { status: 500 });
+      }
+      const current = canonicalStatus(cur);
       if (status !== current && !STATUS_TRANSITIONS[current].includes(status as CanonStatus)) {
         return NextResponse.json({ error: `Transición no permitida: ${current} → ${status}` }, { status: 400 });
       }

@@ -291,7 +291,7 @@ export default function CheckoutPage() {
         <CustomerInfoForm data={customer} onChange={setCustomer} onNext={() => setStep(1)} />
       )}
       {step === 1 && (
-        <EventDetailsForm data={event} onChange={setEvent} onNext={() => setStep(2)} onBack={() => setStep(0)} areasLoaded={areasLoaded} eventAreas={eventAreas} />
+        <EventDetailsForm data={event} onChange={(patch) => setEvent((prev) => ({ ...prev, ...patch }))} onNext={() => setStep(2)} onBack={() => setStep(0)} areasLoaded={areasLoaded} eventAreas={eventAreas} />
       )}
       {step === 2 && (
         <OrderReview

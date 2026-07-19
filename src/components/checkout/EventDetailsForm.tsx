@@ -7,7 +7,11 @@ import Button from '@/components/ui/Button';
 
 interface Props {
   data: OrderEvent;
-  onChange: (data: OrderEvent) => void;
+  // Emits a PARTIAL patch, never the full object. The parent merges it onto the
+  // latest state (setEvent(prev => ({ ...prev, ...patch }))), so two fields that
+  // commit in the same render — e.g. both TimePickers on mount — compose instead
+  // of the second overwriting the first with a stale snapshot.
+  onChange: (patch: Partial<OrderEvent>) => void;
   onNext: () => void;
   onBack: () => void;
   areasLoaded?: boolean;
@@ -162,9 +166,13 @@ interface TimePickerProps {
   defaultHour: number;
   defaultMinute: number;
   defaultAmpm: 'AM' | 'PM';
+  // Only required fields auto-commit their visible default. Optional pickers
+  // (e.g. show time) leave the value empty until the user actually spins the
+  // wheel, so an untouched optional picker never fills in a phantom time.
+  commitDefault?: boolean;
 }
 
-function TimePicker({ value, onChange, defaultHour, defaultMinute, defaultAmpm }: TimePickerProps) {
+function TimePicker({ value, onChange, defaultHour, defaultMinute, defaultAmpm, commitDefault = false }: TimePickerProps) {
   const parsed = parseTime(value, defaultHour, defaultMinute, defaultAmpm);
   const [hour, setHour] = useState(parsed.hour);
   const [minute, setMinute] = useState(parsed.minute);
@@ -175,8 +183,9 @@ function TimePicker({ value, onChange, defaultHour, defaultMinute, defaultAmpm }
   // no hidden invalid state that the form rejects until the user spins the wheel.
   // Keyed on `value` (not a one-shot mount ref) so it survives the step slide-in
   // remounts and StrictMode double-mounts that dropped the old mount-only commit.
+  // Guarded by commitDefault so optional pickers never auto-fill.
   useEffect(() => {
-    if (!value) onChange(formatTime(defaultHour, defaultMinute, defaultAmpm));
+    if (commitDefault && !value) onChange(formatTime(defaultHour, defaultMinute, defaultAmpm));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
@@ -270,7 +279,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
           type="date"
           value={data.date}
           min={minDate}
-          onChange={(e) => onChange({ ...data, date: e.target.value })}
+          onChange={(e) => onChange({ date: e.target.value })}
           className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
         />
         {data.date && (
@@ -283,10 +292,11 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'🕒'} Hora de inicio de la fiesta</label>
         <TimePicker
           value={data.time || ''}
-          onChange={(v) => onChange({ ...data, time: v })}
+          onChange={(v) => onChange({ time: v })}
           defaultHour={4}
           defaultMinute={0}
           defaultAmpm="PM"
+          commitDefault
         />
       </div>
 
@@ -295,7 +305,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         <label className="block font-heading font-semibold text-sm text-gray-700 mb-2">{'🎭'} Hora del show / animaci{'ó'}n <span className="text-gray-300 font-normal">{'—'} opcional</span></label>
         <TimePicker
           value={data.showTime || ''}
-          onChange={(v) => onChange({ ...data, showTime: v })}
+          onChange={(v) => onChange({ showTime: v })}
           defaultHour={5}
           defaultMinute={0}
           defaultAmpm="PM"
@@ -307,7 +317,7 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📍'} Área del evento</label>
         <select
           value={data.area}
-          onChange={(e) => onChange({ ...data, area: e.target.value })}
+          onChange={(e) => onChange({ area: e.target.value })}
           className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
         >
           <option value="">Selecciona un área</option>
@@ -333,12 +343,12 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         value={data.address}
         onChange={(e) => {
           const val = e.target.value;
-          onChange({ ...data, address: val });
           // Auto-detect area from address text
           if (!data.area && val.length > 3) {
             const match = areas.find(a => a.name !== 'Otra área' && val.toLowerCase().includes(a.name.toLowerCase()));
-            if (match) onChange({ ...data, address: val, area: match.name });
+            if (match) { onChange({ address: val, area: match.name }); return; }
           }
+          onChange({ address: val });
         }}
         placeholder="Edificio, residencia, piso..."
         autoComplete="street-address"
@@ -347,10 +357,10 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       {/* Birthday child — always visible, optional */}
       <div className="space-y-3 pt-2">
         <p className="font-heading font-semibold text-sm text-gray-400">{'🎂'} Datos del cumplea{'ñ'}ero/a <span className="text-gray-300 font-normal">— opcional</span></p>
-        <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ ...data, birthdayChildName: e.target.value })} placeholder="Nombre del cumpleañero/a" />
+        <Input label="Nombre" value={data.birthdayChildName} onChange={(e) => onChange({ birthdayChildName: e.target.value })} placeholder="Nombre del cumpleañero/a" />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Edad" type="number" inputMode="numeric" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ ...data, birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
-          <Input label="Temática" value={data.theme} onChange={(e) => onChange({ ...data, theme: e.target.value })} placeholder="Patrulla Canina" />
+          <Input label="Edad" type="number" inputMode="numeric" value={data.birthdayChildAge === '' ? '' : String(data.birthdayChildAge)} onChange={(e) => onChange({ birthdayChildAge: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="5" min="1" max="18" />
+          <Input label="Temática" value={data.theme} onChange={(e) => onChange({ theme: e.target.value })} placeholder="Patrulla Canina" />
         </div>
       </div>
 
