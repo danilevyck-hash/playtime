@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS as DEFAULT_AREAS } from '@/lib/types';
-import { fetchEventAreas, fetchLogoUrl } from '@/lib/supabase-data';
+import { fetchEventAreas } from '@/lib/supabase-data';
 import { buildWhatsAppOrderMessage, getWhatsAppUrl } from '@/lib/whatsapp';
-import { generateOrderPDF } from '@/lib/pdf-order';
-import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/context/ToastContext';
 import StepIndicator from '@/components/checkout/StepIndicator';
 import CustomerInfoForm from '@/components/checkout/CustomerInfoForm';
@@ -147,6 +145,10 @@ export default function CheckoutPage() {
       // server confirms a real order (returns orderId). On any failure we keep the
       // cart, stay on this page, and surface a retry — never a fake "success".
       let orderNumber: string | number = '';
+      // The order PDF is now generated + uploaded SERVER-SIDE (private bucket,
+      // service role) inside POST /api/orders. The browser no longer touches
+      // storage with the anon key — it just reads the signed URL the API returns.
+      let pdfUrl = '';
       try {
         if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
         const res = await fetch('/api/orders', {
@@ -172,53 +174,11 @@ export default function CheckoutPage() {
           return;
         }
         orderNumber = data.orderNumber ?? data.orderId;
+        pdfUrl = typeof data.pdfUrl === 'string' ? data.pdfUrl : '';
       } catch (e) {
         console.error('Order save error:', e);
         setSubmitError('No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
         return;
-      }
-
-      // The order now EXISTS in the DB. Everything below is best-effort: PDF
-      // generation/upload is non-critical and must NOT block success or trigger a
-      // re-POST on retry, so it is fully wrapped — the order goes through regardless.
-      let pdfUrl = '';
-      try {
-        setLoadingStep('Generando factura...');
-        const pdfLogoUrl = await fetchLogoUrl().catch(() => null) || `${window.location.origin}/logo-white.png`;
-        const pdfDoc = await generateOrderPDF({
-          orderNumber,
-          customer,
-          event,
-          items,
-          subtotal,
-          transportCost: isTransportPending ? -1 : transportCost,
-          surcharge,
-          total,
-          paymentMethod,
-          logoUrl: pdfLogoUrl,
-        });
-
-        setLoadingStep('Subiendo PDF...');
-        const pdfBlob = pdfDoc.output('blob');
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        if (supabaseUrl && supabaseKey) {
-          const sb = createClient(supabaseUrl, supabaseKey);
-          // Capability URL: append a random 128-bit token so the path is NOT guessable
-          // from the (sequential) order number. The bucket stays public so the WhatsApp
-          // link never expires, but order PDFs can no longer be enumerated.
-          const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
-          const fileName = `pedidos/PlayTime-Pedido-${orderNumber}-${token}.pdf`;
-          await sb.storage.from('playtime-images').upload(fileName, pdfBlob, {
-            contentType: 'application/pdf',
-            upsert: true,
-          });
-          const { data: urlData } = sb.storage.from('playtime-images').getPublicUrl(fileName);
-          pdfUrl = urlData.publicUrl;
-        }
-      } catch (e) {
-        console.error('PDF generate/upload error (non-critical):', e);
-        // Continue without PDF link — order already saved; WhatsApp still works.
       }
 
       // Build WhatsApp URL

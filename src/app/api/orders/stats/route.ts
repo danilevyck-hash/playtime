@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 
 type OrderRow = { status: string | null; confirmed: boolean | null; total: number | null; event_date: string | null; deleted_at: string | null };
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (!isValidSession(request.headers.get('x-admin-token'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }

@@ -3,7 +3,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 
 const NO_CACHE_HEADERS = {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_CACHE_HEADERS });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500, headers: NO_CACHE_HEADERS });
     }

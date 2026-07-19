@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { requireRole } from '@/lib/admin-auth';
 
 function round2(n: number): number {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
@@ -344,7 +344,7 @@ export async function PATCH(request: NextRequest) {
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }

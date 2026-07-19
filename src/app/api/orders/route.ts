@@ -1,14 +1,22 @@
 export const dynamic = "force-dynamic";
 
+import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession, getClientIP } from '@/lib/admin-auth';
 import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { EVENT_AREAS } from '@/lib/types';
 import { sendOrderNotification } from '@/lib/email';
 import { sendPushNotification } from '@/lib/push';
+import { generateOrderPDF } from '@/lib/pdf-order';
 import { sendTelegramNotification } from '@/lib/telegram';
+
+// Private bucket for order PDFs (created by the order-pdfs migration). Uploads
+// use the service-role client; a signed URL is returned for the WhatsApp link.
+const ORDER_PDF_BUCKET = 'order-pdfs';
+const ORDER_PDF_SIGNED_TTL = 60 * 60 * 24 * 7; // 7 days
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Server-validated transport areas: pt_settings('event_areas') with EVENT_AREAS fallback.
  *  Transport is ALWAYS derived from this list by area name, never trusted from the client. */
@@ -107,6 +115,15 @@ export async function POST(request: NextRequest) {
     if (!paymentMethod || !['bank_transfer', 'credit_card'].includes(paymentMethod)) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o credit_card' }, { status: 400 });
     }
+    // Email is OPTIONAL, but if provided it must be a sane string — it's used as
+    // the Resend `to`, so an unvalidated value turns checkout into an email relay.
+    let customerEmail: string | null = null;
+    if (customer.email !== undefined && customer.email !== null && customer.email !== '') {
+      if (typeof customer.email !== 'string' || customer.email.length > 254 || !EMAIL_RE.test(customer.email)) {
+        return NextResponse.json({ error: 'Datos inválidos', details: 'Correo electrónico inválido' }, { status: 400 });
+      }
+      customerEmail = customer.email;
+    }
 
     // Validate each item
     for (const item of items) {
@@ -121,16 +138,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use the service-role client so public order creation does NOT depend on
-    // anon RLS policies (those are being dropped to stop a PII leak on pt_orders).
-    // Service role bypasses RLS for both the INSERT and the RETURNING select.
-    const db = supabaseAdmin || supabase;
+    // Public order creation MUST use the service-role client (anon RLS policies on
+    // pt_orders are dropped to stop a PII leak). No silent anon fallback: 500 if
+    // the key is missing, so a misconfig fails loudly instead of writing nothing.
+    const db = supabaseAdmin;
     if (!db) {
-      // Supabase not configured, return a mock order number
-      const now = new Date();
-      const datePart = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-      const randPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-      return NextResponse.json({ orderNumber: `${datePart}-${randPart}` });
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
 
     // Validate prices against the REAL catalog (pt_products + pt_product_variants) so a
@@ -183,7 +196,7 @@ export async function POST(request: NextRequest) {
     const orderPayload = {
       customer_name: customer.name.trim(),
       customer_phone: customer.phone,
-      customer_email: customer.email || null,
+      customer_email: customerEmail,
       event_date: event.date,
       event_time: event.time,
       event_area: event.area || null,
@@ -229,7 +242,7 @@ export async function POST(request: NextRequest) {
         orderNumber: order.order_number,
         customerName: customer.name.trim(),
         customerPhone: customer.phone,
-        customerEmail: customer.email || undefined,
+        customerEmail: customerEmail || undefined,
         eventDate: event.date,
         eventTime: event.time || '',
         eventArea: event.area || undefined,
@@ -278,7 +291,52 @@ export async function POST(request: NextRequest) {
       console.error('Telegram notification error:', err);
     }
 
-    return NextResponse.json({ orderNumber: order.order_number, orderId: order.id });
+    // Generate the order PDF SERVER-SIDE and upload it to a PRIVATE bucket with
+    // the service-role client (the browser no longer uploads with the anon key).
+    // Best-effort: any failure (e.g. the order-pdfs bucket not created yet) is
+    // logged and skipped — the order already exists and must never be blocked.
+    let pdfUrl: string | null = null;
+    try {
+      const doc = await generateOrderPDF({
+        orderNumber: order.order_number,
+        customer: { name: customer.name.trim(), phone: customer.phone, email: customerEmail || '' },
+        event: {
+          date: event.date,
+          time: event.time || '',
+          area: event.area || '',
+          address: event.address || '',
+          birthdayChildName: event.birthdayChildName || '',
+          birthdayChildAge: event.birthdayChildAge || '',
+          theme: event.theme || '',
+        },
+        items,
+        subtotal: serverSubtotal,
+        transportCost: transportPending ? -1 : serverTransport,
+        surcharge: serverSurcharge,
+        total: serverTotal,
+        paymentMethod: paymentMethod as 'bank_transfer' | 'credit_card',
+        logoUrl: `${request.nextUrl.origin}/logo-white.png`,
+      });
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+      // Random token so the filename isn't guessable even inside the private
+      // bucket. A 7-day signed URL goes into the WhatsApp message.
+      const token = randomUUID().replace(/-/g, '');
+      const path = `PlayTime-Pedido-${order.order_number}-${token}.pdf`;
+      const { error: upErr } = await db.storage.from(ORDER_PDF_BUCKET).upload(path, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+      if (upErr) {
+        console.error('Order PDF upload error (non-critical):', upErr);
+      } else {
+        const { data: signed } = await db.storage.from(ORDER_PDF_BUCKET).createSignedUrl(path, ORDER_PDF_SIGNED_TTL);
+        pdfUrl = signed?.signedUrl || null;
+      }
+    } catch (e) {
+      console.error('Order PDF generate/upload error (non-critical):', e);
+    }
+
+    return NextResponse.json({ orderNumber: order.order_number, orderId: order.id, pdfUrl });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -290,7 +348,7 @@ export async function PATCH(request: NextRequest) {
     if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
@@ -583,9 +641,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
-      return NextResponse.json({ orders: [], message: 'Supabase not configured' });
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
 
     const url = new URL(request.url);
@@ -674,7 +732,7 @@ export async function DELETE(request: NextRequest) {
     if (!isAdminAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdmin;
     if (!db) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }

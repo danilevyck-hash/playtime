@@ -37,6 +37,13 @@ async function loadImageBase64(url: string): Promise<string | null> {
       console.warn(`Logo too large (${(blob.size / 1024).toFixed(0)}KB), skipping`);
       return null;
     }
+    // Isomorphic: this runs BOTH in the browser (admin download) and server-side
+    // (POST /api/orders generates the PDF now). Node has no FileReader — use Buffer.
+    if (typeof FileReader === 'undefined') {
+      const contentType = blob.type || res.headers.get('content-type') || 'image/png';
+      const base64 = Buffer.from(await blob.arrayBuffer()).toString('base64');
+      return `data:${contentType};base64,${base64}`;
+    }
     return new Promise(resolve => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);

@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getClientIP,
-  isRateLimited,
-  clearRateLimit,
+  checkAndCountAttempt,
+  clearAttempts,
   isValidSession,
   getSessionRole,
   createSession,
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request.headers);
 
-    if (isRateLimited(ip)) {
+    if (await checkAndCountAttempt(ip)) {
       return NextResponse.json(
         { ok: false, error: 'Demasiados intentos. Intenta en 15 minutos.' },
         { status: 429 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const result = verifyPin(pin);
     if (result.valid && result.role) {
       const token = createSession(result.role);
-      clearRateLimit(ip);
+      await clearAttempts(ip);
       return NextResponse.json({ ok: true, token, role: result.role });
     }
 

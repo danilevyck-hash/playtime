@@ -1,6 +1,7 @@
 import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabase';
 
-// In-memory rate limiting
+// In-memory rate limiting (fallback only — see checkAndCountAttempt below).
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -69,6 +70,38 @@ export function isRateLimited(ip: string): boolean {
 
 export function clearRateLimit(ip: string): void {
   attempts.delete(ip);
+}
+
+// ─── Serverless-safe rate limiting (Postgres-backed, fail-open) ───
+// The in-memory Map above resets on every cold start and isn't shared across
+// instances, so it can't stop a distributed brute-force of the 4-digit PIN.
+// These count/clear attempts atomically in Supabase (register_login_attempt /
+// clear_login_attempts RPCs). If the table/RPCs aren't deployed yet — or any
+// error occurs — they FALL BACK to the in-memory limiter so login never breaks.
+
+/** Count this attempt and return true if the IP is now over the limit. */
+export async function checkAndCountAttempt(ip: string): Promise<boolean> {
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.rpc('register_login_attempt', { p_ip: ip });
+      if (!error && typeof data === 'boolean') return data;
+    } catch (e) {
+      console.error('[auth] register_login_attempt failed, using in-memory limiter:', e);
+    }
+  }
+  return isRateLimited(ip);
+}
+
+/** Reset the counter for an IP after a successful login. */
+export async function clearAttempts(ip: string): Promise<void> {
+  clearRateLimit(ip); // clear the in-memory fallback too
+  if (supabaseAdmin) {
+    try {
+      await supabaseAdmin.rpc('clear_login_attempts', { p_ip: ip });
+    } catch (e) {
+      console.error('[auth] clear_login_attempts failed:', e);
+    }
+  }
 }
 
 export function isValidSession(token: string | null | undefined): boolean {

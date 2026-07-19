@@ -4,7 +4,7 @@
  * imported from server-side code (API routes). Never import from client components.
  */
 import webpush from 'web-push';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { getPushSubscriptions, removePushEndpoints } from '@/lib/push-subscriptions';
 
 // Defensive init: setVapidDetails throws on missing/invalid keys. Running it at
 // import time with non-null assertions meant a single missing env var crashed
@@ -25,30 +25,21 @@ if (pushConfigured) {
 export async function sendPushNotification(title: string, body: string, url?: string) {
   console.log('[Push] sendPushNotification called:', title);
   if (!pushConfigured) { console.warn('[Push] Skipped — VAPID not configured'); return; }
-  if (!supabase || !supabaseAdmin) { console.warn('[Push] No supabase client'); return; }
 
-  const { data, error: fetchErr } = await supabase
-    .from('pt_settings')
-    .select('value')
-    .eq('key', 'push_subscriptions')
-    .single();
-
-  if (fetchErr) console.error('[Push] Fetch subscriptions error:', fetchErr);
-
-  const subscriptions: webpush.PushSubscription[] = data?.value || [];
+  const subscriptions = await getPushSubscriptions();
   console.log('[Push] Subscriptions count:', subscriptions.length);
   if (subscriptions.length === 0) return;
 
-  const expired: number[] = [];
+  const expired: string[] = [];
 
   await Promise.allSettled(
-    subscriptions.map(async (sub, i) => {
+    subscriptions.map(async (sub) => {
       try {
-        await webpush.sendNotification(sub, JSON.stringify({ title, body, url: url || '/admin' }));
+        await webpush.sendNotification(sub as webpush.PushSubscription, JSON.stringify({ title, body, url: url || '/admin' }));
       } catch (err: unknown) {
         const error = err as { statusCode?: number };
         if (error.statusCode === 410 || error.statusCode === 404) {
-          expired.push(i);
+          expired.push(sub.endpoint);
         } else {
           console.error('Push send error:', err);
         }
@@ -56,11 +47,6 @@ export async function sendPushNotification(title: string, body: string, url?: st
     })
   );
 
-  // Remove expired subscriptions
-  if (expired.length > 0) {
-    const remaining = subscriptions.filter((_, i) => !expired.includes(i));
-    await supabaseAdmin
-      .from('pt_settings')
-      .upsert({ key: 'push_subscriptions', value: remaining }, { onConflict: 'key' });
-  }
+  // Remove expired subscriptions (endpoint-keyed, works for both stores).
+  await removePushEndpoints(expired);
 }
