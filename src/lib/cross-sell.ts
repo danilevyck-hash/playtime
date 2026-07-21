@@ -25,9 +25,6 @@ export async function getCrossSellRules(): Promise<CrossSellRules> {
   return _fetchPromise;
 }
 
-export function clearCrossSellCache() {
-  _cached = null;
-}
 
 export interface SuggestionResult {
   products: Product[];

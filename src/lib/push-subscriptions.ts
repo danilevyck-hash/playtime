@@ -7,7 +7,7 @@
  * service-role client, never the anon client (the old code read them with anon,
  * and pt_settings is world-readable, which leaked the push keys).
  */
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 export interface PushSub {
   endpoint: string;

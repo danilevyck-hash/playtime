@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { isValidSession } from '@/lib/admin-auth';
 import { canonicalStatus } from '@/lib/order-status';
 import { panamaMonthKey } from '@/lib/timezone';

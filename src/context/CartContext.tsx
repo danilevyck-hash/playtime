@@ -127,10 +127,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Persist to localStorage
+  // Persist to localStorage. Wrapped: setItem throws in Safari private mode and
+  // when the quota is exceeded — a full cart must not crash the app.
   useEffect(() => {
     if (state.hydrated) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+      } catch (e) {
+        console.warn('No se pudo guardar el carrito en localStorage:', e);
+      }
     }
   }, [state.items, state.hydrated]);
 

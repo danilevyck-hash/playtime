@@ -43,7 +43,3 @@ export async function getContactInfo(): Promise<ContactInfo> {
 
   return _fetchPromise;
 }
-
-export function clearContactInfoCache() {
-  _cached = null;
-}

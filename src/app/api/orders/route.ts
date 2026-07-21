@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { isValidSession, getClientIP } from '@/lib/admin-auth';
 import { EVENT_AREAS } from '@/lib/types';
+import { buildCartId, baseProductId } from '@/lib/cart-id';
 import { round2, computeOrderTotals } from '@/lib/order-math';
 import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
 import { panamaToday } from '@/lib/timezone';
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
     // crafted POST cannot set arbitrary prices. Cart ids are `productId` or
     // `productId--variantId`; a variant price (when set) overrides the base price. We
     // OVERRIDE each unitPrice with the DB price — never trust the client's number.
-    const baseIds = Array.from(new Set(items.map((i: { productId: string }) => String(i.productId).split('--')[0])));
+    const baseIds = Array.from(new Set(items.map((i: { productId: string }) => baseProductId(String(i.productId)))));
     const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
       db.from('pt_products').select('id, price').in('id', baseIds),
       db.from('pt_product_variants').select('product_id, id, price').in('product_id', baseIds),
@@ -146,11 +147,11 @@ export async function POST(request: NextRequest) {
     for (const p of dbProducts || []) priceByProduct.set(p.id, Math.max(0, Number(p.price) || 0));
     const priceByVariant = new Map<string, number>();
     for (const v of dbVariants || []) {
-      if (v.price != null) priceByVariant.set(`${v.product_id}--${v.id}`, Math.max(0, Number(v.price) || 0));
+      if (v.price != null) priceByVariant.set(buildCartId(v.product_id, v.id), Math.max(0, Number(v.price) || 0));
     }
     for (const item of items) {
       const cartId = String(item.productId);
-      const baseId = cartId.split('--')[0];
+      const baseId = baseProductId(cartId);
       if (!priceByProduct.has(baseId)) {
         // The public catalog is DB-first, so every cart product must exist in pt_products.
         return NextResponse.json({ error: 'Datos inválidos', details: `Producto no encontrado: ${item.name}` }, { status: 400 });

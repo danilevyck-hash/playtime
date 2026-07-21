@@ -5,9 +5,11 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: join('/Users/daniellevy/Desktop/APPS/playtime', '.env.vercel.tmp') });
-config({ path: join('/Users/daniellevy/Desktop/APPS/playtime', '.env.local') });
-config({ path: join('/Users/daniellevy/Desktop/APPS/playtime', '.env') });
+// Repo root = one level up from scripts/ (works wherever the repo is cloned).
+const ROOT = join(__dirname, '..');
+config({ path: join(ROOT, '.env.vercel.tmp') });
+config({ path: join(ROOT, '.env.local') });
+config({ path: join(ROOT, '.env') });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

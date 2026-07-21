@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole } from '@/lib/admin-auth';
 
 // Column allowlist for pt_products. A raw {...fields} spread let a crafted POST

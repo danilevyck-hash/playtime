@@ -3,17 +3,20 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
 interface Toast { id: number; message: string; }
-interface ToastContextType { showToast: (message: string) => void; }
+type ToastType = 'success' | 'error';
+interface ToastContextType { showToast: (message: string, type?: ToastType) => void; }
 
 const ToastContext = createContext<ToastContextType>({ showToast: () => {} });
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string) => {
+  const showToast = useCallback((message: string, type: ToastType = 'success') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2500);
+    // Errors linger (8s) so they can be read; success is a quick confirmation (2.5s).
+    const duration = type === 'error' ? 8000 : 2500;
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
   }, []);
 
   return (

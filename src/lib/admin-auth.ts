@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 // In-memory rate limiting (fallback only — see checkAndCountAttempt below).
 const attempts = new Map<string, { count: number; resetAt: number }>();

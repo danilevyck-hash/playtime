@@ -224,7 +224,7 @@ export default function CheckoutPage() {
       router.push(`/checkout/confirmacion?pedido=${orderNumber}&metodo=${paymentMethod}&wa=${encodeURIComponent(waUrl)}`);
     } catch (e) {
       console.error('Checkout error:', e);
-      showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos');
+      showToast('Ups, algo salió mal. Escríbenos por WhatsApp y te ayudamos', 'error');
     } finally {
       setLoading(false);
       setLoadingStep('');

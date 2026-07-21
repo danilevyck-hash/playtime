@@ -6,6 +6,7 @@ import { Product, ProductVariant } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import { useFavorites } from '@/lib/useFavorites';
+import { buildCartId } from '@/lib/cart-id';
 import Button from '@/components/ui/Button';
 
 interface Props {
@@ -30,7 +31,7 @@ export default function ProductDetailClient({ product, gallery }: Props) {
 
   const hasVariants = !!(product.variants && product.variants.length > 0);
   const activePrice = selectedVariant?.price ?? product.price;
-  const cartId = hasVariants && selectedVariant ? `${product.id}--${selectedVariant.id}` : product.id;
+  const cartId = buildCartId(product.id, hasVariants && selectedVariant ? selectedVariant.id : undefined);
   const cartName = hasVariants && selectedVariant ? `${product.name} — ${selectedVariant.label}` : product.name;
   const inCart = items.find((i) => i.productId === cartId);
   const needsVariant = hasVariants && !selectedVariant;
