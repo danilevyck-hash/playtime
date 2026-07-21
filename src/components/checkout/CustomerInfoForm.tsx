@@ -58,14 +58,20 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
     if (localNumber.length < minDigits) errs.phone = `Ingresa al menos ${minDigits} dígitos`;
     if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email)) errs.email = 'El formato del email no es válido';
     setErrors(errs);
-    if (Object.keys(errs).length === 0) onNext();
+    const order = ['name', 'phone', 'email'];
+    const firstBad = order.find((k) => errs[k]);
+    if (!firstBad) { onNext(); return; }
+    const idFor: Record<string, string> = { name: 'customer-name', phone: 'customer-phone', email: 'customer-email' };
+    requestAnimationFrame(() => document.getElementById(idFor[firstBad])?.focus());
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
       <h2 className="font-heading font-bold text-xl text-purple mb-4">{'\u00bf'}Con qui&eacute;n hablamos?</h2>
       <Input
+        id="customer-name"
         label="Nombre completo"
+        required
         value={data.name}
         onChange={(e) => { onChange({ ...data, name: e.target.value }); if (e.target.value.trim()) setErrors(prev => { const n = { ...prev }; delete n.name; return n; }); }}
         placeholder="María García"
@@ -110,6 +116,7 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
       </div>
 
       <Input
+        id="customer-email"
         label="Email (opcional)"
         type="email"
         inputMode="email"

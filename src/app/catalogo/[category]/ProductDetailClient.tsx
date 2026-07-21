@@ -72,9 +72,12 @@ export default function ProductDetailClient({ product, gallery }: Props) {
                   <button
                     key={i}
                     onClick={() => setActiveIndex(i)}
-                    className={`w-2 h-2 rounded-full ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60'}`}
-                    aria-label={`Ir a imagen ${i + 1}`}
-                  />
+                    aria-label={`Ir a imagen ${i + 1} de ${allImages.length}`}
+                    aria-current={i === activeIndex ? 'true' : undefined}
+                    className="p-2 flex items-center"
+                  >
+                    <span aria-hidden="true" className={`block h-2 rounded-full transition-all ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60 w-2'}`} />
+                  </button>
                 ))}
               </div>
             </>

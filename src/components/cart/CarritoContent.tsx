@@ -100,9 +100,10 @@ export default function CarritoContent() {
                         quantityStep: p.quantityStep,
                         quantity: p.minQuantity || 1,
                       })}
-                      className="w-9 h-9 rounded-full bg-orange text-white flex items-center justify-center text-base font-bold hover:bg-orange/90 transition-colors"
+                      aria-label={`Agregar ${p.name} al carrito`}
+                      className="w-11 h-11 rounded-full bg-orange-solid text-white flex items-center justify-center text-base font-bold hover:bg-orange-solid/90 transition-colors"
                     >
-                      +
+                      <span aria-hidden="true">+</span>
                     </button>
                   </div>
                 </div>

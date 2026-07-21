@@ -61,7 +61,7 @@ export default function CartItem({ item }: CartItemProps) {
           >
             -
           </button>
-          <span className="w-8 text-center font-heading font-semibold text-gray-800">{item.quantity}</span>
+          <span aria-live="polite" aria-atomic="true" className="w-8 text-center font-heading font-semibold text-gray-800">{item.quantity}</span>
           <button
             onClick={() => updateQuantity(item.productId, item.quantity + stepQty)}
             className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center font-heading font-bold text-base text-gray-600 active:bg-gray-200 transition-colors"

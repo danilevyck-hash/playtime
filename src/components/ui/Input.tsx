@@ -36,11 +36,12 @@ export default function Input({ label, error, className = '', required, value, p
           ref={ref}
           id={id}
           required={required}
+          aria-required={required || undefined}
           value={value}
           placeholder=" "
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className={`peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-gray-200 bg-white font-body text-gray-800 focus:border-teal focus:outline-none transition-colors ${error ? 'border-pink' : ''} ${className}`}
+          className={`peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-gray-200 bg-white font-body text-gray-800 focus:border-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-purple transition-colors ${error ? 'border-pink' : ''} ${className}`}
           {...props}
         />
         <label htmlFor={id} className={`absolute left-4 transition-all pointer-events-none font-heading font-semibold ${

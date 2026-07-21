@@ -238,7 +238,7 @@ export default function CheckoutPage() {
       <StepIndicator current={step} />
 
       {submitError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 my-4 text-center">
+        <div role="alert" aria-live="assertive" className="bg-red-50 border border-red-200 rounded-xl p-4 my-4 text-center">
           <p className="font-heading font-bold text-red-600 mb-1">No se pudo enviar tu pedido</p>
           <p className="font-body text-sm text-red-500 mb-3">{submitError} Tu carrito sigue intacto.</p>
           <button

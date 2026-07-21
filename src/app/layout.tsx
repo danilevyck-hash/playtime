@@ -119,12 +119,18 @@ export default async function RootLayout({
       <body
         className={`${chalet.variable} font-body antialiased`}
       >
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[10000] focus:bg-purple focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-heading focus:font-bold"
+        >
+          Saltar al contenido
+        </a>
         <ToastProvider>
           <CartProvider>
             <ProductsProvider>
               <LogoProvider initialLogoUrl={logoUrl}>
                 <Navbar />
-                <main className="min-h-screen">{children}</main>
+                <main id="main" className="min-h-screen">{children}</main>
                 <Footer />
               </LogoProvider>
               <WhatsAppButton />

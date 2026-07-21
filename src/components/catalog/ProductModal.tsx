@@ -212,13 +212,17 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
 
           {/* Dots */}
           {hasMultiple && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex">
               {allImages.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveIndex(i)}
-                  className={`w-2 h-2 rounded-full ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60'}`}
-                />
+                  aria-label={`Ir a imagen ${i + 1} de ${allImages.length}`}
+                  aria-current={i === activeIndex ? 'true' : undefined}
+                  className="p-2 flex items-center"
+                >
+                  <span aria-hidden="true" className={`block h-2 rounded-full transition-all ${i === activeIndex ? 'bg-white w-4' : 'bg-white/60 w-2'}`} />
+                </button>
               ))}
             </div>
           )}
@@ -277,7 +281,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
                 >
                   −
                 </button>
-                <span className="min-w-[28px] text-center font-heading font-bold text-base text-purple select-none">{quantity}</span>
+                <span aria-live="polite" aria-atomic="true" className="min-w-[28px] text-center font-heading font-bold text-base text-purple select-none">{quantity}</span>
                 <button
                   onClick={() => setQuantity(q => q + stepQty)}
                   className="min-h-[44px] w-10 flex items-center justify-center rounded-r-full text-lg font-heading font-bold text-gray-500 hover:text-purple transition-colors disabled:opacity-30"

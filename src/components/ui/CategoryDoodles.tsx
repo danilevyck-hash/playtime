@@ -3,7 +3,7 @@
 
 export function DoodlePlanes({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Party hat */}
       <path d="M32 8L18 52h28L32 8z" stroke="#580459" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="#F2C84B" fillOpacity="0.2"/>
       <path d="M22 38h20" stroke="#49B3BF" strokeWidth="2" strokeLinecap="round"/>
@@ -21,7 +21,7 @@ export function DoodlePlanes({ className = 'w-10 h-10' }: { className?: string }
 
 export function DoodleBelleza({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Nail polish bottle */}
       <rect x="22" y="28" width="20" height="28" rx="4" stroke="#580459" strokeWidth="2.5" fill="#F27289" fillOpacity="0.2"/>
       <rect x="26" y="16" width="12" height="14" rx="2" stroke="#580459" strokeWidth="2.5" fill="#F27289" fillOpacity="0.15"/>
@@ -36,7 +36,7 @@ export function DoodleBelleza({ className = 'w-10 h-10' }: { className?: string 
 
 export function DoodleEntretenimiento({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Theatre mask */}
       <path d="M16 22c0 16 10 26 16 26s16-10 16-26" stroke="#580459" strokeWidth="2.5" strokeLinecap="round" fill="#49B3BF" fillOpacity="0.15"/>
       <path d="M16 22c0-4 7-10 16-10s16 6 16 10" stroke="#580459" strokeWidth="2.5" strokeLinecap="round"/>
@@ -54,7 +54,7 @@ export function DoodleEntretenimiento({ className = 'w-10 h-10' }: { className?:
 
 export function DoodleSnacks({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Popcorn box */}
       <path d="M18 26l4 30h20l4-30H18z" stroke="#580459" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="#49B3BF" fillOpacity="0.15"/>
       <path d="M18 26h28" stroke="#580459" strokeWidth="2.5" strokeLinecap="round"/>
@@ -73,7 +73,7 @@ export function DoodleSnacks({ className = 'w-10 h-10' }: { className?: string }
 
 export function DoodleGymboree({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Castle/fort */}
       <rect x="14" y="24" width="36" height="32" rx="2" stroke="#580459" strokeWidth="2.5" fill="#49B3BF" fillOpacity="0.12"/>
       {/* Towers */}
@@ -95,7 +95,7 @@ export function DoodleGymboree({ className = 'w-10 h-10' }: { className?: string
 
 export function DoodleInflables({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Bounce house shape */}
       <path d="M10 52h44" stroke="#580459" strokeWidth="2.5" strokeLinecap="round"/>
       <path d="M12 52V28c0-12 8-18 20-18s20 6 20 18v24" stroke="#580459" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="#F27289" fillOpacity="0.15"/>
@@ -112,7 +112,7 @@ export function DoodleInflables({ className = 'w-10 h-10' }: { className?: strin
 
 export function DoodlePiscinas({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Ball pit / pool */}
       <ellipse cx="32" cy="40" rx="24" ry="14" stroke="#580459" strokeWidth="2.5" fill="#49B3BF" fillOpacity="0.15"/>
       {/* Balls */}
@@ -128,7 +128,7 @@ export function DoodlePiscinas({ className = 'w-10 h-10' }: { className?: string
 
 export function DoodleAlquiler({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Balloon */}
       <ellipse cx="32" cy="24" rx="14" ry="18" stroke="#580459" strokeWidth="2.5" fill="#F27289" fillOpacity="0.2"/>
       <path d="M32 42l-3 4h6l-3-4z" stroke="#580459" strokeWidth="2" strokeLinejoin="round"/>
@@ -142,7 +142,7 @@ export function DoodleAlquiler({ className = 'w-10 h-10' }: { className?: string
 
 export function DoodleServicios({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Music notes */}
       <circle cx="20" cy="44" r="6" stroke="#580459" strokeWidth="2.5" fill="#49B3BF" fillOpacity="0.2"/>
       <path d="M26 44V14" stroke="#580459" strokeWidth="2.5" strokeLinecap="round"/>
@@ -157,7 +157,7 @@ export function DoodleServicios({ className = 'w-10 h-10' }: { className?: strin
 
 export function DoodleManualidades({ className = 'w-10 h-10' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Paint palette */}
       <path d="M32 10C18 10 8 20 8 32c0 14 12 22 24 22 4 0 6-2 6-4 0-1-.5-2-1-3-1-1-1.5-2-1.5-3 0-3 2-4 6-4 6 0 14-6 14-14 0-12-10-16-24-16z" stroke="#580459" strokeWidth="2.5" fill="#F2C84B" fillOpacity="0.1"/>
       {/* Paint dots */}

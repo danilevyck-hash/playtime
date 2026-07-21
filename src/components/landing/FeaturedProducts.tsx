@@ -80,7 +80,7 @@ export default function FeaturedProducts({ content, featured }: FeaturedProps) {
                 >
                   {product.name}
                 </h3>
-                <p className="font-body font-normal text-xs sm:text-sm text-gray-500 mb-2 sm:mb-4 leading-relaxed line-clamp-2">
+                <p className="font-body font-normal text-xs sm:text-sm text-gray-600 mb-2 sm:mb-4 leading-relaxed line-clamp-2">
                   {product.description}
                 </p>
                 <div className="flex items-center justify-between mt-auto pt-2 sm:pt-4 border-t border-gray-200 gap-1 sm:gap-2 overflow-hidden">

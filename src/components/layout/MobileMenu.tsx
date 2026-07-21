@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { CATEGORY_LABELS, Category } from '@/lib/types';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
 
 interface MobileMenuProps {
   open: boolean;
@@ -14,33 +15,28 @@ interface MobileMenuProps {
 const CATEGORY_ORDER: Category[] = ['planes', 'spa', 'show', 'snacks', 'softplay', 'bounces', 'addons', 'creative'];
 
 export default function MobileMenu({ open, onClose, links }: MobileMenuProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
+  // Focus trap: Escape closes, Tab cycles inside, focus restores to the hamburger.
+  const dialogRef = useFocusTrap<HTMLDivElement>(open, onClose);
 
   useEffect(() => {
     if (!open) return;
     document.body.style.overflow = 'hidden';
     document.body.dataset.menuOpen = '1';
-    closeRef.current?.focus();
-
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = '';
       delete document.body.dataset.menuOpen;
-      document.removeEventListener('keydown', handleKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   const adminLink = links.find(l => l.href === '/admin');
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-white md:hidden" aria-modal="true">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="fixed inset-0 z-[9999] bg-white md:hidden">
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <span className="font-heading font-bold text-lg text-gray-800">Menú</span>
         <button
-          ref={closeRef}
           onClick={onClose}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
           aria-label="Cerrar menú"

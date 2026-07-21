@@ -50,17 +50,15 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
       className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.98] flex flex-col animate-slide-up"
       style={{ animationDelay: `${Math.min(index * 50, 400)}ms`, animationFillMode: 'both' }}
     >
-      <button
-        onClick={() => onSelect(product)}
-        className="relative aspect-[4/3] bg-gray-100 cursor-pointer group overflow-hidden"
-      >
+      {/* Image area: siblings, not nested buttons (nested interactive = invalid HTML) */}
+      <div className="relative aspect-[4/3] bg-gray-100 group overflow-hidden">
         {product.image ? (
           <>
             <div className={`absolute inset-0 bg-gray-100 ${loaded ? '' : 'animate-pulse'}`} />
             <Image
               key={`${product.id}-${product.image}`}
               src={product.image}
-              alt={product.name}
+              alt=""
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className={`object-cover group-hover:scale-105 transition-all duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
@@ -68,32 +66,33 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
             />
           </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-teal/10">
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple/5 to-teal/10" aria-hidden="true">
             <span className="text-3xl">{CATEGORY_ICONS[product.category]}</span>
           </div>
         )}
 
-        {/* Favorito — círculo blanco con corazón centrado */}
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggle(product.id); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); toggle(product.id); } }}
-          className="absolute top-2 left-2 z-[2] w-6 h-6 rounded-full bg-white flex items-center justify-center cursor-pointer"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
+        {/* Main select button — covers the image, sits UNDER the corner buttons */}
+        <button
+          type="button"
+          onClick={() => onSelect(product)}
+          className="absolute inset-0 z-[1] cursor-pointer"
+          aria-label={`Ver ${product.name}`}
+        />
+
+        {/* Favorito — botón hermano, área táctil 44px, aria-pressed */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggle(product.id); }}
+          aria-pressed={fav}
           aria-label={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+          className="absolute top-0 left-0 z-[2] w-11 h-11 flex items-center justify-center"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-              stroke={fav ? '#EF4444' : '#9CA3AF'}
-              fill={fav ? '#EF4444' : 'none'}
-              strokeWidth={2}
-            />
-          </svg>
-        </span>
+          <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" stroke={fav ? '#EF4444' : '#9CA3AF'} fill={fav ? '#EF4444' : 'none'} strokeWidth={2} />
+            </svg>
+          </span>
+        </button>
 
         {product.popular && (
           <span className="absolute bottom-2 left-2 text-[10px] font-heading font-bold text-white bg-orange px-2 py-0.5 rounded-full shadow-sm z-[1]">
@@ -106,25 +105,23 @@ export default memo(function ProductCard({ product, onSelect, index = 0 }: Produ
           </span>
         )}
 
-        {/* Botón "+" circular sobre la foto */}
+        {/* Botón "+" — hermano, área táctil 44px */}
         <button
           type="button"
           onClick={handleAdd}
-          className="absolute bottom-2 right-2 z-[2] flex items-center justify-center text-white font-bold transition-transform active:scale-90 hover:scale-110"
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: '50%',
-            backgroundColor: '#F27405',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-          }}
+          className="absolute bottom-0 right-0 z-[2] w-11 h-11 flex items-center justify-center active:scale-90 transition-transform"
           aria-label={hasVariants ? `Ver opciones de ${product.name}` : `Agregar ${product.name} al carrito`}
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
+          <span
+            className="flex items-center justify-center text-white"
+            style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: '#C2410C', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </span>
         </button>
-      </button>
+      </div>
 
       <div className="p-2 sm:p-3 flex flex-col flex-1">
         <h3

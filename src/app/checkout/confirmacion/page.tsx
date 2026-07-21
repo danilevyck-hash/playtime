@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchLogoUrl, fetchSetting } from '@/lib/supabase-data';
 import { BANK_INFO, CONTACT } from '@/lib/constants';
@@ -49,6 +49,13 @@ function ConfirmacionContent() {
     { icon: '\uD83D\uDCCB', title: 'Cambios y cancelaciones', text: 'Cambios o cancelaciones: m\u00ednimo 48h antes ($50 penalidad despu\u00e9s)' },
     { icon: '\uD83D\uDCB3', title: 'M\u00e9todos de pago', text: `Datos bancarios: ${BANK_INFO.bank} \u00b7 ${BANK_INFO.name} \u00b7 Cta. Ahorros ${BANK_INFO.accountNumber}` },
   ]);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // Announce the success page: set the tab title and move focus to the heading.
+  useEffect(() => {
+    document.title = 'Pedido enviado | PlayTime Panamá';
+    headingRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     fetchLogoUrl().then(u => { if (u) setLogoUrl(u); else setLogoUrl('/logo.png'); }).catch(() => setLogoUrl('/logo.png'));
@@ -92,7 +99,7 @@ function ConfirmacionContent() {
 
         <div className="text-6xl animate-bounce">{'\u2705'}</div>
 
-        <h1 className="font-heading font-black text-3xl md:text-4xl text-purple">
+        <h1 ref={headingRef} tabIndex={-1} className="font-heading font-black text-3xl md:text-4xl text-purple focus:outline-none">
           {'\u00a1'}Tu solicitud fue enviada!
         </h1>
         {pedido && <p className="font-heading font-bold text-lg text-purple">Pedido #{pedido}</p>}
