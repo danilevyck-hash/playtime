@@ -1,14 +1,17 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useId } from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
 }
 
-export default function Input({ label, error, className = '', required, value, placeholder, ...props }: InputProps) {
+export default function Input({ label, error, className = '', required, value, placeholder, id: idProp, ...props }: InputProps) {
   const ref = useRef<HTMLInputElement>(null);
+  const autoId = useId();
+  const id = idProp || autoId;
+  const errorId = `${id}-error`;
   const hasValue = value !== undefined && value !== '';
 
   useEffect(() => {
@@ -31,16 +34,19 @@ export default function Input({ label, error, className = '', required, value, p
       <div className="relative">
         <input
           ref={ref}
+          id={id}
           required={required}
           value={value}
           placeholder=" "
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={`peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-gray-200 bg-white font-body text-gray-800 focus:border-teal focus:outline-none transition-colors ${error ? 'border-pink' : ''} ${className}`}
           {...props}
         />
-        <label className={`absolute left-4 transition-all pointer-events-none font-heading font-semibold ${
+        <label htmlFor={id} className={`absolute left-4 transition-all pointer-events-none font-heading font-semibold ${
           hasValue
-            ? 'top-1.5 text-[10px] text-teal'
-            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400 peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[10px] peer-focus:text-teal peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-teal'
+            ? 'top-1.5 text-[10px] text-teal-text'
+            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400 peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[10px] peer-focus:text-teal-text peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-teal-text'
         }`}>
           {label}
         </label>
@@ -52,8 +58,8 @@ export default function Input({ label, error, className = '', required, value, p
         )}
       </div>
       {error && (
-        <span className="text-xs text-pink font-body flex items-center gap-1">
-          <span className="text-pink">*</span> {error}
+        <span id={errorId} role="alert" className="text-xs text-pink-text font-body flex items-center gap-1">
+          <span className="text-pink-text">*</span> {error}
         </span>
       )}
     </div>

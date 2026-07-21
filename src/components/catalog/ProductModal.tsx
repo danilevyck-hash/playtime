@@ -6,6 +6,7 @@ import { Product, ProductVariant } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
 import { useFavorites } from '@/lib/useFavorites';
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
 import Button from '@/components/ui/Button';
 
 interface ProductModalProps {
@@ -21,7 +22,8 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [copied, setCopied] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  // Dialog element ref: traps focus, Escape closes, restores focus on close.
+  const sheetRef = useFocusTrap<HTMLDivElement>(!!product, onClose);
   const dragStartY = useRef<number | null>(null);
   const [dragDeltaY, setDragDeltaY] = useState(0);
   const isDragging = useRef(false);
@@ -67,8 +69,9 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
 
   useEffect(() => {
     if (!product) return;
+    // Escape + focus trap are handled by useFocusTrap; here we only add the
+    // image carousel arrow keys.
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft' && allImages.length > 1) setActiveIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1);
       if (e.key === 'ArrowRight' && allImages.length > 1) setActiveIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0);
     };
@@ -104,6 +107,9 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
       {/* Modal */}
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-modal-title"
         className="relative bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-sheet-up sm:animate-modal-in"
         style={dragDeltaY > 0 ? { transform: `translateY(${dragDeltaY}px)`, transition: 'none' } : undefined}
         onClick={(e) => e.stopPropagation()}
@@ -221,10 +227,10 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
 
         {/* Content */}
         <div className="p-6 md:p-8">
-          <div className="text-xs font-heading font-semibold text-teal uppercase tracking-wider mb-2">
+          <div className="text-xs font-heading font-semibold text-teal-text uppercase tracking-wider mb-2">
             {product.category}
           </div>
-          <h2 className="font-heading font-bold text-2xl md:text-3xl text-gray-800 mb-3">
+          <h2 id="product-modal-title" className="font-heading font-bold text-2xl md:text-3xl text-gray-800 mb-3">
             {product.name}
           </h2>
           <p className="font-body text-gray-500 leading-relaxed mb-6">
@@ -258,7 +264,7 @@ export default function ProductModal({ product, onClose, extraImages, variantIma
           <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 md:-mx-8 px-6 md:px-8 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3">
             <div className="shrink-0">
               <span className="font-heading font-bold text-2xl text-purple">{formatCurrency(activePrice)}</span>
-              {inCart && <span className="text-xs font-heading font-semibold text-teal ml-2">{inCart.quantity} en carrito</span>}
+              {inCart && <span className="text-xs font-heading font-semibold text-teal-text ml-2">{inCart.quantity} en carrito</span>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {/* Quantity stepper */}

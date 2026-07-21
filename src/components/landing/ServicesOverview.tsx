@@ -57,7 +57,7 @@ export default function ServicesOverview({ content }: ServicesProps) {
               {Doodle ? <Doodle className="w-12 h-12 mb-2" /> : <span className="text-3xl block mb-2">{cat.icon}</span>}
               <h3 className="font-heading font-bold text-base text-gray-800 mb-1">{cat.label}</h3>
               <p className="font-body font-normal text-xs text-gray-500 leading-relaxed line-clamp-2">{cat.description}</p>
-              <p className={`font-heading font-bold text-xs mt-1 ${STARTING_PRICES[cat.id] === 'Consultar' ? 'text-gray-500' : 'text-orange'}`}>
+              <p className={`font-heading font-bold text-xs mt-1 ${STARTING_PRICES[cat.id] === 'Consultar' ? 'text-gray-500' : 'text-orange-text'}`}>
                 {STARTING_PRICES[cat.id]}
               </p>
             </Link>

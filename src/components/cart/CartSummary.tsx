@@ -39,7 +39,7 @@ export default function CartSummary({ showSurcharge, paymentMethod }: CartSummar
       {showSurcharge && paymentMethod === 'credit_card' && (
         <div className="flex justify-between items-center mb-3">
           <span className="font-body text-gray-600">Recargo tarjeta (5%)</span>
-          <span className="font-heading font-semibold text-orange">{formatCurrency(surcharge)}</span>
+          <span className="font-heading font-semibold text-orange-text">{formatCurrency(surcharge)}</span>
         </div>
       )}
       <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between items-center">

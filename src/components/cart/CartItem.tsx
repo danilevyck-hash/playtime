@@ -73,7 +73,7 @@ export default function CartItem({ item }: CartItemProps) {
         <p className="font-heading font-bold text-gray-800">{formatCurrency(item.unitPrice * item.quantity)}</p>
       </div>
       {stepQty > 1 && (
-        <p className="text-xs font-body text-orange pl-[68px] mt-1">Se vende de {stepQty} en {stepQty}</p>
+        <p className="text-xs font-body text-orange-text pl-[68px] mt-1">Se vende de {stepQty} en {stepQty}</p>
       )}
     </div>
   );

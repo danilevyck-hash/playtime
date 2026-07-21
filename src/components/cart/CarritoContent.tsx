@@ -51,7 +51,7 @@ export default function CarritoContent() {
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
       {/* Urgency banner */}
       <div className="bg-teal/10 rounded-2xl p-3 mb-6 text-center">
-        <p className="font-heading font-semibold text-sm text-teal">
+        <p className="font-heading font-semibold text-sm text-teal-text">
           {texts.cart_urgency}
         </p>
       </div>

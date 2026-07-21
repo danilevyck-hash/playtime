@@ -159,11 +159,11 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <h3 className="font-heading font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">{'\u00bf'}C{'ó'}mo prefieres pagar?</h3>
           <div className="flex gap-2">
-            <button onClick={() => onPaymentMethodChange('bank_transfer')} className={`flex-1 py-3 rounded-xl border-2 font-heading font-semibold text-sm text-center ${paymentMethod === 'bank_transfer' ? 'border-teal bg-teal/5 text-teal' : 'border-gray-200 text-gray-500'}`}>
+            <button onClick={() => onPaymentMethodChange('bank_transfer')} className={`flex-1 py-3 rounded-xl border-2 font-heading font-semibold text-sm text-center ${paymentMethod === 'bank_transfer' ? 'border-teal bg-teal/5 text-teal-text' : 'border-gray-200 text-gray-500'}`}>
               Transferencia
             </button>
-            <button onClick={() => onPaymentMethodChange('credit_card')} className={`flex-1 py-3 rounded-xl border-2 font-heading font-semibold text-sm text-center ${paymentMethod === 'credit_card' ? 'border-teal bg-teal/5 text-teal' : 'border-gray-200 text-gray-500'}`}>
-              Tarjeta <span className="text-orange text-xs">+5%</span>
+            <button onClick={() => onPaymentMethodChange('credit_card')} className={`flex-1 py-3 rounded-xl border-2 font-heading font-semibold text-sm text-center ${paymentMethod === 'credit_card' ? 'border-teal bg-teal/5 text-teal-text' : 'border-gray-200 text-gray-500'}`}>
+              Tarjeta <span className="text-orange-text text-xs">+5%</span>
             </button>
           </div>
         </div>
@@ -184,13 +184,13 @@ export default function OrderReview({ customer, event, paymentMethod, onPaymentM
         {isTransportPending && (
           <div className="flex justify-between text-sm font-body mb-1">
             <span className="text-gray-600">Transporte</span>
-            <span className="font-heading font-semibold text-orange">Se confirma por WhatsApp</span>
+            <span className="font-heading font-semibold text-orange-text">Se confirma por WhatsApp</span>
           </div>
         )}
         {surcharge > 0 && (
           <div className="flex justify-between text-sm font-body mb-1">
             <span className="text-gray-600">Recargo tarjeta (5%)</span>
-            <span className="font-heading font-semibold text-orange">{formatCurrency(surcharge)}</span>
+            <span className="font-heading font-semibold text-orange-text">{formatCurrency(surcharge)}</span>
           </div>
         )}
         <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between">

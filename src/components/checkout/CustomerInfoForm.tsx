@@ -75,9 +75,10 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
 
       {/* Phone with country code */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">Celular</label>
+        <label htmlFor="customer-phone" className="block font-heading font-semibold text-sm text-gray-700 mb-1">Celular</label>
         <div className="flex gap-2">
           <select
+            aria-label="Código de país"
             value={countryCode}
             onChange={(e) => handlePhoneChange(e.target.value, localNumber)}
             className="border-2 border-gray-200 rounded-xl py-2.5 px-2 font-body text-sm focus:border-purple focus:outline-none bg-white w-28"
@@ -89,17 +90,20 @@ export default function CustomerInfoForm({ data, onChange, onNext }: Props) {
             ))}
           </select>
           <input
+            id="customer-phone"
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
             value={localNumber}
             onChange={(e) => handlePhoneChange(countryCode, e.target.value)}
             placeholder="6XXX-XXXX"
+            aria-invalid={errors.phone ? true : undefined}
+            aria-describedby={errors.phone ? 'customer-phone-error' : undefined}
             className={`flex-1 border-2 rounded-xl py-2.5 px-3 font-body text-sm focus:outline-none transition-colors ${errors.phone ? 'border-pink focus:border-pink' : 'border-gray-200 focus:border-purple'}`}
           />
         </div>
         {errors.phone && (
-          <span className="text-xs text-pink font-body mt-1 flex items-center gap-1">
+          <span id="customer-phone-error" role="alert" className="text-xs text-pink-text font-body mt-1 flex items-center gap-1">
             <span>*</span> {errors.phone}
           </span>
         )}

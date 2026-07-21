@@ -263,9 +263,9 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
       <h2 className="font-heading font-bold text-xl text-purple">Cu&eacute;ntanos de tu fiesta {'🎂'}</h2>
 
       {errors.length > 0 && (
-        <div className="bg-pink/10 border border-pink/30 rounded-xl p-3">
+        <div role="alert" className="bg-pink/10 border border-pink/30 rounded-xl p-3">
           {errors.map((err, i) => (
-            <p key={i} className="font-body text-xs text-pink flex items-center gap-1.5">
+            <p key={i} className="font-body text-xs text-pink-text flex items-center gap-1.5">
               <span>*</span> {err}
             </p>
           ))}
@@ -274,8 +274,9 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
       {/* Date — simple native input */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📅'} Fecha del evento</label>
+        <label htmlFor="event-date" className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📅'} Fecha del evento</label>
         <input
+          id="event-date"
           type="date"
           value={data.date}
           min={minDate}
@@ -314,8 +315,9 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
 
       {/* Area */}
       <div>
-        <label className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📍'} Área del evento</label>
+        <label htmlFor="event-area" className="block font-heading font-semibold text-sm text-gray-700 mb-1">{'📍'} Área del evento</label>
         <select
+          id="event-area"
           value={data.area}
           onChange={(e) => onChange({ area: e.target.value })}
           className="w-full border-2 border-gray-200 rounded-xl py-3 px-4 font-body text-base focus:border-purple focus:outline-none bg-white"
@@ -328,12 +330,12 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
         {data.area && (() => {
           const selectedArea = areas.find(a => a.name === data.area);
           if (data.area === 'Otra área' || !selectedArea) {
-            return <p className="font-body text-sm text-teal mt-1 ml-1">{'🚚'} Transporte: se confirma por WhatsApp</p>;
+            return <p className="font-body text-sm text-teal-text mt-1 ml-1">{'🚚'} Transporte: se confirma por WhatsApp</p>;
           }
           if (selectedArea.price === 0) {
-            return <p className="font-body text-sm text-teal mt-1 ml-1">{'🚚'} Transporte gratuito</p>;
+            return <p className="font-body text-sm text-teal-text mt-1 ml-1">{'🚚'} Transporte gratuito</p>;
           }
-          return <p className="font-body text-sm text-orange mt-1 ml-1">{'🚚'} Transporte: ${selectedArea.price}</p>;
+          return <p className="font-body text-sm text-orange-text mt-1 ml-1">{'🚚'} Transporte: ${selectedArea.price}</p>;
         })()}
       </div>
 

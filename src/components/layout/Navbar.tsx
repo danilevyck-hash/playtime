@@ -35,7 +35,7 @@ export default function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className={`font-heading font-bold transition-colors ${pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href)) ? 'text-teal' : 'text-gray-600 hover:text-teal'}`}>
+            <Link key={link.href} href={link.href} className={`font-heading font-bold transition-colors ${pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href)) ? 'text-teal-text' : 'text-gray-600 hover:text-teal-text'}`}>
               {link.label}
             </Link>
           ))}

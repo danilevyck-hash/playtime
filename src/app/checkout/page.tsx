@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { OrderCustomer, OrderEvent, PaymentMethod, EVENT_AREAS as DEFAULT_AREAS } from '@/lib/types';
@@ -70,6 +71,22 @@ export default function CheckoutPage() {
   const [customer, setCustomer] = useState<OrderCustomer>(saved?.customer ?? { name: '', phone: '', email: '' });
   const [event, setEvent] = useState<OrderEvent>(saved?.event ?? { date: '', time: '', showTime: '', area: '', address: '', birthdayChildName: '', birthdayChildAge: '', theme: '' });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'bank_transfer');
+
+  // Move focus to each step's heading when the step changes (not on first load),
+  // so screen-reader / keyboard users land at the top of the new step.
+  const stepContainerRef = useRef<HTMLDivElement>(null);
+  const stepFirstRun = useRef(true);
+  useEffect(() => {
+    if (stepFirstRun.current) { stepFirstRun.current = false; return; }
+    const heading = stepContainerRef.current?.querySelector('h2');
+    if (heading instanceof HTMLElement) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    }
+  }, [step]);
+
+  // Confirm modal: trap focus, Escape to close, restore focus on close.
+  const confirmModalRef = useFocusTrap<HTMLDivElement>(showConfirmModal, () => setShowConfirmModal(false));
 
   const persistCheckout = useCallback((overrides?: { step?: number; customer?: OrderCustomer; event?: OrderEvent; paymentMethod?: PaymentMethod }) => {
     try {
@@ -242,7 +259,7 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      <div key={step} className="animate-slide-in">
+      <div key={step} ref={stepContainerRef} className="animate-slide-in">
       {step === 0 && (
         <CustomerInfoForm data={customer} onChange={setCustomer} onNext={() => setStep(1)} />
       )}
@@ -272,8 +289,8 @@ export default function CheckoutPage() {
       {showConfirmModal && confirmData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
-            <h3 className="font-heading font-bold text-lg text-purple text-center">{'\u00bf'}Confirmar pedido?</h3>
+          <div ref={confirmModalRef} role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <h3 id="confirm-modal-title" className="font-heading font-bold text-lg text-purple text-center">{'\u00bf'}Confirmar pedido?</h3>
             <div className="space-y-1 font-body text-sm text-gray-600">
               <p>{confirmData.subtotalLine}</p>
               {confirmData.transportLine && <p>{confirmData.transportLine}</p>}
