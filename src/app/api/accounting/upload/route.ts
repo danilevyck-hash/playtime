@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('Voucher upload error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo subir el archivo' }, { status: 500 });
   }
 
   // Private bucket: return the storage path (persisted in DB) + a short-lived

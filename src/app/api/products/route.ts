@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('upsertDBProduct API error:', error);
-      return NextResponse.json({ error: 'Failed to upsert product: ' + error.message }, { status: 500 });
+      return NextResponse.json({ error: 'No se pudo guardar el producto' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (error) {

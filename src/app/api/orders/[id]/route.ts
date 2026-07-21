@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (itemsErr) {
       console.error('Order items fetch error:', itemsErr);
-      return NextResponse.json({ error: 'Failed to fetch items', message: itemsErr.message }, { status: 500, headers: NO_CACHE_HEADERS });
+      return NextResponse.json({ error: 'No se pudieron cargar los ítems del pedido' }, { status: 500, headers: NO_CACHE_HEADERS });
     }
 
     return NextResponse.json(

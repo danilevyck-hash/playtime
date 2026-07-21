@@ -624,7 +624,7 @@ export async function PATCH(request: NextRequest) {
       });
       if (insertError) {
         console.error('addItem insert error:', insertError);
-        return NextResponse.json({ error: insertError.message || 'Error al guardar item' }, { status: 500 });
+        return NextResponse.json({ error: 'No se pudo guardar el ítem' }, { status: 500 });
       }
       const { error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
       if (rErr) {

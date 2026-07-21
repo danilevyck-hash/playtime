@@ -3,7 +3,22 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
 
 const BUCKET = 'playtime-images';
-const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'heif']);
+// SVG removed: it can carry inline <script> and would be served from our origin.
+const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']);
+
+// HEIF/HEIC 'ftyp' brands emitted by iPhones.
+const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'heim', 'heis', 'hevm', 'hevs']);
+
+/** Sniff the real image type from magic bytes — don't trust the extension/MIME. */
+function sniffImage(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true; // JPEG
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true; // PNG
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true; // GIF8
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return true; // WEBP
+  if (buf.toString('ascii', 4, 8) === 'ftyp' && HEIF_BRANDS.has(buf.toString('ascii', 8, 12))) return true; // HEIC/HEIF
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   // Auth check: session token only (raw x-admin-pin fallback removed)
@@ -43,6 +58,12 @@ export async function POST(request: NextRequest) {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
+  // Magic-byte check: the extension/MIME are attacker-controlled, so confirm the
+  // bytes are actually one of the allowed image formats.
+  if (!sniffImage(buffer)) {
+    return NextResponse.json({ error: 'El archivo no es una imagen válida' }, { status: 400 });
+  }
+
   // Sanitize path components to prevent traversal
   const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '');
   const safeProductId = productId.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -60,7 +81,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('Upload error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo subir la imagen' }, { status: 500 });
   }
 
   // Get public URL

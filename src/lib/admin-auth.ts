@@ -17,7 +17,9 @@ const sessions = new Map<string, SessionData>(); // token -> session data
 // anyone). If no strong secret is configured, auth fails closed — no token can be
 // issued or verified.
 function getSigningKey(): string | null {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.AUTH_SECRET;
+  // Prefer a dedicated AUTH_SECRET so the session-signing key is decoupled from
+  // the DB service-role key (rotating one shouldn't force-rotate the other).
+  const key = process.env.AUTH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   return key && key.length >= 32 ? key : null;
 }
 
@@ -167,9 +169,12 @@ export function createSession(role: 'admin' | 'vendedora' = 'admin'): string {
 }
 
 function safeCompare(input: string, secret: string): boolean {
-  const inputBuffer = Buffer.from(input.padEnd(32, '\0'));
-  const secretBuffer = Buffer.from(secret.padEnd(32, '\0'));
-  return crypto.timingSafeEqual(inputBuffer, secretBuffer);
+  // Hash both to a fixed 32-byte digest before comparing: timingSafeEqual requires
+  // equal-length buffers and throws RangeError otherwise (e.g. an attacker sending
+  // a >32-char "PIN"). Hashing normalizes length while staying constant-time.
+  const a = crypto.createHash('sha256').update(input).digest();
+  const b = crypto.createHash('sha256').update(secret).digest();
+  return crypto.timingSafeEqual(a, b);
 }
 
 export function verifyPin(pin: string): { valid: boolean; role: 'admin' | 'vendedora' | null } {

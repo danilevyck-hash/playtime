@@ -1,7 +1,18 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+/** Constant-time Bearer-token check (never throws on length mismatch). */
+function authorizedCron(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const provided = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 const TABLES = [
   "pt_products",
@@ -12,11 +23,9 @@ const TABLES = [
 ] as const;
 
 export async function GET(req: NextRequest) {
-  const secret =
-    req.headers.get("authorization")?.replace("Bearer ", "") ||
-    req.nextUrl.searchParams.get("secret");
-
-  if (secret !== process.env.CRON_SECRET) {
+  // Vercel Cron auto-injects `Authorization: Bearer ${CRON_SECRET}`. Query-string
+  // secrets (?secret=) are no longer accepted — they leak into logs/proxies.
+  if (!authorizedCron(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
