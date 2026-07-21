@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { fetchSetting, fetchLogoUrl } from '@/lib/supabase-data';
+import { fetchCatalogProducts } from '@/lib/products-server';
+import { Product } from '@/lib/types';
 import Hero from '@/components/landing/Hero';
 import ServicesOverview from '@/components/landing/ServicesOverview';
 import FeaturedProducts from '@/components/landing/FeaturedProducts';
@@ -32,16 +34,25 @@ export default async function Home() {
   let featuredIds: string[] | null = null;
   let logoUrl: string | null = null;
   let testimonials: Array<{ name: string; text: string; avatar: string }> | null = null;
+  let allProducts: Product[] = [];
   try {
-    [content, featuredIds, logoUrl, testimonials] = await Promise.all([
+    [content, featuredIds, logoUrl, testimonials, allProducts] = await Promise.all([
       fetchSetting<HomepageContent>('homepage_content'),
       fetchSetting<string[]>('featured_products'),
       fetchLogoUrl(),
       fetchSetting<Array<{ name: string; text: string; avatar: string }>>('testimonials'),
+      fetchCatalogProducts(),
     ]);
   } catch (e) {
     console.error('Error loading homepage data:', e);
   }
+
+  // Resolve the 6 featured products on the server so the section renders without
+  // a client fetch (it no longer calls useProducts).
+  const featured = (featuredIds && featuredIds.length > 0
+    ? featuredIds.map((id) => allProducts.find((p) => p.id === id)).filter((p): p is Product => !!p)
+    : allProducts.filter((p) => p.featured)
+  ).slice(0, 6);
 
   return (
     <>
@@ -49,7 +60,7 @@ export default async function Home() {
       <div className="bg-white">
         <ServicesOverview content={content || undefined} />
       </div>
-      <FeaturedProducts content={content || undefined} featuredIds={featuredIds || undefined} />
+      <FeaturedProducts content={content || undefined} featured={featured} />
       <div className="bg-white">
         <Testimonials testimonials={testimonials || undefined} />
       </div>

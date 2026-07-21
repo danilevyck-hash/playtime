@@ -1,13 +1,17 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CATEGORIES, PRODUCTS } from '@/lib/constants';
 import { Category, Product, ProductVariant } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { normalizeImage } from '@/lib/products';
+import { fetchCatalogProducts } from '@/lib/products-server';
 import CategoryContent from '@/components/catalog/CategoryContent';
 import ProductDetailClient from './ProductDetailClient';
 
-export const dynamic = 'force-dynamic';
+// ISR: cache the rendered page for 60s (admin has /api/revalidate to invalidate).
+export const revalidate = 60;
 
 interface Props {
   params: Promise<{ category: string }>;
@@ -15,27 +19,22 @@ interface Props {
 
 const validCategories = CATEGORIES.map((c) => c.id);
 
-async function getProduct(id: string): Promise<Product | null> {
+// React.cache: getProduct/getGalleryImages are called from BOTH generateMetadata
+// and the page for the same id — cache dedupes them to one DB round-trip each.
+const getProduct = cache(async (id: string): Promise<Product | null> => {
   if (supabase) {
     try {
-      const { data: p } = await supabase
-        .from('pt_products')
-        .select('*')
-        .eq('id', id)
-        .eq('active', true)
-        .maybeSingle();
+      const [{ data: p }, { data: vs }] = await Promise.all([
+        supabase.from('pt_products').select('*').eq('id', id).eq('active', true).maybeSingle(),
+        supabase.from('pt_product_variants').select('*').eq('product_id', id).order('sort_order', { ascending: true }),
+      ]);
       if (p) {
-        const { data: vs } = await supabase
-          .from('pt_product_variants')
-          .select('*')
-          .eq('product_id', id)
-          .order('sort_order', { ascending: true });
         const variants: ProductVariant[] | undefined = vs && vs.length > 0
-          ? vs.map(v => ({
+          ? vs.map((v) => ({
               id: v.id,
               label: v.label,
               price: v.price ?? undefined,
-              image: v.image_url ?? undefined,
+              image: normalizeImage(v.image_url),
               description: v.description ?? undefined,
             }))
           : undefined;
@@ -45,7 +44,7 @@ async function getProduct(id: string): Promise<Product | null> {
           category: p.category as Category,
           description: p.description,
           price: p.price,
-          image: p.image_url || undefined,
+          image: normalizeImage(p.image_url),
           featured: p.featured,
           popular: p.popular ?? false,
           maxQuantity: p.max_quantity ?? undefined,
@@ -59,10 +58,10 @@ async function getProduct(id: string): Promise<Product | null> {
       console.error('getProduct DB error:', e);
     }
   }
-  return PRODUCTS.find(p => p.id === id) || null;
-}
+  return PRODUCTS.find((p) => p.id === id) || null;
+});
 
-async function getGalleryImages(id: string): Promise<string[]> {
+const getGalleryImages = cache(async (id: string): Promise<string[]> => {
   if (!supabase) return [];
   try {
     const { data } = await supabase
@@ -75,7 +74,7 @@ async function getGalleryImages(id: string): Promise<string[]> {
   } catch {
     return [];
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params;
@@ -120,12 +119,14 @@ export default async function CatalogoSlugPage({ params }: Props) {
   const { category } = await params;
 
   if (validCategories.includes(category as Category)) {
-    return <CategoryContent />;
+    // Server-fetch the catalog (revalidate 60) and seed the client so the grid
+    // is in the first paint — no client fetch waterfall.
+    const products = await fetchCatalogProducts();
+    return <CategoryContent initialProducts={products} />;
   }
 
-  const product = await getProduct(category);
+  const [product, gallery] = await Promise.all([getProduct(category), getGalleryImages(category)]);
   if (!product) notFound();
-  const gallery = await getGalleryImages(category);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:py-10">

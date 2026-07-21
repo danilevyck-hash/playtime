@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
 import CatalogoContent from '@/components/catalog/CatalogoContent';
+import { fetchCatalogProducts } from '@/lib/products-server';
+
+// ISR: revalidate every 60s (admin /api/revalidate invalidates on changes).
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'Catálogo de Fiestas Infantiles en Panamá',
@@ -18,6 +22,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function CatalogoPage() {
-  return <CatalogoContent />;
+export default async function CatalogoPage() {
+  const initialProducts = await fetchCatalogProducts();
+  return <CatalogoContent initialProducts={initialProducts} />;
 }

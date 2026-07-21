@@ -9,8 +9,8 @@ import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
 import { CATEGORY_DOODLES } from '@/components/ui/CategoryDoodles';
 
-export default function CatalogoContent() {
-  const products = useProducts();
+export default function CatalogoContent({ initialProducts }: { initialProducts?: Product[] }) {
+  const products = useProducts(initialProducts);
   const categories = useCategories();
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [initialSet, setInitialSet] = useState(false);

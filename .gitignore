@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Original full-size images moved out of the build by scripts/optimize-images.mjs
+_originals/

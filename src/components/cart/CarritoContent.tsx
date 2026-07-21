@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import CartItemComponent from '@/components/cart/CartItem';
 import CartSummary from '@/components/cart/CartSummary';
@@ -77,8 +78,7 @@ export default function CarritoContent() {
             {addonSuggestions.map(p => (
               <div key={p.id} className="flex-shrink-0 w-[120px] bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 {p.image ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={p.image} alt={p.name} className="w-full h-[80px] object-cover" />
+                  <Image src={p.image} alt={p.name} width={120} height={80} sizes="120px" className="w-full h-[80px] object-cover" />
                 ) : (
                   <div className="w-full h-[80px] bg-gradient-to-br from-purple/5 to-teal/10 flex items-center justify-center">
                     <span className="text-2xl">{'\uD83C\uDF88'}</span>

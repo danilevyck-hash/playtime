@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { CartProvider } from "@/context/CartContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { LogoProvider } from "@/context/LogoContext";
+import { ProductsProvider } from "@/components/ProductsProvider";
 import { fetchLogoUrl } from "@/lib/supabase-data";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -120,12 +121,14 @@ export default async function RootLayout({
       >
         <ToastProvider>
           <CartProvider>
-            <LogoProvider initialLogoUrl={logoUrl}>
-              <Navbar />
-              <main className="min-h-screen">{children}</main>
-              <Footer />
-            </LogoProvider>
-            <WhatsAppButton />
+            <ProductsProvider>
+              <LogoProvider initialLogoUrl={logoUrl}>
+                <Navbar />
+                <main className="min-h-screen">{children}</main>
+                <Footer />
+              </LogoProvider>
+              <WhatsAppButton />
+            </ProductsProvider>
           </CartProvider>
         </ToastProvider>
         <ServiceWorkerRegistrar />

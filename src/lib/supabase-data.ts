@@ -165,6 +165,27 @@ export async function fetchProductImages(productId: string): Promise<string[]> {
   return data || [];
 }
 
+/** Batch version: one `.in()` query for many products instead of N round-trips.
+ *  Returns a map productId → gallery urls (only products that have a gallery). */
+export async function fetchProductImagesBatch(productIds: string[]): Promise<Record<string, string[]>> {
+  if (!supabase || productIds.length === 0) return {};
+  const keys = productIds.map((id) => `product_images_${id}`);
+  const out: Record<string, string[]> = {};
+  try {
+    const { data, error } = await supabase.from('pt_settings').select('key, value').in('key', keys);
+    if (error || !data) return out;
+    for (const row of data) {
+      const id = String(row.key).replace(/^product_images_/, '');
+      if (Array.isArray(row.value)) {
+        out[id] = row.value.filter((u): u is string => typeof u === 'string');
+      }
+    }
+  } catch (e) {
+    console.error('fetchProductImagesBatch error:', e);
+  }
+  return out;
+}
+
 export async function upsertProductImages(productId: string, urls: string[]): Promise<boolean> {
   return upsertSetting(`product_images_${productId}`, urls);
 }

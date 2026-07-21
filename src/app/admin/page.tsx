@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
 import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
 import { panamaToday } from '@/lib/timezone';
+import { normalizeImage } from '@/lib/products';
 import { useToast } from '@/context/ToastContext';
 import {
   fetchSetting,
@@ -1119,7 +1120,7 @@ function ProductsTab() {
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
         {filtered.map((product, idx) => {
           const isEditing = editingId === product.id;
-          const imgSrc = product.image_url || '';
+          const imgSrc = normalizeImage(product.image_url) || '';
           const prodVariants = getVariants(product.id);
           const isCombineSelected = combineSelected.has(product.id);
           const canArrows = reorderMode && !!filter && !productSearch.trim();
@@ -1343,7 +1344,7 @@ function ProductsTab() {
                         <label className="w-9 h-9 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group">
                           {v.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={v.image_url} alt={v.label} className="w-full h-full object-cover" />
+                            <img src={normalizeImage(v.image_url) || ''} alt={v.label} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-300 text-[10px] font-bold">+</div>
                           )}

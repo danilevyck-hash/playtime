@@ -40,7 +40,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), actividad de arte (3 atriles con 30 dibujos), alquiler de equipos (caballitos, piscina de bolas, túnel, mini parque y pads de piso). 2 teachers. Duración: 3 horas.',
     price: 500,
-    image: '/images/products/plan-1.png',
+    image: '/images/products/plan-1.webp',
     featured: true,
   },
   {
@@ -49,7 +49,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), alquiler de equipos (caballitos, piscina de bolas, túnel, mini parque y pads de piso). 2 teachers. Duración: 3 horas.',
     price: 380,
-    image: '/images/products/plan-2.png',
+    image: '/images/products/plan-2.webp',
     featured: true,
   },
   {
@@ -58,7 +58,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Show de Títeres con Lala (45 min), actividad de arte (3 atriles con 30 dibujos). 2 teachers. Duración: 3 horas.',
     price: 260,
-    image: '/images/products/plan-3.png',
+    image: '/images/products/plan-3.webp',
   },
   {
     id: 'plan-12',
@@ -66,7 +66,7 @@ export const PRODUCTS: Product[] = [
     category: 'planes',
     description: 'Celebra junto a tus amigas y sus hijos. Actividades de motricidad fina y gruesa, sensoriales, musicales, mini show de títeres y transporte. 15 niños. 3 teachers. Duración: 3 horas.',
     price: 450,
-    image: '/images/products/plan-12.png',
+    image: '/images/products/plan-12.webp',
   },
 
   // ═══ SPA ═══
@@ -76,7 +76,7 @@ export const PRODUCTS: Product[] = [
     category: 'spa',
     description: 'Kit completo de maleta de maquillaje con espejo y luz. 1 teacher. Duración: 2 horas. Extras: Maquillaje Deluxe con brillantes ($10), Facial ($10), Teacher extra ($80).',
     price: 120,
-    image: '/images/products/plan-6-makeup.png',
+    image: '/images/products/plan-6-makeup.webp',
     featured: true,
   },
   {
@@ -85,7 +85,7 @@ export const PRODUCTS: Product[] = [
     category: 'spa',
     description: 'Mesa de madera, alfombra, 4 sillas Tiffany, decoración de mesa. Pintura de uñas y sticker. 1 teacher. Duración: 2 horas. Extra teacher ($80).',
     price: 100,
-    image: '/images/products/plan-7-manicure.png',
+    image: '/images/products/plan-7-manicure.webp',
   },
   {
     id: 'plan-9-hair',
@@ -93,7 +93,7 @@ export const PRODUCTS: Product[] = [
     category: 'spa',
     description: 'Peinado con trenzas de colores y todo su kit, coronitas para princesas, kit completo de maleta de peinado con espejo y luz, silla alta. 1 teacher. Duración: 2 horas. Extras: Teacher extra ($80), extensiones ($50).',
     price: 140,
-    image: '/images/products/plan-9-hair.png',
+    image: '/images/products/plan-9-hair.webp',
   },
   {
     id: 'plan-10-spa',
@@ -101,7 +101,7 @@ export const PRODUCTS: Product[] = [
     category: 'spa',
     description: '1.5 horas de belleza y diversión. Peinado y maquillaje especial para cumpleañera, manicure express, 3 pedicure spa, peinado con coronita. 2 mesas, 6 sillas Tiffany, alfombras, decoración. 15 niñas máximo. 3 teachers.',
     price: 400,
-    image: '/images/products/plan-10-spa.png',
+    image: '/images/products/plan-10-spa.webp',
     featured: true,
   },
   {
@@ -110,7 +110,7 @@ export const PRODUCTS: Product[] = [
     category: 'spa',
     description: 'Niñas ilimitadas. Animación con modelaje y baile, música, pink carpet, peinado con extensiones y coronitas, manicure deluxe, pedicure spa, masaje facial, tarima para modelaje, carpa de decoración, maquillaje especial para cumpleañera. 5 teachers. Duración: 3 horas.',
     price: 700,
-    image: '/images/products/plan-11-princess.png',
+    image: '/images/products/plan-11-princess.webp',
     featured: true,
   },
 
@@ -135,7 +135,7 @@ export const PRODUCTS: Product[] = [
     category: 'show',
     description: 'Animación con personajes temáticos. Preguntar por personaje de su interés.',
     price: 380,
-    image: '/images/products/personaje-animacion.png',
+    image: '/images/products/personaje-animacion.webp',
   },
   {
     id: 'personaje-fotos',
@@ -143,7 +143,7 @@ export const PRODUCTS: Product[] = [
     category: 'show',
     description: 'Personaje temático por 1 hora para saludos y fotos. Preguntar por personaje de su interés.',
     price: 150,
-    image: '/images/products/personaje-animacion.png',
+    image: '/images/products/personaje-animacion.webp',
   },
   // ═══ SNACKS ═══
   {
@@ -152,7 +152,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de algodón de azúcar. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 100,
-    image: '/images/products/algodon-azucar.png',
+    image: '/images/products/algodon-azucar.webp',
   },
   {
     id: 'algodon-automatico',
@@ -160,7 +160,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina automática de algodón de azúcar. Personal y materiales incluidos. Duración: 3 horas.',
     price: 140,
-    image: '/images/products/snacks-auto.jpg',
+    image: '/images/products/snacks-auto.webp',
   },
   {
     id: 'raspado',
@@ -168,7 +168,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de raspado. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 130,
-    image: '/images/products/algodon-azucar.png',
+    image: '/images/products/algodon-azucar.webp',
   },
   {
     id: 'popcorn',
@@ -176,7 +176,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de palomitas. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 100,
-    image: '/images/products/popcorn.png',
+    image: '/images/products/popcorn.webp',
   },
   {
     id: 'slushy',
@@ -184,7 +184,7 @@ export const PRODUCTS: Product[] = [
     category: 'snacks',
     description: 'Máquina de slushy. 100% Kosher. Personal y materiales incluidos. Duración: 3 horas.',
     price: 130,
-    image: '/images/products/popcorn.png',
+    image: '/images/products/popcorn.webp',
   },
 
   // ═══ SOFT PLAY ═══
@@ -194,7 +194,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Cerca blanca, pads de piso, carritos foam blanco, mini parque, túnel gym redondo, lego foam, roller coaster blanco, piscina blanca.',
     price: 250,
-    image: '/images/products/gymboree-blanco-grande.png',
+    image: '/images/products/gymboree-blanco-grande.webp',
     featured: true,
   },
   {
@@ -203,7 +203,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Cerca blanca, pads de piso, piscina blanca, túnel de gym, carritos foam blanco, lego foam, mini parque.',
     price: 160,
-    image: '/images/products/gymboree-blanco-chico.png',
+    image: '/images/products/gymboree-blanco-chico.webp',
   },
   {
     id: 'gymboree-rosado-grande',
@@ -211,7 +211,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Cerca rosada, pads rosado, caballito rosado, mini parque, puente rosado, piscina de flor con bolas rosadas, lego foam rosado, túnel gym rosado, caballitos saltarín rosado, roller coaster rosado.',
     price: 290,
-    image: '/images/products/gymboree-blanco-grande.png',
+    image: '/images/products/gymboree-blanco-grande.webp',
   },
   {
     id: 'gymboree-nina-mixto',
@@ -219,7 +219,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Cerca rosada, pads blanco, caballito rosado, piscina de flor con bolas blancas, roller coaster rosado, túnel gym blanco, puente rosado, mini parque rosado, lego foam mixto.',
     price: 285,
-    image: '/images/products/gymboree-nina-mixto.png',
+    image: '/images/products/gymboree-nina-mixto.webp',
   },
   {
     id: 'gymboree-rosado-chico',
@@ -227,7 +227,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Cerca rosada, pads rosado, caballito rosado, mini parque, puente rosado, piscina redonda rosada, lego foam rosado.',
     price: 180,
-    image: '/images/products/gymboree-rosado-chico.png',
+    image: '/images/products/gymboree-rosado-chico.webp',
   },
   {
     id: 'set-colchoneta-escalera',
@@ -235,7 +235,7 @@ export const PRODUCTS: Product[] = [
     category: 'softplay',
     description: 'Set de colchoneta con escalera para actividades motrices.',
     price: 220,
-    image: '/images/products/gymboree-blanco-grande.png',
+    image: '/images/products/gymboree-blanco-grande.webp',
   },
 
   // ═══ BOUNCES ═══
@@ -245,7 +245,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: '3 metros la bola x 1.80 metros túnel.',
     price: 190,
-    image: '/images/products/bubble-house.png',
+    image: '/images/products/bubble-house.webp',
   },
   {
     id: 'bounce-house-blanco',
@@ -253,7 +253,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Sin decoración. Dimensiones: 3.50W x 3.50L x 3.96H metros.',
     price: 120,
-    image: '/images/products/bounce-house-blanco.png',
+    image: '/images/products/bounce-house-blanco.webp',
   },
   {
     id: 'inflable-grande-1',
@@ -261,7 +261,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 5.4 x 5 x 4 metros.',
     price: 170,
-    image: '/images/products/inflable-grande-1.png',
+    image: '/images/products/inflable-grande-1.webp',
   },
   {
     id: 'inflable-mediano',
@@ -269,7 +269,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 4.4 x 4 x 3.8 metros.',
     price: 140,
-    image: '/images/products/inflable-mediano.png',
+    image: '/images/products/inflable-mediano.webp',
   },
   {
     id: 'inflable-grande-2',
@@ -277,7 +277,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 5.5 x 4.5 metros.',
     price: 170,
-    image: '/images/products/inflable-grande-2.png',
+    image: '/images/products/inflable-grande-2.webp',
   },
   {
     id: 'inflable-chico',
@@ -285,7 +285,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 3L x 3W x 2.75H metros.',
     price: 110,
-    image: '/images/products/inflable-chico.png',
+    image: '/images/products/inflable-chico.webp',
   },
   {
     id: 'inflable-mini-1',
@@ -293,7 +293,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 2.7 x 2.2 x 2.0 metros.',
     price: 90,
-    image: '/images/products/inflable-mini-1.png',
+    image: '/images/products/inflable-mini-1.webp',
   },
   {
     id: 'inflable-mini-2',
@@ -301,7 +301,7 @@ export const PRODUCTS: Product[] = [
     category: 'bounces',
     description: 'Dimensiones: 2.5 x 2.5 metros.',
     price: 90,
-    image: '/images/products/inflable-mini-1.png',
+    image: '/images/products/inflable-mini-1.webp',
   },
 
   // ═══ ADD-ONS ═══
@@ -311,7 +311,7 @@ export const PRODUCTS: Product[] = [
     category: 'addons',
     description: '2 surraderos y arco. No incluye piscina.',
     price: 100,
-    image: '/images/products/surraderos-arco.png',
+    image: '/images/products/surraderos-arco.webp',
   },
   {
     id: 'surradero-sencillo',
@@ -319,7 +319,7 @@ export const PRODUCTS: Product[] = [
     category: 'addons',
     description: 'Surradero sencillo para piscina.',
     price: 50,
-    image: '/images/products/surraderos-arco.png',
+    image: '/images/products/surraderos-arco.webp',
   },
   {
     id: 'mini-parque',
@@ -327,7 +327,7 @@ export const PRODUCTS: Product[] = [
     category: 'addons',
     description: 'Mini parque blanco (70.7 x 57") o rosado (59 x 46 x 47").',
     price: 50,
-    image: '/images/products/mini-parque.png',
+    image: '/images/products/mini-parque.webp',
     variantLabel: 'Color',
     variants: [{ id: 'blanco', label: 'Blanco' }, { id: 'rosado', label: 'Rosado' }],
   },
@@ -346,7 +346,7 @@ export const PRODUCTS: Product[] = [
     category: 'addons',
     description: 'Incluye pads, pista y 4 carritos por 3 horas con personal.',
     price: 250,
-    image: '/images/products/bumper-cars.png',
+    image: '/images/products/bumper-cars.webp',
     featured: true,
   },
   {
@@ -355,7 +355,7 @@ export const PRODUCTS: Product[] = [
     category: 'addons',
     description: 'Carritos de carrera para niños.',
     price: 75,
-    image: '/images/products/racing-cars.png',
+    image: '/images/products/racing-cars.webp',
   },
   {
     id: 'caballito-saltarin',
@@ -452,7 +452,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Construye y decora tus varitas y espadas mágicas desde cero, agregando detalles brillantes y detalles únicos.',
     price: 0,
-    image: '/images/manualidades/page2_img3.png',
+    image: '/images/manualidades/page2_img3.webp',
   },
   {
     id: 'art-reveal',
@@ -460,7 +460,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Pinta, raspa y descubre un arte sorpresa con la magia de tu personaje favorito.',
     price: 0,
-    image: '/images/manualidades/page2_img4.png',
+    image: '/images/manualidades/page2_img4.webp',
   },
   {
     id: 'american-girl-party',
@@ -468,7 +468,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Peina, viste y decora a tu muñeca con artes, accesorios y peinados para horas de juego.',
     price: 0,
-    image: '/images/manualidades/page2_img5.png',
+    image: '/images/manualidades/page2_img5.webp',
   },
   {
     id: 'diy-facial-mask',
@@ -476,7 +476,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Mezcla y prepara tu propia mascarilla facial divertida y relajante.',
     price: 0,
-    image: '/images/manualidades/page3_img3.png',
+    image: '/images/manualidades/page3_img3.webp',
   },
   {
     id: 'stamp-it-up',
@@ -484,7 +484,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Personaliza tu maleta con serigrafía y haz que sea tan única como tú.',
     price: 0,
-    image: '/images/manualidades/page3_img2.png',
+    image: '/images/manualidades/page3_img2.webp',
   },
   {
     id: 'style-sneakers',
@@ -492,7 +492,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Diseña y transforma tus zapatillas en un accesorio lleno de estilo y personalidad.',
     price: 0,
-    image: '/images/manualidades/page3_img5.png',
+    image: '/images/manualidades/page3_img5.webp',
   },
   {
     id: 'slime-bar',
@@ -500,7 +500,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Crea tu slime único! Elige el color, agrega un aroma divertido, mezcla la textura perfecta y decoraciones mágicas.',
     price: 0,
-    image: '/images/manualidades/page4_img5.png',
+    image: '/images/manualidades/page4_img5.webp',
   },
   {
     id: 'build-a-plush',
@@ -508,7 +508,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Da vida a tu propio peluche! Rellénalo, graba un mensaje especial en su corazón, recibe su certificado y decora su casita.',
     price: 0,
-    image: '/images/manualidades/page4_img6.png',
+    image: '/images/manualidades/page4_img6.webp',
   },
   {
     id: 'squishmallow-pillows',
@@ -516,7 +516,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Crea tu almohada squishy, suave y adorable para abrazar siempre! Personalízala con tu aroma favorito.',
     price: 0,
-    image: '/images/manualidades/page4_img7.png',
+    image: '/images/manualidades/page4_img7.webp',
   },
   {
     id: 'charm-it-up',
@@ -524,7 +524,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Decora espejos, lámparas, cartucheras, botellas y mucho más con whipped cream glue y montones de charms.',
     price: 0,
-    image: '/images/manualidades/page5_img3.png',
+    image: '/images/manualidades/page5_img3.webp',
   },
   {
     id: 'clay-creations',
@@ -532,7 +532,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Moldea masilla y crea animalitos y pastelitos únicos con tus manos.',
     price: 0,
-    image: '/images/manualidades/page5_img5.png',
+    image: '/images/manualidades/page5_img5.webp',
   },
   {
     id: 'snow-globes',
@@ -540,7 +540,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Crea tu propia bola de nieve con luz! Elige tu personaje favorito, decórala a tu estilo y llévate un recuerdo brillante.',
     price: 0,
-    image: '/images/manualidades/page5_img6.png',
+    image: '/images/manualidades/page5_img6.webp',
   },
   {
     id: 'mommy-and-me',
@@ -548,7 +548,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Actividades sensoriales y de motricidad fina basada en el tema de tu cumpleaños.',
     price: 0,
-    image: '/images/manualidades/page6_img3.png',
+    image: '/images/manualidades/page6_img3.webp',
   },
   {
     id: 'shrink-dink',
@@ -556,7 +556,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Dibuja, colorea y mira tu diseño encogerse mágicamente! Luego arma tu llavero único.',
     price: 0,
-    image: '/images/manualidades/page6_img4.png',
+    image: '/images/manualidades/page6_img4.webp',
   },
   {
     id: 'character-keychain',
@@ -564,7 +564,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Elige tu personaje favorito, conviértelo en un llavero único y decóralo con tus beads favoritos.',
     price: 0,
-    image: '/images/manualidades/page6_img5.png',
+    image: '/images/manualidades/page6_img5.webp',
   },
   {
     id: 'custom-tshirt',
@@ -572,7 +572,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Pinta y decora tu tshirt con un diseño personalizado.',
     price: 0,
-    image: '/images/manualidades/page7_img3.png',
+    image: '/images/manualidades/page7_img3.webp',
   },
   {
     id: 'unicorn-horn',
@@ -580,7 +580,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Decora conos mágicos de unicornio llenos de colores y fantasía!',
     price: 0,
-    image: '/images/manualidades/page7_img4.png',
+    image: '/images/manualidades/page7_img4.webp',
   },
   {
     id: 'mickey-ears',
@@ -588,7 +588,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Diseña tus propias orejitas mágicas con colores, brillos y accesorios para un look mágico y divertido.',
     price: 0,
-    image: '/images/manualidades/page7_img5.png',
+    image: '/images/manualidades/page7_img5.webp',
   },
   {
     id: 'patch-sparkle',
@@ -596,7 +596,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Decora lazos, kippot, maletas, libretas y monederos con parches y estilo único!',
     price: 0,
-    image: '/images/manualidades/page8_img3.png',
+    image: '/images/manualidades/page8_img3.webp',
   },
   {
     id: 'apron-art',
@@ -604,7 +604,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Personaliza tu delantal con colores, brillos y tu estilo único para divertirte mientras cocinas.',
     price: 0,
-    image: '/images/manualidades/page8_img4.png',
+    image: '/images/manualidades/page8_img4.webp',
   },
   {
     id: 'cupcake-decorating',
@@ -612,7 +612,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Crea tu propia pizza, decora cupcakes o haz tu fruit kebab. Diversión y sabor en cada creación!',
     price: 0,
-    image: '/images/manualidades/page8_img5.png',
+    image: '/images/manualidades/page8_img5.webp',
   },
   {
     id: 'magic-lab',
@@ -620,7 +620,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Ciencia mágica para niños con experimentos sorprendentes que despiertan la curiosidad.',
     price: 0,
-    image: '/images/manualidades/page9_img3.png',
+    image: '/images/manualidades/page9_img3.webp',
   },
   {
     id: 'potion-necklace',
@@ -628,7 +628,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Los niños mezclan líquidos de colores brillantes en pequeños frascos para crear un collar único en forma de poción mágica.',
     price: 0,
-    image: '/images/manualidades/page9_img4.png',
+    image: '/images/manualidades/page9_img4.webp',
   },
   {
     id: 'sand-bottles',
@@ -636,7 +636,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Llena botellitas con arena de colores mágicos y crea un recuerdo brillante y especial!',
     price: 0,
-    image: '/images/manualidades/page9_img5.png',
+    image: '/images/manualidades/page9_img5.webp',
   },
   {
     id: 'glitter-bottles',
@@ -644,7 +644,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Botellas para rellenar con escarcha y decorarla con tus stickers favoritos.',
     price: 0,
-    image: '/images/manualidades/page10_img3.png',
+    image: '/images/manualidades/page10_img3.webp',
   },
   {
     id: 'lava-lamp',
@@ -652,7 +652,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Haz tu propia lámpara de lava y observa cómo la magia cobra vida con burbujas de colores.',
     price: 0,
-    image: '/images/manualidades/page10_img4.png',
+    image: '/images/manualidades/page10_img4.webp',
   },
   {
     id: 'holiday-crafts',
@@ -660,7 +660,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Personaliza tu gorro de navidad con tu nombre, diseños de santa y mucho brillo.',
     price: 0,
-    image: '/images/manualidades/page10_img5.png',
+    image: '/images/manualidades/page10_img5.webp',
   },
   {
     id: 'rhinestone-sparkle',
@@ -668,7 +668,7 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Personaliza con rhinestones de colores y crea un diseño único que refleje tu estilo.',
     price: 0,
-    image: '/images/manualidades/page11_img3.png',
+    image: '/images/manualidades/page11_img3.webp',
   },
   {
     id: 'bucket-hat',
@@ -676,6 +676,6 @@ export const PRODUCTS: Product[] = [
     category: 'creative',
     description: 'Decora tu sombrero a tu estilo! Con pintura para tela, parches, pins y mucho color.',
     price: 0,
-    image: '/images/manualidades/page11_img4.png',
+    image: '/images/manualidades/page11_img4.webp',
   },
 ];

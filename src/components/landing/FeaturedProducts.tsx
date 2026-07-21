@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { useProducts } from '@/lib/useProducts';
 import { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { useCart } from '@/context/CartContext';
@@ -13,15 +12,12 @@ import ProductModal from '@/components/catalog/ProductModal';
 
 interface FeaturedProps {
   content?: { featured_title?: string; featured_subtitle?: string };
-  featuredIds?: string[];
+  /** Resolved server-side (page.tsx) so this section renders without a client fetch. */
+  featured: Product[];
 }
 
-export default function FeaturedProducts({ content, featuredIds }: FeaturedProps) {
+export default function FeaturedProducts({ content, featured }: FeaturedProps) {
   const { addItem } = useCart();
-  const products = useProducts();
-  const featured = featuredIds && featuredIds.length > 0
-    ? featuredIds.map(id => products.find(p => p.id === id)).filter((p): p is Product => !!p).slice(0, 6)
-    : products.filter((p) => p.featured).slice(0, 6);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (
@@ -38,7 +34,7 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
-          {featured.map((product) => (
+          {featured.map((product, index) => (
             <div
               key={product.id}
               className="bg-cream rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-shadow flex flex-col"
@@ -53,8 +49,9 @@ export default function FeaturedProducts({ content, featuredIds }: FeaturedProps
                     src={product.image}
                     alt={product.name}
                     fill
+                    priority={index < 2}
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 33vw"
                   />
                 ) : (() => {
                   const Doodle = CATEGORY_DOODLES[product.category];

@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/constants';
 import { useProducts } from '@/lib/useProducts';
 import { Category, Product } from '@/lib/types';
-import { fetchProductImages } from '@/lib/supabase-data';
+import { fetchProductImagesBatch } from '@/lib/supabase-data';
 import SearchBar from '@/components/catalog/SearchBar';
 import ProductCard from '@/components/catalog/ProductCard';
 import ProductModal from '@/components/catalog/ProductModal';
 
-export default function CategoryContent() {
-  const products = useProducts();
+export default function CategoryContent({ initialProducts }: { initialProducts?: Product[] }) {
+  const products = useProducts(initialProducts);
   const params = useParams();
   const categoryId = params.category as Category;
   const categoryInfo = CATEGORIES.find((c) => c.id === categoryId);
@@ -21,16 +21,12 @@ export default function CategoryContent() {
   const [productGalleries, setProductGalleries] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    if (products.length === 0) return;
-    const load = async () => {
-      const galleries: Record<string, string[]> = {};
-      await Promise.all(products.filter(p => p.category === categoryId).map(async (p) => {
-        const imgs = await fetchProductImages(p.id);
-        if (imgs.length > 0) galleries[p.id] = imgs;
-      }));
-      setProductGalleries(galleries);
-    };
-    load();
+    const inCategory = products.filter((p) => p.category === categoryId);
+    if (inCategory.length === 0) return;
+    let alive = true;
+    // One batched .in() query instead of one fetch per product.
+    fetchProductImagesBatch(inCategory.map((p) => p.id)).then((g) => { if (alive) setProductGalleries(g); });
+    return () => { alive = false; };
   }, [products, categoryId]);
 
   const filtered = useMemo(() => {
