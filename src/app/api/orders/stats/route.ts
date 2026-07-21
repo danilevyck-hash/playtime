@@ -3,19 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession } from '@/lib/admin-auth';
+import { canonicalStatus } from '@/lib/order-status';
+import { panamaMonthKey } from '@/lib/timezone';
 
 type OrderRow = { status: string | null; confirmed: boolean | null; total: number | null; event_date: string | null; deleted_at: string | null };
-
-/** Canonical status — mirrors getOrderStatus() in the admin client. */
-function canonicalStatus(o: OrderRow): 'pendiente' | 'confirmado' | 'realizado' | 'rechazado' {
-  const s = o.status;
-  if (s === 'realizado') return 'realizado';
-  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
-  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
-  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
-  if (o.confirmed) return 'confirmado';
-  return 'pendiente';
-}
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -60,7 +51,7 @@ export async function GET(request: NextRequest) {
       if (o.event_date) monthSet.add(o.event_date.substring(0, 7));
     }
 
-    const todayKey = new Date().toISOString().substring(0, 7);
+    const todayKey = panamaMonthKey();
     const months = Array.from(monthSet)
       .sort((a, b) => {
         const aF = a >= todayKey, bF = b >= todayKey;

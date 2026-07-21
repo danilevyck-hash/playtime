@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { EVENT_AREAS } from '@/lib/types';
+import { EVENT_AREAS, type PaymentMethod } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { downloadOrderPDF } from '@/lib/pdf-order';
-import { fetchLogoUrl, fetchProductOverrides, fetchAllCustomProducts } from '@/lib/supabase-data';
+import { fetchLogoUrl, fetchProductOverrides, fetchAllCustomProducts, fetchEventAreas } from '@/lib/supabase-data';
 import { PRODUCTS } from '@/lib/constants';
+import { computeOrderTotals } from '@/lib/order-math';
+import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
+import { panamaToday } from '@/lib/timezone';
 import { useToast } from '@/context/ToastContext';
-
-type OrderStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
 
 const ORDER_STATUSES: { key: OrderStatus; label: string }[] = [
   { key: 'pendiente', label: 'Pendiente' },
@@ -83,13 +84,6 @@ function fmtTime12h(t: string): string {
   if (Number.isNaN(h) || Number.isNaN(min)) return trimmed;
   const ap = h >= 12 ? 'PM' : 'AM';
   return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(min).padStart(2, '0')} ${ap}`;
-}
-
-function getStatus(o: Order): OrderStatus {
-  const s = o.status as string;
-  if (s === 'realizado' || s === 'confirmado' || s === 'rechazado' || s === 'pendiente') return s as OrderStatus;
-  if (o.confirmed) return 'confirmado';
-  return 'pendiente';
 }
 
 function getInitials(name: string): string {
@@ -249,17 +243,20 @@ export default function PedidoDetailPage() {
     return false;
   }, [order, itemEdits]);
 
-  const liveDiscRaw = order?.discount || 0;
-  const liveDisc = order?.discount_type === 'percent'
-    ? Math.round(liveItemsTotal * liveDiscRaw) / 100
-    : liveDiscRaw;
   const liveTrans = order?.transport_cost_confirmed ?? 0;
-  const liveBase = liveItemsTotal - liveDisc + (liveTrans > 0 ? liveTrans : 0);
-  const liveSurch = order?.payment_method === 'credit_card' ? Math.round(liveBase * 5) / 100 : 0;
-  const liveTotal = liveBase + liveSurch;
+  const liveTotals = computeOrderTotals({
+    itemsTotal: liveItemsTotal,
+    transport: liveTrans,
+    discount: order?.discount || 0,
+    discountType: order?.discount_type === 'percent' ? 'percent' : 'fixed',
+    paymentMethod: (order?.payment_method as PaymentMethod) || 'bank_transfer',
+  });
+  const liveDisc = liveTotals.discountAmount;
+  const liveSurch = liveTotals.surcharge;
+  const liveTotal = liveTotals.total;
   const totalDeposits = (order?.deposits || []).reduce((s, d) => s + d.amount, 0) || (order?.deposit_amount ?? 0);
   const balance = Math.max(0, liveTotal - totalDeposits);
-  const status: OrderStatus = order ? getStatus(order) : 'pendiente';
+  const status: OrderStatus = order ? canonicalStatus(order) : 'pendiente';
   const payMethodLabel = order?.payment_method === 'credit_card' ? 'Tarjeta (+5%)' : 'Transferencia';
 
   if (!authReady) return null;
@@ -455,7 +452,7 @@ export default function PedidoDetailPage() {
   const addDeposit = async () => {
     const amt = Number(depositInput);
     if (Number.isNaN(amt) || amt <= 0) return;
-    const date = depositDate || new Date().toISOString().slice(0, 10);
+    const date = depositDate || panamaToday();
     setSavingAction('deposit');
     try {
       const result = await patchOrder({ addDeposit: { amount: amt, date } });
@@ -503,21 +500,29 @@ export default function PedidoDetailPage() {
   const handleDownloadPDF = async () => {
     const theme = order.notes?.replace(/^Tema:\s*/, '') || '';
     const logoUrl = await fetchLogoUrl().catch(() => null);
-    const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (EVENT_AREAS.find(a => a.name === order.event_area)?.price ?? 0) : 0);
-    const pdfBase = liveItemsTotal - liveDisc + pdfTransport;
-    const pdfSurch = order.payment_method === 'credit_card' ? pdfBase * 0.05 : 0;
-    const pdfTotal = pdfBase + pdfSurch;
+    // Transport: confirmed value if set, else the area price from the LIVE
+    // pt_settings list — not the stale EVENT_AREAS constant.
+    const areas = await fetchEventAreas().catch(() => EVENT_AREAS);
+    const pdfTransport = order.transport_cost_confirmed ?? (order.event_area ? (areas.find(a => a.name === order.event_area)?.price ?? 0) : 0);
+    // Same single formula as the DB/RPC — no hardcoded 0.05.
+    const pdfTotals = computeOrderTotals({
+      itemsTotal: liveItemsTotal,
+      transport: pdfTransport,
+      discount: order.discount || 0,
+      discountType: order.discount_type === 'percent' ? 'percent' : 'fixed',
+      paymentMethod: (order.payment_method as PaymentMethod) || 'bank_transfer',
+    });
     await downloadOrderPDF({
       orderNumber: order.order_number,
       customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email || '' },
       event: { date: order.event_date, time: order.event_time, area: order.event_area || '', address: order.event_address, birthdayChildName: order.birthday_child_name || '', birthdayChildAge: order.birthday_child_age || '', theme },
       items: order.items.map(i => ({ productId: '', name: i.product_name, category: '' as never, quantity: i.quantity, unitPrice: i.unit_price })),
       subtotal: liveItemsTotal,
-      discount: liveDisc,
+      discount: pdfTotals.discountAmount,
       discountType: order.discount_type,
       transportCost: pdfTransport,
-      surcharge: pdfSurch,
-      total: pdfTotal,
+      surcharge: pdfTotals.surcharge,
+      total: pdfTotals.total,
       paymentMethod: order.payment_method as 'bank_transfer' | 'credit_card',
       logoUrl,
       deposits: order.deposits,
@@ -923,7 +928,7 @@ export default function PedidoDetailPage() {
                 </div>
               ))}
               <div className="flex gap-2 pt-2">
-                <input type="date" value={depositDate || new Date().toISOString().slice(0, 10)} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg min-h-[44px] px-2 font-body text-sm" />
+                <input type="date" value={depositDate || panamaToday()} onChange={e => setDepositDate(e.target.value)} className="border border-gray-200 rounded-lg min-h-[44px] px-2 font-body text-sm" />
                 <input type="number" inputMode="decimal" value={depositInput} onChange={e => setDepositInput(e.target.value)} placeholder={liveTotal > 0 ? formatCurrency(balance) : '$0.00'} min="0" step="0.01" className="flex-1 border border-gray-200 rounded-lg min-h-[44px] px-2.5 font-body text-sm" />
                 <button onClick={addDeposit} disabled={!depositInput || savingAction === 'deposit'} className="bg-teal text-white font-heading font-semibold px-3 min-h-[44px] rounded-lg text-sm disabled:opacity-40">{savingAction === 'deposit' ? '...' : 'Registrar'}</button>
               </div>

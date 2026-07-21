@@ -5,8 +5,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isValidSession, getClientIP } from '@/lib/admin-auth';
-import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
 import { EVENT_AREAS } from '@/lib/types';
+import { round2, computeOrderTotals } from '@/lib/order-math';
+import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
+import { panamaToday } from '@/lib/timezone';
 import { sendOrderNotification } from '@/lib/email';
 import { sendPushNotification } from '@/lib/push';
 import { generateOrderPDF } from '@/lib/pdf-order';
@@ -34,11 +36,6 @@ function isAdminAuthorized(request: NextRequest): boolean {
   return isValidSession(request.headers.get('x-admin-token'));
 }
 
-/** Round to 2 decimal places to avoid floating-point issues */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
 // In-memory rate limit for public order creation (per IP). Same best-effort,
 // per-instance approach as the auth limiter — a determined attacker across cold
 // starts isn't fully stopped, but casual spam of fake orders is.
@@ -57,17 +54,8 @@ function isOrderRateLimited(ip: string): boolean {
 }
 
 // ─── Status transition matrix (validated server-side, mirrors UI) ───
-type CanonStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
-function canonicalStatus(o: { status?: string | null; confirmed?: boolean | null }): CanonStatus {
-  const s = o.status;
-  if (s === 'realizado') return 'realizado';
-  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
-  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
-  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
-  if (o.confirmed) return 'confirmado';
-  return 'pendiente';
-}
-const STATUS_TRANSITIONS: Record<CanonStatus, CanonStatus[]> = {
+// Canonicalization lives in @/lib/order-status; this is just the allowed moves.
+const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pendiente: ['confirmado', 'rechazado'],
   confirmado: ['realizado', 'rechazado'],
   realizado: [], // estado cerrado
@@ -107,8 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'La fecha no es válida' }, { status: 400 });
     }
     // Reject past dates (Panama timezone UTC-5)
-    const nowPanama = new Date(Date.now() - 5 * 60 * 60 * 1000);
-    const todayStr = nowPanama.toISOString().slice(0, 10);
+    const todayStr = panamaToday();
     if (event.date < todayStr) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'La fecha del evento no puede ser en el pasado' }, { status: 400 });
     }
@@ -182,10 +169,10 @@ export async function POST(request: NextRequest) {
     const matchedArea = event.area ? eventAreas.find(a => a.name === event.area) : undefined;
     const transportPending = event.area === 'Otra área' || !matchedArea;
     const serverTransport = transportPending ? 0 : Math.max(0, round2(Number(matchedArea?.price) || 0));
-    // Card surcharge applies to subtotal + transport, matching the client quote.
-    const surchargeBase = serverSubtotal + serverTransport;
-    const serverSurcharge = paymentMethod === 'credit_card' ? round2(surchargeBase * CREDIT_CARD_SURCHARGE) : 0;
-    const serverTotal = round2(surchargeBase + serverSurcharge);
+    // Single totals formula (no discount at creation — admin applies it later).
+    const totals = computeOrderTotals({ itemsTotal: serverSubtotal, transport: serverTransport, paymentMethod });
+    const serverSurcharge = totals.surcharge;
+    const serverTotal = totals.total;
 
     // Persist order + items ATOMICALLY via the create_order RPC (one transaction →
     // no "order without items"). Idempotent by idempotency_key: a double-submit/retry
@@ -336,7 +323,18 @@ export async function POST(request: NextRequest) {
       console.error('Order PDF generate/upload error (non-critical):', e);
     }
 
-    return NextResponse.json({ orderNumber: order.order_number, orderId: order.id, pdfUrl });
+    // Return the SERVER-authoritative totals so the client uses these for the
+    // WhatsApp message / confirmation, not the locally-computed cart numbers.
+    return NextResponse.json({
+      orderNumber: order.order_number,
+      orderId: order.id,
+      pdfUrl,
+      subtotal: serverSubtotal,
+      transport: serverTransport,
+      transportPending,
+      surcharge: serverSurcharge,
+      total: serverTotal,
+    });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -406,7 +404,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'No se pudo verificar el estado actual del pedido' }, { status: 500 });
       }
       const current = canonicalStatus(cur);
-      if (status !== current && !STATUS_TRANSITIONS[current].includes(status as CanonStatus)) {
+      if (status !== current && !STATUS_TRANSITIONS[current].includes(status as OrderStatus)) {
         return NextResponse.json({ error: `Transición no permitida: ${current} → ${status}` }, { status: 400 });
       }
       const isConfirmed = status === 'confirmado' || status === 'realizado';
@@ -434,14 +432,41 @@ export async function PATCH(request: NextRequest) {
         if (digits.length < 7 || digits.length > 15) return NextResponse.json({ error: 'Teléfono inválido (7-15 dígitos)' }, { status: 400 });
         mapped.customer_phone = editFields.customer_phone;
       }
-      if (editFields.customer_email !== undefined) mapped.customer_email = editFields.customer_email || null;
-      if (editFields.event_date !== undefined) mapped.event_date = editFields.event_date;
-      if (editFields.event_time !== undefined) mapped.event_time = editFields.event_time;
-      if (editFields.event_area !== undefined) mapped.event_area = editFields.event_area || null;
-      if (editFields.event_address !== undefined) mapped.event_address = editFields.event_address;
-      if (editFields.birthday_child_name !== undefined) mapped.birthday_child_name = editFields.birthday_child_name || null;
-      if (editFields.birthday_child_age !== undefined) mapped.birthday_child_age = editFields.birthday_child_age || null;
-      if (editFields.notes !== undefined) mapped.notes = editFields.notes || null;
+      if (editFields.customer_email !== undefined) {
+        const email = editFields.customer_email ? String(editFields.customer_email) : '';
+        if (email && (email.length > 254 || !EMAIL_RE.test(email))) {
+          return NextResponse.json({ error: 'Correo electrónico inválido' }, { status: 400 });
+        }
+        mapped.customer_email = email || null;
+      }
+      if (editFields.event_date !== undefined) {
+        const d = String(editFields.event_date);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          return NextResponse.json({ error: 'Fecha inválida (YYYY-MM-DD)' }, { status: 400 });
+        }
+        const [y, mo, da] = d.split('-').map(Number);
+        const dt = new Date(y, mo - 1, da);
+        if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== da) {
+          return NextResponse.json({ error: 'La fecha no es válida' }, { status: 400 });
+        }
+        mapped.event_date = d;
+      }
+      if (editFields.event_time !== undefined) mapped.event_time = String(editFields.event_time).slice(0, 20);
+      if (editFields.event_area !== undefined) mapped.event_area = editFields.event_area ? String(editFields.event_area).slice(0, 100) : null;
+      if (editFields.event_address !== undefined) mapped.event_address = String(editFields.event_address).slice(0, 300);
+      if (editFields.birthday_child_name !== undefined) mapped.birthday_child_name = editFields.birthday_child_name ? String(editFields.birthday_child_name).slice(0, 100) : null;
+      if (editFields.birthday_child_age !== undefined) {
+        if (editFields.birthday_child_age === '' || editFields.birthday_child_age === null) {
+          mapped.birthday_child_age = null;
+        } else {
+          const age = Number(editFields.birthday_child_age);
+          if (!Number.isFinite(age) || age < 0 || age > 99) {
+            return NextResponse.json({ error: 'Edad inválida (0-99)' }, { status: 400 });
+          }
+          mapped.birthday_child_age = Math.trunc(age);
+        }
+      }
+      if (editFields.notes !== undefined) mapped.notes = editFields.notes ? String(editFields.notes).slice(0, 2000) : null;
       if (Object.keys(mapped).length > 0) {
         const { error } = await db.from('pt_orders').update(mapped).eq('id', orderId);
         if (error) {
@@ -464,9 +489,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Monto demasiado grande' }, { status: 400 });
       }
       const rawDate = typeof addDeposit?.date === 'string' ? addDeposit.date : '';
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
-        ? rawDate
-        : new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10); // hoy (Panamá UTC-5)
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : panamaToday();
       const { data, error } = await db.rpc('add_deposit', { p_order_id: orderId, p_amount: amt, p_date: date });
       if (error || !data) {
         console.error('add_deposit RPC error:', error);
@@ -524,6 +547,9 @@ export async function PATCH(request: NextRequest) {
       if (dtype === 'percent' && val > 100) {
         return NextResponse.json({ error: 'Porcentaje debe ser <= 100' }, { status: 400 });
       }
+      if (dtype === 'fixed' && val > 9999999) {
+        return NextResponse.json({ error: 'Descuento demasiado grande' }, { status: 400 });
+      }
       const { error: discError } = await db.from('pt_orders').update({ discount: val, discount_type: dtype }).eq('id', orderId);
       if (discError) {
         // Fallback for DBs without a discount_type column.
@@ -543,8 +569,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (editItems !== undefined) {
+      if (!Array.isArray(editItems)) {
+        return NextResponse.json({ error: 'editItems debe ser una lista' }, { status: 400 });
+      }
       for (const item of editItems) {
-        if (!item.id || typeof item.quantity !== 'number' || item.quantity < 1 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
+        if (!item.id || typeof item.quantity !== 'number' || item.quantity < 1 || item.quantity > 999 || typeof item.unit_price !== 'number' || item.unit_price < 0 || item.unit_price > 99999) {
           return NextResponse.json({ error: 'Datos de item inválidos' }, { status: 400 });
         }
       }

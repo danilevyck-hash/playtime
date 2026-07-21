@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/format';
 import { EVENT_AREAS } from '@/lib/types';
+import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
+import { panamaToday } from '@/lib/timezone';
 import { useToast } from '@/context/ToastContext';
 import {
   fetchSetting,
@@ -80,7 +82,6 @@ async function apiBulkUpdateOrder(ids: string[]) {
 import { CATEGORIES } from '@/lib/constants';
 import { DEFAULT_SITE_TEXTS, SITE_TEXT_LABELS, SiteTexts, clearSiteTextsCache } from '@/lib/site-texts';
 
-type OrderStatus = 'pendiente' | 'confirmado' | 'realizado' | 'rechazado';
 const ORDER_STATUSES: { key: OrderStatus; label: string; color: string; bg: string }[] = [
   { key: 'pendiente', label: 'Pendiente', color: 'text-gray-600', bg: 'bg-gray-200' },
   { key: 'confirmado', label: 'Confirmado', color: 'text-white', bg: 'bg-teal' },
@@ -149,17 +150,6 @@ interface Order {
   created_at: string;
   confirmed: boolean;
   items: OrderItem[];
-}
-
-function getOrderStatus(order: Order): OrderStatus {
-  // Map legacy statuses to new pipeline
-  const s = order.status as string;
-  if (s === 'realizado') return 'realizado';
-  if (s === 'rechazado' || s === 'rechazada') return 'rechazado';
-  if (s === 'confirmado' || s === 'aprobada' || s === 'deposito') return 'confirmado';
-  if (s === 'pendiente' || s === 'nuevo') return 'pendiente';
-  if (order.confirmed) return 'confirmado';
-  return 'pendiente';
 }
 
 // Session token stored after server-side auth validation (single source of truth)
@@ -281,7 +271,7 @@ function OrdersTab() {
     const rows = all.map(o => {
       const dep = o.deposit_amount ?? 0;
       const theme = o.notes?.replace(/^Tema:\s*/, '') || '';
-      return [o.order_number, o.customer_name, o.customer_phone, o.customer_email, o.event_date, o.event_time, o.event_area, o.event_address, o.birthday_child_name, o.birthday_child_age, theme, o.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta', o.subtotal, o.transport_cost_confirmed ?? '', o.surcharge, o.total, dep, dep > 0 ? o.total - dep : '', getOrderStatus(o), o.internal_note, o.created_at].map(esc).join(',');
+      return [o.order_number, o.customer_name, o.customer_phone, o.customer_email, o.event_date, o.event_time, o.event_area, o.event_address, o.birthday_child_name, o.birthday_child_age, theme, o.payment_method === 'bank_transfer' ? 'Transferencia' : 'Tarjeta', o.subtotal, o.transport_cost_confirmed ?? '', o.surcharge, o.total, dep, dep > 0 ? o.total - dep : '', canonicalStatus(o), o.internal_note, o.created_at].map(esc).join(',');
     });
     const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -293,7 +283,7 @@ function OrdersTab() {
   // Filtering (search/status/month) is server-side now; here we only sort the loaded
   // page for display: upcoming events first (asc), past events at the bottom (reverse).
   const filteredOrders = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = panamaToday();
     return [...orders].sort((a, b) => {
       const aFuture = (a.event_date || '') >= today;
       const bFuture = (b.event_date || '') >= today;
@@ -487,7 +477,7 @@ function OrdersTab() {
             <h3 className="font-heading font-semibold text-xs text-gray-400 uppercase tracking-wider mb-1 mt-3">{group.label}</h3>
             <div className="divide-y divide-gray-100">
               {group.orders.map(o => {
-                const st = getOrderStatus(o);
+                const st = canonicalStatus(o);
                 const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
                 return (
                   <button
@@ -524,7 +514,7 @@ function OrdersTab() {
       ) : !loading ? (
         <div className="divide-y divide-gray-100">
           {filteredOrders.map(o => {
-            const st = getOrderStatus(o);
+            const st = canonicalStatus(o);
             const stInfo = ORDER_STATUSES.find(s => s.key === st) || ORDER_STATUSES[0];
             return (
               <button

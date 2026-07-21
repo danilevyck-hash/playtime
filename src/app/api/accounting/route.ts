@@ -3,10 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireRole } from '@/lib/admin-auth';
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+import { round2 } from '@/lib/order-math';
 
 const VOUCHER_KINDS = ['ingreso', 'egreso'];
 const CATEGORY_KINDS = ['ingreso', 'gasto'];

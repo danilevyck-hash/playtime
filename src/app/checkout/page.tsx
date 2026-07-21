@@ -14,7 +14,7 @@ import EventDetailsForm from '@/components/checkout/EventDetailsForm';
 import OrderReview from '@/components/checkout/OrderReview';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { CREDIT_CARD_SURCHARGE } from '@/lib/constants';
+import { computeOrderTotals } from '@/lib/order-math';
 import { formatCurrency } from '@/lib/format';
 import { getSiteTexts, DEFAULT_SITE_TEXTS, SiteTexts } from '@/lib/site-texts';
 
@@ -40,11 +40,6 @@ function loadCheckoutState() {
 
 function clearCheckoutState() {
   try { sessionStorage.removeItem(CHECKOUT_STORAGE_KEY); } catch {}
-}
-
-/** Round to 2 decimal places */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 export default function CheckoutPage() {
@@ -113,8 +108,7 @@ export default function CheckoutPage() {
     if (submittingRef.current) return;
 
     const effectiveTransport = isTransportPending ? 0 : transportCost;
-    const surcharge = paymentMethod === 'credit_card' ? round2((subtotal + effectiveTransport) * CREDIT_CARD_SURCHARGE) : 0;
-    const total = round2(subtotal + effectiveTransport + surcharge);
+    const { surcharge, total } = computeOrderTotals({ itemsTotal: subtotal, transport: effectiveTransport, paymentMethod });
 
     const transportLine = isTransportPending ? 'Transporte: Se confirma por WhatsApp' : (effectiveTransport > 0 ? `Transporte: ${formatCurrency(effectiveTransport)}` : '');
     const surchargeLine = surcharge > 0 ? `Recargo tarjeta (5%): ${formatCurrency(surcharge)}` : '';
@@ -132,8 +126,9 @@ export default function CheckoutPage() {
     if (submittingRef.current) return;
 
     const effectiveTransport = isTransportPending ? 0 : transportCost;
-    const surcharge = paymentMethod === 'credit_card' ? round2((subtotal + effectiveTransport) * CREDIT_CARD_SURCHARGE) : 0;
-    const total = round2(subtotal + effectiveTransport + surcharge);
+    // Local total is only a fallback; the API returns the server-authoritative
+    // total (same formula) and we use THAT for WhatsApp + the confirmation.
+    let finalTotal = computeOrderTotals({ itemsTotal: subtotal, transport: effectiveTransport, paymentMethod }).total;
 
     submittingRef.current = true;
     setLoading(true);
@@ -175,6 +170,7 @@ export default function CheckoutPage() {
         }
         orderNumber = data.orderNumber ?? data.orderId;
         pdfUrl = typeof data.pdfUrl === 'string' ? data.pdfUrl : '';
+        if (typeof data.total === 'number') finalTotal = data.total;
       } catch (e) {
         console.error('Order save error:', e);
         setSubmitError('No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
@@ -191,14 +187,14 @@ export default function CheckoutPage() {
         eventTime: event.time,
         showTime: event.showTime,
         items: items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
-        total,
+        total: finalTotal,
       });
 
       const waUrl = getWhatsAppUrl(message);
       try {
         sessionStorage.setItem('playtime-order-summary', JSON.stringify({
           items: items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
-          total,
+          total: finalTotal,
           date: event.date,
           time: event.time,
         }));

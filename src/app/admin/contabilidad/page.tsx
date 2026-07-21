@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { fetchLogoUrl } from '@/lib/supabase-data';
 import { CONTACT } from '@/lib/constants';
+import { round2 } from '@/lib/order-math';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // ─── Session (shared with /admin via sessionStorage) ───
@@ -228,7 +229,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-const money2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const money2 = (n: number) => round2(Number(n) || 0);
 
 // ─── MAIN PAGE ───
 export default function ContabilidadPage() {

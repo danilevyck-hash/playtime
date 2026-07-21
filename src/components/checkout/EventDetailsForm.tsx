@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { OrderEvent, EVENT_AREAS } from '@/lib/types';
+import { panamaTomorrow } from '@/lib/timezone';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
@@ -235,10 +236,9 @@ export default function EventDetailsForm({ data, onChange, onNext, onBack, areas
   const areas = eventAreas || EVENT_AREAS;
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Generate min date (tomorrow)
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().slice(0, 10);
+  // Min bookable date = tomorrow in Panama (UTC-5). Computing this in UTC skipped
+  // a day between 7pm and midnight Panama.
+  const minDate = panamaTomorrow();
 
   // Format selected date for display
   const formatDate = (dateStr: string) => {

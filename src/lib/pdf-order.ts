@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CartItem, PaymentMethod } from './types';
 import { BANK_INFO, CONTACT } from './constants';
+import { round2 } from './order-math';
 import { formatCurrency } from './format';
 // Chalet font removed — caused rendering issues (dots/squares) on iOS PDF viewers
 // Using helvetica (standard PDF font) for universal compatibility
@@ -92,11 +93,6 @@ function addDays(dateStr: string, days: number): string {
   const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
   d.setUTCDate(d.getUTCDate() + days);
   return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
-}
-
-/** Round to 2 decimal places */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 // Brand colors
