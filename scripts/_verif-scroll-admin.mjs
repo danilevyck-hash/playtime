@@ -113,10 +113,43 @@ await page.waitForTimeout(400);
 const antes = await page.evaluate(() => window.scrollY);
 console.error(`scroll en el listado ANTES de entrar: ${antes}px`);
 
-// Abrir el primer pedido visible (click en la card, no en un botón de acción).
-const card = page.locator('[class*="cursor-pointer"], article, li').filter({ hasText: 'Cliente de Prueba' }).first();
-const objetivo = (await card.count()) ? card : page.getByText(/Cliente de Prueba/).first();
-await objetivo.click();
+// Abrir un pedido QUE YA ESTÉ A LA VISTA, con un click de mouse por coordenada.
+//
+// 🩸 NO se puede usar `locator.click()` acá, y esto costó un diagnóstico falso:
+// Playwright desplaza el elemento a la vista antes de clickearlo. Al apuntarle a
+// la PRIMERA tarjeta —que a 1.500 px quedó muy por encima— el navegador subía la
+// página a 64 px ANTES del click, y el listado guardaba 64 en vez de 1.500. La
+// medición se saboteaba sola: el código guardaba bien lo que veía, pero para
+// entonces ya no era la posición que el test creía estar probando.
+//
+// Un usuario real toca una tarjeta que YA está en pantalla; no hay auto-scroll.
+// Se reproduce eso: se busca una tarjeta dentro del viewport y se clickea por
+// coordenada, que no mueve nada.
+const punto = await page.evaluate(() => {
+  // La tarjeta del listado es un <button> (OrdersTab.tsx: onClick={() => goToOrder(o.id)}).
+  const candidatos = [...document.querySelectorAll('button')]
+    .filter((el) => /Cliente de Prueba/.test(el.textContent ?? ''));
+  for (const el of candidatos) {
+    const r = el.getBoundingClientRect();
+    // Bien adentro del viewport, para no pegarle a una barra pegajosa.
+    if (r.top > 120 && r.bottom < window.innerHeight - 60 && r.width > 100) {
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    }
+  }
+  return null;
+});
+if (!punto) {
+  console.error('❌ no encontré una tarjeta a la vista para clickear; la prueba no sería concluyente');
+  await navegador.close();
+  process.exit(1);
+}
+await page.mouse.click(punto.x, punto.y);
+const alClickear = await page.evaluate(() => window.scrollY);
+if (Math.abs(alClickear - antes) > 5) {
+  console.error(`❌ el click movió el scroll (${antes} → ${alClickear}); se estaría midiendo otra posición`);
+  await navegador.close();
+  process.exit(1);
+}
 await page.waitForURL('**/admin/pedidos/**', { timeout: 10000 });
 await page.waitForTimeout(LATENCIA_MS + 1200);
 const urlDetalle = page.url();
@@ -142,5 +175,87 @@ console.error(ok
   : `❌ PIERDE la posición (${antes} → ${despues}, diferencia ${Math.abs(despues - antes)}px)`);
 if (errores.length) console.error('errores JS:', errores.slice(0, 3));
 
+// ─── GUARDAS: cuándo NO tiene que reponer ────────────────────────────────────
+//
+// Reponer de más es peor que no reponer: un salto que el usuario no pidió. Los
+// tres casos que Daniel puso como límite se prueban acá, y cada uno se prueba
+// con la posición YA guardada en sessionStorage — si no, "no saltó" no probaría
+// nada: no habría nada que reponer.
+
+const guardas = [];
+
+/** Abre /admin en una pestaña limpia con lo que se le siembre y mide el scroll. */
+async function montarListado({ sembrar, tocarScroll }) {
+  const c = await navegador.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+  await c.addInitScript(() => { delete Navigator.prototype.serviceWorker; });
+  await c.addInitScript(sembrar);
+  await c.route(/\/api\/orders/, async (route) => {
+    const url = route.request().url();
+    await new Promise((r) => setTimeout(r, LATENCIA_MS));
+    if (/\/api\/orders\/stats/.test(url)) return route.fulfill(json(stats));
+    return route.fulfill(json({ orders: pedidos, total: N_PEDIDOS, hasMore: false }));
+  });
+  const pg = await c.newPage();
+  await pg.goto(`${BASE}/admin`, { waitUntil: 'domcontentloaded' });
+  if (tocarScroll) {
+    // El usuario se mueve ANTES de que llegue la altura: la reposición tiene
+    // que abandonar y no pelearle el scroll.
+    await pg.waitForTimeout(80);
+    await pg.mouse.wheel(0, 200);
+  }
+  await pg.waitForTimeout(LATENCIA_MS + 2500);
+  const y = await pg.evaluate(() => window.scrollY);
+  await c.close();
+  return y;
+}
+
+// (A) Entrada normal al listado, con posición guardada pero SIN vuelta.
+{
+  const y = await montarListado({ sembrar: () => {
+    sessionStorage.setItem('adminToken', 'token-de-prueba');
+    sessionStorage.setItem('adminRole', 'admin');
+    sessionStorage.setItem('adminScroll:/admin', '1500');
+  }});
+  guardas.push({ caso: 'entrada normal a /admin (sin volver de un detalle)', y, ok: y === 0 });
+}
+
+// (B) Recién autenticado con el PIN. Es el caso que más importa: el listado
+//     aparece por primera vez y NO debe saltar.
+{
+  const y = await montarListado({ sembrar: () => {
+    // Sin token: se pinta el PIN. Se simula el login guardando la sesión y
+    // recargando el estado como hace admin/page.tsx al montar.
+    sessionStorage.setItem('adminScroll:/admin', '1500');
+    setTimeout(() => {
+      sessionStorage.setItem('adminToken', 'token-de-prueba');
+      sessionStorage.setItem('adminRole', 'admin');
+    }, 0);
+  }});
+  guardas.push({ caso: 'listado montado justo después del PIN', y, ok: y === 0 });
+}
+
+// (C) Vuelta legítima, pero el usuario ya movió el scroll con el dedo.
+{
+  const y = await montarListado({
+    sembrar: () => {
+      sessionStorage.setItem('adminToken', 'token-de-prueba');
+      sessionStorage.setItem('adminRole', 'admin');
+      sessionStorage.setItem('adminScroll:/admin', '1500');
+      sessionStorage.setItem('adminOrdersBack', '1');
+    },
+    tocarScroll: true,
+  });
+  // No se le pelea: tiene que quedar donde lo dejó el usuario, no en 1500.
+  guardas.push({ caso: 'el usuario ya scrolleó: se abandona la reposición', y, ok: Math.abs(y - 1500) > 150 });
+}
+
+console.error('');
+console.error('GUARDAS — cuándo NO debe reponer');
+let guardasOk = true;
+for (const g of guardas) {
+  if (!g.ok) guardasOk = false;
+  console.error(`  ${g.ok ? '✅' : '❌'} ${g.caso.padEnd(52)} scroll final ${g.y}px`);
+}
+
 await navegador.close();
-process.exit(ok ? 0 : 1);
+process.exit(ok && guardasOk ? 0 : 1);
