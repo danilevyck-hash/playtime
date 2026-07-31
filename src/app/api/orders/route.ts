@@ -58,8 +58,8 @@ function isOrderRateLimited(ip: string): boolean {
 // Canonicalization lives in @/lib/order-status; this is just the allowed moves.
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pendiente: ['confirmado', 'rechazado'],
-  confirmado: ['realizado', 'rechazado'],
-  realizado: [], // estado cerrado
+  confirmado: ['realizado', 'rechazado', 'pendiente'], // pendiente = deshacer un confirmado por error
+  realizado: ['confirmado'], // deshacer un realizado por error
   rechazado: ['pendiente'], // reactivar
 };
 

@@ -23,8 +23,8 @@ const ORDER_STATUSES: { key: OrderStatus; label: string }[] = [
 // Transiciones permitidas (validadas también en el server).
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pendiente: ['confirmado', 'rechazado'],
-  confirmado: ['realizado', 'rechazado'],
-  realizado: [], // cerrado
+  confirmado: ['realizado', 'rechazado', 'pendiente'], // pendiente = deshacer un confirmado por error
+  realizado: ['confirmado'], // deshacer un realizado por error
   rechazado: ['pendiente'], // reactivar
 };
 

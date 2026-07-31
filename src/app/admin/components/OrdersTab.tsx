@@ -6,7 +6,10 @@ import { formatCurrency } from "@/lib/format";
 import { canonicalStatus } from "@/lib/order-status";
 import { panamaToday } from "@/lib/timezone";
 import { useToast } from "@/context/ToastContext";
-import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, RETURN_TO_LIST_KEY, RETURN_FROM_DETAIL_KEY, scrollKeyFor, type Order } from "./shared";
+import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, RETURN_TO_LIST_KEY, RETURN_FROM_DETAIL_KEY, STATUS_FILTER_KEY, scrollKeyFor, type Order } from "./shared";
+
+type StatusFilter = 'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected' | 'archived';
+const STATUS_FILTER_VALUES: StatusFilter[] = ['all', 'pending', 'confirmed', 'realizado', 'rejected', 'archived'];
 
 export default function OrdersTab() {
   const { showToast } = useToast();
@@ -16,7 +19,16 @@ export default function OrdersTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'realizado' | 'rejected' | 'archived'>('all');
+  // Arranca en el último filtro usado, no en "Todos": el listado se desmonta al
+  // abrir un pedido y sin esto volver del detalle perdía el tab activo. Solo se
+  // renderiza tras el PIN (client-only), así que leer sessionStorage acá es seguro.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    try {
+      const saved = sessionStorage.getItem(STATUS_FILTER_KEY);
+      if (saved && (STATUS_FILTER_VALUES as string[]).includes(saved)) return saved as StatusFilter;
+    } catch {}
+    return 'all';
+  });
   const [eventMonthFilter, setEventMonthFilter] = useState<string>('all'); // 'all' or 'YYYY-MM'
   const [sortMode, setSortMode] = useState<'created' | 'event'>('event');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -338,7 +350,10 @@ export default function OrdersTab() {
         ] as const).map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setStatusFilter(key)}
+            onClick={() => {
+              setStatusFilter(key);
+              try { sessionStorage.setItem(STATUS_FILTER_KEY, key); } catch {}
+            }}
             className={`shrink-0 px-4 py-1.5 min-h-[36px] rounded-full font-heading font-semibold text-xs transition-colors ${statusFilter === key ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             style={{ scrollSnapAlign: 'start' }}
           >

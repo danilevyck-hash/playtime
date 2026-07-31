@@ -19,6 +19,11 @@ export function setAdminRole(role: 'admin' | 'vendedora') { _adminRole = role; }
 // history.back() sacaría al usuario de la app.
 export const RETURN_TO_LIST_KEY = 'adminOrdersReturn';
 
+// Filtro de estado activo del listado (Pendientes/Confirmados/…). Va en
+// sessionStorage porque el listado se DESMONTA al abrir un pedido: sin esto,
+// volver del detalle lo devolvía siempre a "Todos".
+export const STATUS_FILTER_KEY = 'adminOrdersStatusFilter';
+
 // Vuelta CONFIRMADA desde el detalle. La pone el detalle justo antes de
 // history.back() y la consume el listado.
 //
