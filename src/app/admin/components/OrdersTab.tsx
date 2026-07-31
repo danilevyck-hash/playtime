@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/format";
 import { canonicalStatus } from "@/lib/order-status";
 import { panamaToday } from "@/lib/timezone";
 import { useToast } from "@/context/ToastContext";
-import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, type Order } from "./shared";
+import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, RETURN_TO_LIST_KEY, type Order } from "./shared";
 
 export default function OrdersTab() {
   const { showToast } = useToast();
@@ -176,7 +176,14 @@ export default function OrdersTab() {
   const confirmedRevenue = stats?.confirmedRevenue ?? 0;
   const archivedOrders = stats?.archived ?? 0;
 
-  const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
+  // Marca que el detalle se abrió DESDE el listado. El detalle lo lee para
+  // decidir si "← Pedidos" puede usar history.back() (que conserva la posición
+  // del scroll) o si tiene que navegar a /admin porque se entró directo por URL
+  // y atrás no hay listado al que volver.
+  const goToOrder = (id: number) => {
+    try { sessionStorage.setItem(RETURN_TO_LIST_KEY, '1'); } catch {}
+    router.push(`/admin/pedidos/${id}`);
+  };
 
   return (
     <div className="bg-white -mx-4 px-4 -my-6 py-6 min-h-[60vh]">

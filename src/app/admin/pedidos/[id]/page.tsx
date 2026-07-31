@@ -11,6 +11,7 @@ import { computeOrderTotals } from '@/lib/order-math';
 import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
 import { panamaToday } from '@/lib/timezone';
 import { useToast } from '@/context/ToastContext';
+import { RETURN_TO_LIST_KEY } from '@/app/admin/components/shared';
 
 const ORDER_STATUSES: { key: OrderStatus; label: string }[] = [
   { key: 'pendiente', label: 'Pendiente' },
@@ -141,6 +142,24 @@ export default function PedidoDetailPage() {
     }
   }, [router]);
 
+  // "← Pedidos". Volver con history.back() en vez de router.push('/admin'):
+  // push crea una entrada NUEVA de historial y el navegador la abre arriba de
+  // todo, así que se perdía la posición del listado. back() vuelve a la entrada
+  // anterior, que es la que tiene el scroll guardado.
+  //
+  // La marca la deja el listado al abrir el pedido (OrdersTab.goToOrder). Si no
+  // está, se entró directo por URL: ahí atrás no hay listado y un back() sacaría
+  // al usuario de la app, así que se navega a /admin como antes.
+  const volverAlListado = useCallback(() => {
+    let vinoDelListado = false;
+    try {
+      vinoDelListado = sessionStorage.getItem(RETURN_TO_LIST_KEY) === '1';
+      if (vinoDelListado) sessionStorage.removeItem(RETURN_TO_LIST_KEY);
+    } catch {}
+    if (vinoDelListado) router.back();
+    else router.push('/admin');
+  }, [router]);
+
   const authHeaders = useCallback((extra?: Record<string, string>) => ({
     'Content-Type': 'application/json',
     'x-admin-token': token,
@@ -264,7 +283,7 @@ export default function PedidoDetailPage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-white px-4 py-8 max-w-2xl mx-auto">
-        <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
+        <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
         <div className="text-center py-16">
           <p className="font-heading font-bold text-lg text-gray-400">Pedido no encontrado</p>
         </div>
@@ -275,7 +294,7 @@ export default function PedidoDetailPage() {
   if (loading || !order) {
     return (
       <div className="min-h-screen bg-white px-4 py-8 max-w-2xl mx-auto">
-        <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
+        <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
         <div className="text-center py-16">
           <div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
@@ -556,7 +575,7 @@ export default function PedidoDetailPage() {
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 max-w-2xl mx-auto">
-            <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold flex items-center gap-1 hover:opacity-70 transition-opacity">
+            <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold flex items-center gap-1 hover:opacity-70 transition-opacity">
               <span aria-hidden="true">{'←'}</span> Pedidos
             </button>
             <span className="font-heading font-medium text-sm text-gray-800 truncate text-center flex-1 mx-3">

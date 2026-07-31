@@ -81,6 +81,26 @@ export const EVENT_AREAS: { name: string; price: number }[] = [
 
 export type PaymentMethod = 'bank_transfer' | 'credit_card';
 
+/**
+ * Los métodos de pago que el cliente puede elegir de verdad — son exactamente
+ * los dos botones del checkout (OrderReview.tsx: 'bank_transfer' y
+ * 'credit_card'). Vive acá para que la validación del API no pueda quedar
+ * desfasada de lo que la pantalla ofrece.
+ *
+ * Exhaustivo por construcción: al ser un Record<PaymentMethod, …>, agregar un
+ * método al tipo y olvidarse de listarlo acá NO compila.
+ */
+const PAYMENT_METHOD_SET: Record<PaymentMethod, true> = {
+  bank_transfer: true,
+  credit_card: true,
+};
+
+export const PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_SET) as PaymentMethod[];
+
+export function isPaymentMethod(v: unknown): v is PaymentMethod {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_METHOD_SET, v);
+}
+
 export interface Order {
   customer: OrderCustomer;
   event: OrderEvent;

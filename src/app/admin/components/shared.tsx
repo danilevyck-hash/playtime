@@ -12,6 +12,13 @@ export let _adminRole: 'admin' | 'vendedora' = 'admin';
 export function setAdminToken(token: string) { _adminToken = token; }
 export function setAdminRole(role: 'admin' | 'vendedora') { _adminRole = role; }
 
+// ─── Vuelta del detalle al listado ───
+// La marca la pone el listado al abrir un pedido y la consume el detalle. Sin
+// ella no se puede saber si atrás hay un listado al que volver: entrar directo
+// por URL (o desde una notificación) también monta el detalle, y ahí un
+// history.back() sacaría al usuario de la app.
+export const RETURN_TO_LIST_KEY = 'adminOrdersReturn';
+
 // ─── API helpers (server-side writes via service role) ───
 export function adminHeaders(extra?: Record<string, string>): Record<string, string> {
   return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, ...extra };

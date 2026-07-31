@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { isValidSession, getClientIP } from '@/lib/admin-auth';
-import { EVENT_AREAS } from '@/lib/types';
+import { EVENT_AREAS, isPaymentMethod } from '@/lib/types';
 import { buildCartId, baseProductId } from '@/lib/cart-id';
 import { round2, computeOrderTotals } from '@/lib/order-math';
 import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     if (event.date < todayStr) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'La fecha del evento no puede ser en el pasado' }, { status: 400 });
     }
-    if (!paymentMethod || !['bank_transfer', 'credit_card'].includes(paymentMethod)) {
+    if (!isPaymentMethod(paymentMethod)) {
       return NextResponse.json({ error: 'Datos inválidos', details: 'Método de pago debe ser bank_transfer o credit_card' }, { status: 400 });
     }
     // Email is OPTIONAL, but if provided it must be a sane string — it's used as
@@ -352,7 +352,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const body = await request.json();
-    const { orderId, confirmed, internalNote, status, editFields, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem, restore, addDeposit, removeDeposit } = body;
+    const { orderId, internalNote, status, editFields, paymentMethod, transportCostConfirmed, discount, discountType, editItems, addItem, removeItem, restore, addDeposit, removeDeposit } = body;
 
     if (!orderId || typeof orderId !== 'number') {
       return NextResponse.json({ error: 'orderId requerido' }, { status: 400 });
@@ -569,6 +569,28 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true, subtotal: t.subtotal, surcharge: t.surcharge, total: t.total });
     }
 
+    if (paymentMethod !== undefined) {
+      // Antes este campo no existía en el allow-list y se descartaba EN SILENCIO:
+      // el admin no tenía forma de corregir un método de pago mal elegido.
+      if (!isPaymentMethod(paymentMethod)) {
+        return NextResponse.json({ error: 'Método de pago debe ser bank_transfer o credit_card' }, { status: 400 });
+      }
+      const { error: pmErr } = await db.from('pt_orders').update({ payment_method: paymentMethod }).eq('id', orderId);
+      if (pmErr) {
+        console.error('payment method update error:', pmErr);
+        return NextResponse.json({ error: 'No se pudo actualizar el método de pago' }, { status: 500 });
+      }
+      // El recargo de tarjeta lo calcula compute_totals_raw dentro de la RPC, que
+      // lee payment_method de la fila. No se duplica la regla del 5% en TypeScript.
+      const { data: totals, error: rErr } = await db.rpc('recalc_order_totals', { p_order_id: orderId });
+      if (rErr || !totals) {
+        console.error('payment method recalc RPC error:', rErr);
+        return NextResponse.json({ error: 'No se pudo recalcular el total' }, { status: 500 });
+      }
+      const t = totals as RecalcResult;
+      return NextResponse.json({ ok: true, subtotal: t.subtotal, surcharge: t.surcharge, total: t.total });
+    }
+
     if (editItems !== undefined) {
       if (!Array.isArray(editItems)) {
         return NextResponse.json({ error: 'editItems debe ser una lista' }, { status: 400 });
@@ -649,14 +671,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (confirmed !== undefined) {
-      const { error } = await db.from('pt_orders').update({ confirmed }).eq('id', orderId);
-      if (error) {
-        console.error('Update error:', error);
-        return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true });
-    }
+    // Acá vivía una rama `confirmed` que hacía UPDATE del flag SIN pasar por la
+    // matriz de transiciones: una puerta trasera para reabrir un pedido cerrado
+    // en filas legacy sin `status`. Ningún cliente la usaba. El único camino
+    // para mover el estado es la rama `status` de arriba, que sí valida.
 
     return NextResponse.json({ error: 'No action specified' }, { status: 400 });
   } catch (error) {
