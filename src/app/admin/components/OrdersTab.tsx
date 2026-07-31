@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/format";
 import { canonicalStatus } from "@/lib/order-status";
 import { panamaToday } from "@/lib/timezone";
 import { useToast } from "@/context/ToastContext";
-import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, type Order } from "./shared";
+import { ORDER_STATUSES, STATUS_HEX, getInitials, fmtTime12h, _adminToken, _adminRole, RETURN_TO_LIST_KEY, RETURN_FROM_DETAIL_KEY, scrollKeyFor, type Order } from "./shared";
 
 export default function OrdersTab() {
   const { showToast } = useToast();
   const router = useRouter();
+  const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -92,6 +93,91 @@ export default function OrdersTab() {
   }, [fetchOrders, search]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  /**
+   * Repone la posición del listado al volver de un pedido.
+   *
+   * 🩸 POR QUÉ A MANO. `router.back()` es necesario pero NO alcanza: medido con
+   * scripts/_verif-scroll-admin.mjs, se sale desde 1.500 px y se vuelve a 0, y
+   * pasa igual con 0 ms y con 800 ms de latencia — no es cuestión de esperar
+   * más. El navegador aplica su restauración cuando este listado todavía mide
+   * casi nada (monta con `orders` en [] y los datos llegan en DOS respuestas,
+   * `orders` y `stats`, así que el alto crece dos veces) y la recorta a 0.
+   *
+   * CÓMO. No se repone al montar, que es justo cuando no hay altura: se espera
+   * a que el documento dé para llegar a esa posición, mirando los cambios de
+   * tamaño con un ResizeObserver. Cuatro cuidados, en orden de importancia:
+   *
+   *   1. UNA sola vez. Al reponer se corta todo — observer, escuchas y plazo.
+   *      Un segundo salto encima del usuario es peor que no reponer nada.
+   *   2. Si el usuario ya se movió, NO se repone. Pelearle el scroll al dedo es
+   *      el defecto más molesto de todos los restauradores mal hechos.
+   *   3. CON TECHO. Si el listado nunca llega a esa altura —pasa: la paginación
+   *      carga de a 100 y las páginas extra no vuelven— se repone lo que se
+   *      pueda y se sale. Nunca una espera infinita.
+   *   4. Solo al VOLVER de un detalle. Lo garantizan DOS marcas: la posición
+   *      la escribe `goToOrder`, y la confirmación de vuelta la escribe el
+   *      detalle antes de history.back(). Entrar fresco a /admin, o montar el
+   *      listado recién autenticado con el PIN, no mueve nada.
+   */
+  useEffect(() => {
+    let objetivo: number | null = null;
+    try {
+      // (4) Solo si el detalle confirmó que se está VOLVIENDO. Sin esto, entrar
+      // fresco a /admin —o montar el listado justo después de escribir el PIN—
+      // también repondría, y eso es un salto que el usuario no pidió.
+      if (sessionStorage.getItem(RETURN_FROM_DETAIL_KEY) !== '1') return;
+      sessionStorage.removeItem(RETURN_FROM_DETAIL_KEY);
+
+      const guardado = sessionStorage.getItem(scrollKeyFor(pathname));
+      if (guardado !== null) {
+        sessionStorage.removeItem(scrollKeyFor(pathname));   // se usa UNA vez
+        const n = Number(guardado);
+        if (Number.isFinite(n) && n > 0) objetivo = n;
+      }
+    } catch {}
+    if (objetivo === null) return;
+
+    const y = objetivo;
+    const PLAZO_MS = 4000;
+    let listo = false;
+
+    const maximoAlcanzable = () =>
+      Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    const cortar = () => {
+      listo = true;
+      observer.disconnect();
+      window.clearTimeout(plazo);
+      window.removeEventListener('wheel', seMovioElUsuario);
+      window.removeEventListener('touchstart', seMovioElUsuario);
+      window.removeEventListener('keydown', seMovioElUsuario);
+    };
+
+    // (2) El usuario mandó: se abandona sin tocar el scroll.
+    const seMovioElUsuario = () => { if (!listo) cortar(); };
+
+    // (1)+(3) Repone cuando ya se puede, o lo que se pueda al vencer el plazo.
+    const reponer = (forzar: boolean) => {
+      if (listo) return;
+      const tope = maximoAlcanzable();
+      if (!forzar && tope < y) return;      // todavía no hay altura: esperar
+      cortar();
+      window.scrollTo(0, Math.min(y, tope));
+    };
+
+    const plazo = window.setTimeout(() => reponer(true), PLAZO_MS);
+    const observer = new ResizeObserver(() => reponer(false));
+    observer.observe(document.documentElement);
+
+    window.addEventListener('wheel', seMovioElUsuario, { passive: true });
+    window.addEventListener('touchstart', seMovioElUsuario, { passive: true });
+    window.addEventListener('keydown', seMovioElUsuario);
+
+    reponer(false);                          // por si ya alcanzaba de entrada
+    return () => { if (!listo) cortar(); };
+  }, [pathname]);
+
   const exportCSV = async () => {
     // Export ALL orders matching the current filter (not just the loaded page).
     const all: Order[] = [];
@@ -176,7 +262,20 @@ export default function OrdersTab() {
   const confirmedRevenue = stats?.confirmedRevenue ?? 0;
   const archivedOrders = stats?.archived ?? 0;
 
-  const goToOrder = (id: number) => router.push(`/admin/pedidos/${id}`);
+  // Marca que el detalle se abrió DESDE el listado. El detalle lo lee para
+  // decidir si "← Pedidos" puede usar history.back() (que conserva la posición
+  // del scroll) o si tiene que navegar a /admin porque se entró directo por URL
+  // y atrás no hay listado al que volver.
+  const goToOrder = (id: number) => {
+    try {
+      sessionStorage.setItem(RETURN_TO_LIST_KEY, '1');
+      // Dónde estaba parado el listado. Se repone al volver (ver el efecto de
+      // más arriba): la restauración del navegador sola se recorta a 0 porque
+      // acá todavía no hay altura.
+      sessionStorage.setItem(scrollKeyFor(pathname), String(Math.round(window.scrollY)));
+    } catch {}
+    router.push(`/admin/pedidos/${id}`);
+  };
 
   return (
     <div className="bg-white -mx-4 px-4 -my-6 py-6 min-h-[60vh]">

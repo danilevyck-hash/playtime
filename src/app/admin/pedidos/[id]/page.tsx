@@ -11,6 +11,7 @@ import { computeOrderTotals } from '@/lib/order-math';
 import { canonicalStatus, type OrderStatus } from '@/lib/order-status';
 import { panamaToday } from '@/lib/timezone';
 import { useToast } from '@/context/ToastContext';
+import { RETURN_TO_LIST_KEY, RETURN_FROM_DETAIL_KEY } from '@/app/admin/components/shared';
 
 const ORDER_STATUSES: { key: OrderStatus; label: string }[] = [
   { key: 'pendiente', label: 'Pendiente' },
@@ -121,6 +122,7 @@ export default function PedidoDetailPage() {
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [transportInput, setTransportInput] = useState('');
   const [isEditingTransport, setIsEditingTransport] = useState(false);
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
   const [depositInput, setDepositInput] = useState('');
   const [depositDate, setDepositDate] = useState('');
   const [noteInput, setNoteInput] = useState('');
@@ -137,6 +139,32 @@ export default function PedidoDetailPage() {
       setToken(t);
       setAuthReady(true);
     } catch {
+      router.push('/admin');
+    }
+  }, [router]);
+
+  // "← Pedidos". Volver con history.back() en vez de router.push('/admin'):
+  // push crea una entrada NUEVA de historial y el navegador la abre arriba de
+  // todo, así que se perdía la posición del listado. back() vuelve a la entrada
+  // anterior, que es la que tiene el scroll guardado.
+  //
+  // La marca la deja el listado al abrir el pedido (OrdersTab.goToOrder). Si no
+  // está, se entró directo por URL: ahí atrás no hay listado y un back() sacaría
+  // al usuario de la app, así que se navega a /admin como antes.
+  const volverAlListado = useCallback(() => {
+    let vinoDelListado = false;
+    try {
+      vinoDelListado = sessionStorage.getItem(RETURN_TO_LIST_KEY) === '1';
+      if (vinoDelListado) sessionStorage.removeItem(RETURN_TO_LIST_KEY);
+    } catch {}
+    if (vinoDelListado) {
+      // Confirma la VUELTA para que el listado reponga el scroll. Va aparte de
+      // la marca de arriba porque esa ya se consumió, y porque el listado tiene
+      // que poder distinguir "volví de un pedido" de "acabo de escribir el PIN"
+      // — los dos lo montan por primera vez y solo el primero debe reponer.
+      try { sessionStorage.setItem(RETURN_FROM_DETAIL_KEY, '1'); } catch {}
+      router.back();
+    } else {
       router.push('/admin');
     }
   }, [router]);
@@ -264,7 +292,7 @@ export default function PedidoDetailPage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-white px-4 py-8 max-w-2xl mx-auto">
-        <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
+        <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
         <div className="text-center py-16">
           <p className="font-heading font-bold text-lg text-gray-400">Pedido no encontrado</p>
         </div>
@@ -275,7 +303,7 @@ export default function PedidoDetailPage() {
   if (loading || !order) {
     return (
       <div className="min-h-screen bg-white px-4 py-8 max-w-2xl mx-auto">
-        <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
+        <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold mb-6">{'←'} Pedidos</button>
         <div className="text-center py-16">
           <div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
@@ -439,6 +467,27 @@ export default function PedidoDetailPage() {
     } finally { setSavingAction(null); }
   };
 
+  /**
+   * Cambia el método de pago del pedido.
+   *
+   * El 5 % de recargo NO se calcula acá ni se manda desde el cliente: el PATCH
+   * dispara `recalc_order_totals` y el total vuelve recalculado por la base.
+   * Por eso al terminar se hace `loadOrder()` en vez de tocar el total a mano —
+   * es la misma regla que ya seguían descuento y transporte.
+   */
+  const savePaymentMethod = async (metodo: PaymentMethod) => {
+    if (metodo === order?.payment_method) { setIsEditingPayment(false); return; }
+    setSavingAction('payment');
+    try {
+      const result = await patchOrder({ paymentMethod: metodo });
+      if (result.ok) {
+        setIsEditingPayment(false);
+        showToast('Método de pago actualizado');
+        loadOrder();
+      } else { showToast('❌ ' + result.error); }
+    } finally { setSavingAction(null); }
+  };
+
   // Refresca SIEMPRE desde la respuesta real del RPC (deposits + deposit_amount
   // authoritative), nunca desde un array armado en el cliente.
   const applyDepositsFromResponse = (data: Record<string, unknown>) => {
@@ -556,7 +605,7 @@ export default function PedidoDetailPage() {
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 max-w-2xl mx-auto">
-            <button onClick={() => router.push('/admin')} className="text-sm text-purple font-heading font-semibold flex items-center gap-1 hover:opacity-70 transition-opacity">
+            <button onClick={volverAlListado} className="text-sm text-purple font-heading font-semibold flex items-center gap-1 hover:opacity-70 transition-opacity">
               <span aria-hidden="true">{'←'}</span> Pedidos
             </button>
             <span className="font-heading font-medium text-sm text-gray-800 truncate text-center flex-1 mx-3">
@@ -866,12 +915,49 @@ export default function PedidoDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Pago</span>
-                  <span className="font-heading">
-                    {payMethodLabel}
-                    {liveSurch > 0 && <span className="text-orange"> · +{formatCurrency(liveSurch)} recargo</span>}
-                  </span>
+                {/* Método de pago: mismo patrón que Transporte (valor + lápiz).
+                    Sin `window.confirm` porque es reversible — se vuelve a tocar
+                    el lápiz y se elige el otro. El recargo del 5 % lo calcula la
+                    base al guardar, no este componente. */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Pago</span>
+                  {!isEditingPayment ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading">
+                        {payMethodLabel}
+                        {liveSurch > 0 && <span className="text-orange"> · +{formatCurrency(liveSurch)} recargo</span>}
+                      </span>
+                      <button
+                        onClick={() => setIsEditingPayment(true)}
+                        className="text-gray-400 hover:text-orange min-h-[44px] min-w-[44px] flex items-center justify-center"
+                        aria-label="Editar método de pago"
+                      >✎</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <div className="flex border border-gray-200 rounded overflow-hidden">
+                        <button
+                          onClick={() => savePaymentMethod('bank_transfer')}
+                          disabled={savingAction === 'payment'}
+                          aria-pressed={order.payment_method !== 'credit_card'}
+                          aria-label="Cobrar por transferencia"
+                          className={`px-2 min-h-[44px] min-w-[44px] text-xs font-heading font-semibold disabled:opacity-50 ${order.payment_method !== 'credit_card' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}
+                        >Transferencia</button>
+                        <button
+                          onClick={() => savePaymentMethod('credit_card')}
+                          disabled={savingAction === 'payment'}
+                          aria-pressed={order.payment_method === 'credit_card'}
+                          aria-label="Cobrar con tarjeta, con 5% de recargo"
+                          className={`px-2 min-h-[44px] min-w-[44px] text-xs font-heading font-semibold disabled:opacity-50 ${order.payment_method === 'credit_card' ? 'bg-purple text-white' : 'bg-gray-50 text-gray-400'}`}
+                        >Tarjeta +5%</button>
+                      </div>
+                      <button
+                        onClick={() => setIsEditingPayment(false)}
+                        className="text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                        aria-label="Cancelar"
+                      >{'✕'}</button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between items-baseline border-t border-gray-100 pt-4 mt-2">
                   <span className="font-heading text-base text-gray-700">Total</span>

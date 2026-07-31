@@ -12,6 +12,37 @@ export let _adminRole: 'admin' | 'vendedora' = 'admin';
 export function setAdminToken(token: string) { _adminToken = token; }
 export function setAdminRole(role: 'admin' | 'vendedora') { _adminRole = role; }
 
+// ─── Vuelta del detalle al listado ───
+// La marca la pone el listado al abrir un pedido y la consume el detalle. Sin
+// ella no se puede saber si atrás hay un listado al que volver: entrar directo
+// por URL (o desde una notificación) también monta el detalle, y ahí un
+// history.back() sacaría al usuario de la app.
+export const RETURN_TO_LIST_KEY = 'adminOrdersReturn';
+
+// Vuelta CONFIRMADA desde el detalle. La pone el detalle justo antes de
+// history.back() y la consume el listado.
+//
+// 🩸 Sin esta marca no se puede distinguir "volví de un pedido" de "acabo de
+// escribir el PIN". Los dos montan el listado por primera vez, pero solo el
+// primero debe reponer el scroll: saltar apenas te autenticás es un salto que
+// el usuario no pidió. RETURN_TO_LIST_KEY no sirve para esto — la consume el
+// detalle al decidir si puede usar back(), así que ya no existe cuando el
+// listado vuelve a montarse.
+export const RETURN_FROM_DETAIL_KEY = 'adminOrdersBack';
+
+/**
+ * Key del scroll guardado, POR RUTA.
+ *
+ * Va por ruta y no en una sola global para que dos listados distintos no se
+ * pisen la posición (hoy /admin, mañana cualquier otro que use el mismo patrón).
+ * Y va en sessionStorage, no en estado de React: el listado se DESMONTA al
+ * abrir el detalle, así que cualquier estado en memoria se pierde justo cuando
+ * hace falta.
+ */
+export function scrollKeyFor(ruta: string): string {
+  return `adminScroll:${ruta}`;
+}
+
 // ─── API helpers (server-side writes via service role) ───
 export function adminHeaders(extra?: Record<string, string>): Record<string, string> {
   return { 'Content-Type': 'application/json', 'x-admin-token': _adminToken, ...extra };
