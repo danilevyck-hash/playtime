@@ -13,6 +13,12 @@ import ProductDetailClient from './ProductDetailClient';
 // ISR: cache the rendered page for 60s (admin has /api/revalidate to invalidate).
 export const revalidate = 60;
 
+// Without generateStaticParams Next 14 marks this dynamic route ƒ and Vercel never
+// caches it (no-store). Returning [] makes every slug ISR on first visit.
+export function generateStaticParams() {
+  return [];
+}
+
 interface Props {
   params: Promise<{ category: string }>;
 }
