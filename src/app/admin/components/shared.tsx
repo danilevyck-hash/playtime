@@ -3,14 +3,15 @@
 // in its own file.
 import { DBProduct, DBProductVariant } from '@/lib/supabase-data';
 import type { OrderStatus } from '@/lib/order-status';
+import type { Rol } from '@/lib/roles';
 
 // ─── Session (single source of truth) ───
 // Live module bindings: tabs READ _adminToken/_adminRole; AdminPage WRITES them
 // through the setters (you can't reassign an imported binding from another module).
 export let _adminToken = '';
-export let _adminRole: 'admin' | 'vendedora' = 'admin';
+export let _adminRole: Rol = 'admin';
 export function setAdminToken(token: string) { _adminToken = token; }
-export function setAdminRole(role: 'admin' | 'vendedora') { _adminRole = role; }
+export function setAdminRole(role: Rol) { _adminRole = role; }
 
 // ─── Vuelta del detalle al listado ───
 // La marca la pone el listado al abrir un pedido y la consume el detalle. Sin

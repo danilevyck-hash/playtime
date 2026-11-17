@@ -7,6 +7,7 @@ import OrdersTab from "./components/OrdersTab";
 import WebsiteTab from "./components/WebsiteTab";
 import CatalogoAdminTab from "./components/CatalogoAdminTab";
 import { _adminToken, _adminRole, setAdminToken, setAdminRole } from "./components/shared";
+import { ROL_NOMBRE } from "@/lib/roles";
 
 export default function AdminPage() {
   const { showToast } = useToast();
@@ -23,6 +24,12 @@ export default function AdminPage() {
       const savedRole = sessionStorage.getItem('adminRole');
       if (savedToken) {
         setAdminToken(savedToken);
+        if (savedRole === 'colaborador') {
+          // Un colaborador no entra al admin: su pantalla es /marcar.
+          sessionStorage.removeItem('adminToken');
+          sessionStorage.removeItem('adminRole');
+          return;
+        }
         setAdminRole(savedRole === 'vendedora' ? 'vendedora' : 'admin');
         setAuthenticated(true);
       }
@@ -77,6 +84,10 @@ export default function AdminPage() {
         body: JSON.stringify({ pin }),
       });
       const data = await res.json();
+      if (data.ok && data.role === 'colaborador') {
+        setError('Tu PIN es para marcar asistencia. Entra en /marcar.');
+        return;
+      }
       if (data.ok) {
         setAdminToken(data.token || '');
         setAdminRole(data.role || 'admin');
@@ -129,8 +140,9 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Clean tab bar — vendedora only sees Pedidos */}
-      {_adminRole === 'admin' && (
+      <p className="text-xs text-gray-500 mb-2 text-right">{ROL_NOMBRE[_adminRole]}</p>
+      {/* Dirección y Gerencia ven las tres pestañas; Contabilidad y Planilla son solo de la Dirección */}
+      {(
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
           {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['website', 'Sitio']] as const).map(([t, label]) => (
             <button
@@ -164,8 +176,8 @@ export default function AdminPage() {
       )}
 
       {tab === 'pedidos' && <OrdersTab />}
-      {_adminRole === 'admin' && tab === 'catalogo' && <CatalogoAdminTab />}
-      {_adminRole === 'admin' && tab === 'website' && <WebsiteTab />}
+      {tab === 'catalogo' && <CatalogoAdminTab />}
+      {tab === 'website' && <WebsiteTab />}
     </div>
   );
 }

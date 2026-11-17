@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole } from '@/lib/admin-auth';
+import { ROLES_ADMIN } from '@/lib/roles';
 
 // Exactly the keys the admin UI edits via apiUpsertSetting — anything else is
 // rejected so this route can't be used to write arbitrary pt_settings rows.
@@ -22,7 +23,7 @@ function isAllowedKey(key: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireRole(request, 'admin');
+    const auth = requireRole(request, ROLES_ADMIN);
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

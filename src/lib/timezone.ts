@@ -7,7 +7,7 @@
  * fields. Works identically in the browser and on the server (Date.now() is the
  * same epoch everywhere), so a user in another timezone still sees Panama dates.
  */
-const PANAMA_OFFSET_MS = 5 * 60 * 60 * 1000;
+export const PANAMA_OFFSET_MS = 5 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function panamaNow(): Date {
@@ -27,4 +27,23 @@ export function panamaTomorrow(): string {
 /** Current month in Panama, 'YYYY-MM'. */
 export function panamaMonthKey(): string {
   return panamaNow().toISOString().slice(0, 7);
+}
+
+/**
+ * Un instante leído en la pared de Panamá: la fecha 'YYYY-MM-DD', los minutos
+ * enteros desde la medianoche (8:10:59 → 490) y el día de la semana (0 = domingo).
+ * Es lo único que necesita la planilla; los segundos se descartan a propósito.
+ */
+export function panamaParts(d: Date): { fecha: string; minutos: number; diaSemana: number } {
+  const p = new Date(d.getTime() - PANAMA_OFFSET_MS);
+  return {
+    fecha: p.toISOString().slice(0, 10),
+    minutos: p.getUTCHours() * 60 + p.getUTCMinutes(),
+    diaSemana: p.getUTCDay(),
+  };
+}
+
+/** 'YYYY-MM-DD' + minutos de Panamá → instante UTC (para guardar una hora que escribe la Dirección). */
+export function panamaToDate(fecha: string, minutos: number): Date {
+  return new Date(Date.parse(`${fecha}T00:00:00Z`) + minutos * 60 * 1000 + PANAMA_OFFSET_MS);
 }
