@@ -33,7 +33,7 @@ export default function WhatsAppButton() {
   // Hide on cart page on mobile (sticky CTA bar overlaps)
   const isCartPage = pathname === '/carrito';
   // Never show in admin
-  const isAdminPage = pathname.startsWith('/admin');
+  const isAdminPage = pathname.startsWith('/admin') || pathname.startsWith('/marcar');
 
   if (hidden || isAdminPage) return null;
 

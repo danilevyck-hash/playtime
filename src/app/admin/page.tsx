@@ -147,12 +147,20 @@ export default function AdminPage() {
       )}
 
       {_adminRole === 'admin' && (
-        <Link
-          href="/admin/contabilidad"
-          className="flex items-center justify-center gap-2 mb-6 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
-        >
-          <span>💰</span> Contabilidad
-        </Link>
+        <div className="grid grid-cols-2 gap-2 mb-6">
+          <Link
+            href="/admin/contabilidad"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
+          >
+            <span>💰</span> Contabilidad
+          </Link>
+          <Link
+            href="/admin/planilla"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
+          >
+            <span>🗓️</span> Planilla
+          </Link>
+        </div>
       )}
 
       {tab === 'pedidos' && <OrdersTab />}
