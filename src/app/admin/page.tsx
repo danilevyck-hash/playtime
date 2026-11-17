@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useToast } from "@/context/ToastContext";
 import OrdersTab from "./components/OrdersTab";
 import WebsiteTab from "./components/WebsiteTab";
@@ -107,15 +108,11 @@ export default function AdminPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream px-4">
-        <form onSubmit={handleLogin} className="bg-white rounded-3xl p-8 shadow-lg max-w-sm w-full">
+        <form onSubmit={handleLogin} className="bg-white rounded-3xl p-8 shadow-sm max-w-sm w-full">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-purple/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h1 className="font-heading font-bold text-2xl text-purple">Admin</h1>
-            <p className="font-body text-gray-500 text-sm mt-1">Ingresa el PIN</p>
+            <Image src="/logo.png" alt="PlayTime" width={72} height={78} className="h-16 w-auto mx-auto" priority />
+            <h1 className="font-heading font-bold text-2xl text-purple mt-4">Acceso</h1>
+            <p className="font-body text-gray-500 text-sm mt-1">Escribe tu PIN</p>
           </div>
 
           <input
@@ -125,7 +122,7 @@ export default function AdminPage() {
             maxLength={4}
             value={pin}
             onChange={(e) => { setPin(e.target.value); setError(''); }}
-            placeholder="PIN de 4 dígitos"
+            placeholder="PIN"
             className="w-full text-center text-2xl tracking-[0.5em] font-heading font-bold border-2 border-gray-200 rounded-xl py-3 px-4 focus:border-purple focus:outline-none mb-4"
             autoFocus
           />
