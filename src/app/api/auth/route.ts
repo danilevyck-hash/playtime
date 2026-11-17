@@ -27,11 +27,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
-    const result = verifyPin(pin);
-    if (result.valid && result.role) {
-      const token = createSession(result.role);
+    const result = await verifyPin(pin);
+    if (result.valid) {
+      const empleadoId = result.role === 'colaborador' ? result.empleadoId : undefined;
+      const token = createSession(result.role, empleadoId);
       await clearAttempts(ip);
-      return NextResponse.json({ ok: true, token, role: result.role });
+      return NextResponse.json({
+        ok: true,
+        token,
+        role: result.role,
+        nombre: result.role === 'colaborador' ? result.nombre : undefined,
+      });
     }
 
     return NextResponse.json({ ok: false }, { status: 401 });
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Verify session endpoint
+// Verify session endpoint (sesión del área admin; el colaborador se verifica en GET /api/marcar)
 export async function GET(request: NextRequest) {
   const token = request.headers.get('x-admin-token');
   const valid = isValidSession(token);

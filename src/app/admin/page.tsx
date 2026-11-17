@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useToast } from "@/context/ToastContext";
 import OrdersTab from "./components/OrdersTab";
 import WebsiteTab from "./components/WebsiteTab";
 import CatalogoAdminTab from "./components/CatalogoAdminTab";
 import { _adminToken, _adminRole, setAdminToken, setAdminRole } from "./components/shared";
+import { ROL_NOMBRE } from "@/lib/roles";
 
 export default function AdminPage() {
   const { showToast } = useToast();
@@ -23,6 +25,12 @@ export default function AdminPage() {
       const savedRole = sessionStorage.getItem('adminRole');
       if (savedToken) {
         setAdminToken(savedToken);
+        if (savedRole === 'colaborador') {
+          // Un colaborador no entra al admin: su pantalla es /marcar.
+          sessionStorage.removeItem('adminToken');
+          sessionStorage.removeItem('adminRole');
+          return;
+        }
         setAdminRole(savedRole === 'vendedora' ? 'vendedora' : 'admin');
         setAuthenticated(true);
       }
@@ -77,6 +85,10 @@ export default function AdminPage() {
         body: JSON.stringify({ pin }),
       });
       const data = await res.json();
+      if (data.ok && data.role === 'colaborador') {
+        setError('Tu PIN es para marcar asistencia. Entra en /marcar.');
+        return;
+      }
       if (data.ok) {
         setAdminToken(data.token || '');
         setAdminRole(data.role || 'admin');
@@ -96,15 +108,11 @@ export default function AdminPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream px-4">
-        <form onSubmit={handleLogin} className="bg-white rounded-3xl p-8 shadow-lg max-w-sm w-full">
+        <form onSubmit={handleLogin} className="bg-white rounded-3xl p-8 shadow-sm max-w-sm w-full">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-purple/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h1 className="font-heading font-bold text-2xl text-purple">Admin</h1>
-            <p className="font-body text-gray-500 text-sm mt-1">Ingresa el PIN</p>
+            <Image src="/logo.png" alt="PlayTime" width={72} height={78} className="h-16 w-auto mx-auto" priority />
+            <h1 className="font-heading font-bold text-2xl text-purple mt-4">Acceso</h1>
+            <p className="font-body text-gray-500 text-sm mt-1">Escribe tu PIN</p>
           </div>
 
           <input
@@ -114,7 +122,7 @@ export default function AdminPage() {
             maxLength={4}
             value={pin}
             onChange={(e) => { setPin(e.target.value); setError(''); }}
-            placeholder="PIN de 4 dígitos"
+            placeholder="PIN"
             className="w-full text-center text-2xl tracking-[0.5em] font-heading font-bold border-2 border-gray-200 rounded-xl py-3 px-4 focus:border-purple focus:outline-none mb-4"
             autoFocus
           />
@@ -129,8 +137,9 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Clean tab bar — vendedora only sees Pedidos */}
-      {_adminRole === 'admin' && (
+      <p className="text-xs text-gray-500 mb-2 text-right">{ROL_NOMBRE[_adminRole]}</p>
+      {/* Dirección y Gerencia ven las tres pestañas; Contabilidad y Planilla son solo de la Dirección */}
+      {(
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
           {([['pedidos', 'Pedidos'], ['catalogo', 'Cat\u00e1logo'], ['website', 'Sitio']] as const).map(([t, label]) => (
             <button
@@ -147,17 +156,25 @@ export default function AdminPage() {
       )}
 
       {_adminRole === 'admin' && (
-        <Link
-          href="/admin/contabilidad"
-          className="flex items-center justify-center gap-2 mb-6 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
-        >
-          <span>💰</span> Contabilidad
-        </Link>
+        <div className="grid grid-cols-2 gap-2 mb-6">
+          <Link
+            href="/admin/contabilidad"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
+          >
+            <span>💰</span> Contabilidad
+          </Link>
+          <Link
+            href="/admin/planilla"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple/10 text-purple font-heading font-semibold text-sm hover:bg-purple/20 transition-colors"
+          >
+            <span>🗓️</span> Planilla
+          </Link>
+        </div>
       )}
 
       {tab === 'pedidos' && <OrdersTab />}
-      {_adminRole === 'admin' && tab === 'catalogo' && <CatalogoAdminTab />}
-      {_adminRole === 'admin' && tab === 'website' && <WebsiteTab />}
+      {tab === 'catalogo' && <CatalogoAdminTab />}
+      {tab === 'website' && <WebsiteTab />}
     </div>
   );
 }

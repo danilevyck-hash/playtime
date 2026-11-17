@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { ROLES_ADMIN, type Rol } from '@/lib/roles';
 
 // In-memory rate limiting (fallback only — see checkAndCountAttempt below).
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -7,7 +8,7 @@ const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 // In-memory session tokens (valid for 24h)
-type SessionData = { expiresAt: number; role: 'admin' | 'vendedora' };
+type SessionData = { expiresAt: number; role: Rol; empleadoId?: string };
 const sessions = new Map<string, SessionData>(); // token -> session data
 
 // ─── Signed tokens (work across serverless cold starts) ───
@@ -23,19 +24,21 @@ function getSigningKey(): string | null {
   return key && key.length >= 32 ? key : null;
 }
 
-export function createSignedToken(role: 'admin' | 'vendedora'): string {
+export function createSignedToken(role: Rol, empleadoId?: string): string {
   const key = getSigningKey();
   if (!key) {
     console.error('[auth] No strong signing key (SUPABASE_SERVICE_ROLE_KEY/AUTH_SECRET) — refusing to issue token');
     return '';
   }
-  const payload = JSON.stringify({ role, exp: Date.now() + 24 * 60 * 60 * 1000 });
+  const payload = JSON.stringify({ role, empleadoId, exp: Date.now() + 24 * 60 * 60 * 1000 });
   const payloadB64 = Buffer.from(payload).toString('base64url');
   const sig = crypto.createHmac('sha256', key).update(payloadB64).digest('base64url');
   return `${payloadB64}.${sig}`;
 }
 
-export function verifySignedToken(token: string): { valid: boolean; role: 'admin' | 'vendedora' | null } {
+const ROLES: readonly Rol[] = ['admin', 'vendedora', 'colaborador'];
+
+export function verifySignedToken(token: string): { valid: boolean; role: Rol | null; empleadoId?: string } {
   try {
     const key = getSigningKey();
     if (!key) return { valid: false, role: null };
@@ -47,7 +50,8 @@ export function verifySignedToken(token: string): { valid: boolean; role: 'admin
     if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) return { valid: false, role: null };
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
     if (Date.now() > payload.exp) return { valid: false, role: null };
-    return { valid: true, role: payload.role };
+    if (!ROLES.includes(payload.role)) return { valid: false, role: null };
+    return { valid: true, role: payload.role, empleadoId: typeof payload.empleadoId === 'string' ? payload.empleadoId : undefined };
   } catch {
     return { valid: false, role: null };
   }
@@ -106,24 +110,17 @@ export async function clearAttempts(ip: string): Promise<void> {
   }
 }
 
+/**
+ * Sesión del ÁREA ADMIN (Dirección o Gerencia). Un colaborador tiene token
+ * válido pero NO es sesión admin: todas las rutas del /admin que solo preguntan
+ * «¿hay sesión?» pasan por aquí, así que el filtro vive en un solo lugar.
+ */
 export function isValidSession(token: string | null | undefined): boolean {
-  if (!token) return false;
-  // Check in-memory sessions first (fast path, same instance)
-  const session = sessions.get(token);
-  if (session) {
-    if (Date.now() > session.expiresAt) {
-      sessions.delete(token);
-      // fall through to check signed token
-    } else {
-      return true;
-    }
-  }
-  // Check signed token (works across serverless cold starts)
-  const { valid } = verifySignedToken(token);
-  return valid;
+  const role = getSessionRole(token);
+  return role !== null && ROLES_ADMIN.includes(role);
 }
 
-export function getSessionRole(token: string | null | undefined): 'admin' | 'vendedora' | null {
+export function getSession(token: string | null | undefined): { role: Rol; empleadoId?: string } | null {
   if (!token) return null;
   // Check in-memory first
   const session = sessions.get(token);
@@ -131,40 +128,43 @@ export function getSessionRole(token: string | null | undefined): 'admin' | 'ven
     if (Date.now() > session.expiresAt) {
       sessions.delete(token);
     } else {
-      return session.role;
+      return { role: session.role, empleadoId: session.empleadoId };
     }
   }
-  // Check signed token
-  const { valid, role } = verifySignedToken(token);
-  return valid ? role : null;
+  // Check signed token (works across serverless cold starts)
+  const { valid, role, empleadoId } = verifySignedToken(token);
+  return valid && role ? { role, empleadoId } : null;
+}
+
+export function getSessionRole(token: string | null | undefined): Rol | null {
+  return getSession(token)?.role ?? null;
 }
 
 /**
- * Server-side ROLE authorization. Unlike isValidSession(), this validates the
- * role embedded in the HMAC-signed token and does NOT honor the x-admin-pin
- * fallback header — so a role check cannot be bypassed with a raw PIN.
- * Returns 401 if no valid session, 403 if the session role doesn't match.
+ * Server-side ROLE authorization. Validates the role embedded in the
+ * HMAC-signed token (never a raw PIN). Accepts one role or a list.
+ * Returns 401 if no valid session, 403 if the session role isn't allowed.
  */
 export function requireRole(
   request: Request,
-  role: 'admin' | 'vendedora'
-): { authorized: true } | { authorized: false; status: number; error: string } {
-  const token = request.headers.get('x-admin-token');
-  const sessionRole = getSessionRole(token);
-  if (!sessionRole) return { authorized: false, status: 401, error: 'Unauthorized' };
-  if (sessionRole !== role) return { authorized: false, status: 403, error: 'Forbidden' };
-  return { authorized: true };
+  role: Rol | Rol[]
+): { authorized: true; role: Rol; empleadoId?: string } | { authorized: false; status: number; error: string } {
+  const session = getSession(request.headers.get('x-admin-token'));
+  if (!session) return { authorized: false, status: 401, error: 'Unauthorized' };
+  const allowed = Array.isArray(role) ? role : [role];
+  if (!allowed.includes(session.role)) return { authorized: false, status: 403, error: 'Forbidden' };
+  return { authorized: true, role: session.role, empleadoId: session.empleadoId };
 }
 
-export function createSession(role: 'admin' | 'vendedora' = 'admin'): string {
+export function createSession(role: Rol = 'admin', empleadoId?: string): string {
   // Return a signed token that works across serverless instances
-  const token = createSignedToken(role);
+  const token = createSignedToken(role, empleadoId);
   // Fail closed: if no strong signing key, createSignedToken returns '' — never
   // cache an empty token (isValidSession/getSessionRole already reject it).
   if (!token) return '';
   // Also cache in-memory for fast validation on same instance
   const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
-  sessions.set(token, { expiresAt, role });
+  sessions.set(token, { expiresAt, role, empleadoId });
   return token;
 }
 
@@ -177,7 +177,29 @@ function safeCompare(input: string, secret: string): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-export function verifyPin(pin: string): { valid: boolean; role: 'admin' | 'vendedora' | null } {
+// ─── PIN del colaborador: scrypt (stdlib), nunca en texto ───
+// Formato guardado: scrypt:<salt b64url>:<hash b64url>. El PIN jamás se loguea.
+export function hashPin(pin: string): string {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(pin, salt, 32);
+  return `scrypt:${salt.toString('base64url')}:${hash.toString('base64url')}`;
+}
+
+export function pinMatchesHash(pin: string, stored: string | null | undefined): boolean {
+  if (!stored) return false;
+  const [alg, saltB64, hashB64] = stored.split(':');
+  if (alg !== 'scrypt' || !saltB64 || !hashB64) return false;
+  const expected = Buffer.from(hashB64, 'base64url');
+  const got = crypto.scryptSync(pin, Buffer.from(saltB64, 'base64url'), expected.length);
+  return crypto.timingSafeEqual(got, expected);
+}
+
+export type PinResult =
+  | { valid: true; role: 'admin' | 'vendedora' }
+  | { valid: true; role: 'colaborador'; empleadoId: string; nombre: string }
+  | { valid: false; role: null };
+
+export async function verifyPin(pin: string): Promise<PinResult> {
   const adminPin = process.env.ADMIN_PIN;
   const vendedoraPin = process.env.VENDEDORA_PIN;
 
@@ -187,5 +209,18 @@ export function verifyPin(pin: string): { valid: boolean; role: 'admin' | 'vende
 
   if (isAdmin) return { valid: true, role: 'admin' };
   if (isVendedora) return { valid: true, role: 'vendedora' };
+
+  // Colaboradores: PIN personal con hash en pt_empleados.
+  // ponytail: se recorren los activos con PIN (hoy son 2); si fueran decenas, guardar un lookup por hash corto.
+  if (supabaseAdmin) {
+    const { data } = await supabaseAdmin
+      .from('pt_empleados')
+      .select('id, nombre, pin_hash')
+      .eq('activo', true)
+      .not('pin_hash', 'is', null);
+    for (const e of data ?? []) {
+      if (pinMatchesHash(pin, e.pin_hash)) return { valid: true, role: 'colaborador', empleadoId: e.id, nombre: e.nombre };
+    }
+  }
   return { valid: false, role: null };
 }

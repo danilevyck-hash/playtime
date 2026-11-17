@@ -25,6 +25,9 @@ export default function Navbar() {
   const logoUrl = useLogoUrl();
   const { itemCount } = useCart();
 
+  // /marcar es la pantalla del colaborador: sin el menú de la tienda.
+  if (pathname.startsWith('/marcar')) return null;
+
   return (
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between relative">

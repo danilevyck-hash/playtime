@@ -12,7 +12,7 @@ export default function Footer() {
     getContactInfo().then(setContact);
   }, []);
 
-  if (pathname.startsWith('/admin')) return null;
+  if (pathname.startsWith('/admin') || pathname.startsWith('/marcar')) return null;
 
   return (
     <footer className="bg-gray-50 pb-safe border-t border-gray-100">

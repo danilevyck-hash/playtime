@@ -299,9 +299,29 @@ El orden de categorías es configurable desde admin (drag-and-drop) y se guarda 
 git push origin main   # Auto-deploy via Vercel
 ```
 
+## Roles (nov-2026) — `src/lib/roles.ts`
+| Rol | Valor en el token | Quién | Ve |
+|-----|-------------------|-------|----|
+| Dirección | `admin` (`ADMIN_PIN`) | la dueña | todo: pedidos, catálogo, sitio, contabilidad, **planilla y marcaciones** (la única) |
+| Gerencia | `vendedora` (`VENDEDORA_PIN`) | su gerente | pedidos, catálogo, sitio; sin planilla, sin contabilidad, sin montos confirmados |
+| Colaborador | `colaborador` (PIN personal, hash scrypt en `pt_empleados.pin_hash`) | los 2 de bodega | SOLO `/marcar` |
+
+- Un solo login (`POST /api/auth`) y un solo token HMAC (`x-admin-token`) con `role` (+ `empleadoId` si es colaborador).
+- `isValidSession` = sesión del ÁREA ADMIN (admin o vendedora): un colaborador NO pasa. `requireRole(request, rol | roles)`.
+- Rutas de catálogo/sitio/ajustes aceptan `ROLES_ADMIN`; `/api/accounting/*` y `/api/planilla` solo `admin`; `/api/marcar` solo `colaborador`.
+
+## Marcación y planilla (nov-2026)
+| Módulo | Ruta | Descripción |
+|--------|------|-------------|
+| Marcar | `/marcar` | Colaborador: PIN → 2 marcas al día (entrada, salida) con selfie frontal + ubicación. El SERVIDOR pone la hora (Panamá, UTC−5 fijo) y calcula la distancia (haversine) al punto de `pt_marcacion_ajustes`; fuera del radio (300 m por defecto) no marca y dice a cuántos metros está. Selfies en bucket PRIVADO `marcaciones`. |
+| Planilla | `/admin/planilla` | Solo Dirección. Quincenas 1–15 y 16–fin. Las horas extra se pagan solas y se revisan aquí (nadie aprueba); corrige o agrega marcas (la original no se borra: `hora_corregida` + firma), comprobante PDF por colaborador y reporte, fichas (sueldo, PIN) y «Usar mi ubicación actual» para la bodega. |
+
+- Cálculo PURO en `src/lib/planilla.ts` (lo prueban `tests/planilla.test.mjs` y `tests/geo.test.mjs`; `npm test` = `node --test`, sin dependencias). Reglas: quincena = mensual ÷ 2; día = mensual ÷ 26; hora = día ÷ 8; se redondea SOLO cada línea final. Lunes a sábado 8:00–17:00 (8 h pagadas, almuerzo no se marca). Tardanza: 10 min de tolerancia, pasada se descuentan TODOS los minutos × tarifa (sin 1.25); salida temprana y ausencia igual (ausencia = 8 h). Extra = minutos después de 17:00 × tarifa × 1.25, se paga sola según el reloj. Domingo trabajado = $30 fijo. Sin seguro social ni educativo. Un día con una sola marca NO se descuenta: queda «incompleto» a revisar.
+- Tablas `pt_empleados` · `pt_marcaciones` · `pt_marcacion_ajustes`: RLS sin políticas (solo service_role). Migración `2026-11-17_marcacion_planilla.sql`. La escritura pública de `pt_settings`/`pt_custom_products`/`pt_product_overrides` y del bucket `playtime-images` se cierra en `2026-11-17_cerrar_escritura_anon.sql`.
+
 ## Env vars necesarias en Vercel
-- `ADMIN_PIN` — PIN del admin
-- `VENDEDORA_PIN` — PIN de vendedora
+- `ADMIN_PIN` — PIN de la Dirección
+- `VENDEDORA_PIN` — PIN de la Gerencia
 - `SUPABASE_SERVICE_ROLE_KEY` — service role key
 - `NEXT_PUBLIC_SUPABASE_URL` — URL del proyecto
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon key

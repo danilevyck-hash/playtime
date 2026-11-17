@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole } from '@/lib/admin-auth';
+import { ROLES_ADMIN } from '@/lib/roles';
 
 // Column allowlist for pt_product_variants (no raw upsert of arbitrary columns).
 function sanitizeVariant(input: unknown): { variant: Record<string, unknown> } | { error: string } {
@@ -37,7 +38,7 @@ function sanitizeVariant(input: unknown): { variant: Record<string, unknown> } |
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireRole(request, 'admin');
+    const auth = requireRole(request, ROLES_ADMIN);
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = requireRole(request, 'admin');
+    const auth = requireRole(request, ROLES_ADMIN);
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

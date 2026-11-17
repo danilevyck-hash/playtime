@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole } from '@/lib/admin-auth';
+import { ROLES_ADMIN } from '@/lib/roles';
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireRole(request, 'admin');
+    const auth = requireRole(request, ROLES_ADMIN);
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
