@@ -10,7 +10,7 @@ export function distanciaM(a: { lat: number; lng: number }, b: { lat: number; ln
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-export const RADIO_BODEGA_M = 150;
+export const RADIO_BODEGA_M = 300;
 
 /** «a 40 m» / «a 2.3 km» (en Panamá el decimal va con punto) — para decirle al colaborador a cuánto está. */
 export function rotuloDistancia(m: number): string {

@@ -1,9 +1,9 @@
 'use client';
 
 // Planilla quincenal — SOLO Dirección. Lee /api/planilla (el cálculo es del
-// servidor), aprueba las horas extra, corrige o agrega marcas (la original no
-// se borra), baja el comprobante y el reporte, administra las fichas y fija la
-// ubicación de la bodega.
+// servidor; las horas extra se pagan solas y se revisan aquí), corrige o agrega
+// marcas (la original no se borra), baja el comprobante y el reporte,
+// administra las fichas y fija la ubicación de la bodega.
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -30,7 +30,6 @@ interface Colaborador {
   nombre: string;
   sueldo_mensual: number;
   tienePin: boolean;
-  extrasAprobadas: boolean;
   dias: Dia[];
   desglose: Desglose;
 }
@@ -156,26 +155,7 @@ export default function PlanillaPage() {
 
               <dl className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
                 <div className="flex justify-between"><dt className="text-gray-500">Salario de la quincena</dt><dd>{formatCurrency(d.salario)}</dd></div>
-                <div className="flex justify-between items-center">
-                  <dt className="text-gray-500">Horas extra{d.extraMin ? ` · ${horas(d.extraMin)}` : ''}</dt>
-                  <dd>
-                    {!d.extraMin ? (
-                      <span className="text-gray-400">—</span>
-                    ) : c.extrasAprobadas ? (
-                      <button onClick={() => accion({ action: 'extras', empleadoId: c.id, desde: q.desde, aprobadas: false })} className="text-right">
-                        {formatCurrency(d.extras)} <span className="text-teal-text">✓</span>
-                        <span className="block text-[11px] text-gray-400">Quitar aprobación</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => accion({ action: 'extras', empleadoId: c.id, desde: q.desde, aprobadas: true })}
-                        className="rounded-lg bg-purple px-2.5 py-1 text-xs font-semibold text-white whitespace-nowrap active:scale-[0.97]"
-                      >
-                        Aprobar {formatCurrency(d.extrasSinAprobar)}
-                      </button>
-                    )}
-                  </dd>
-                </div>
+                <div className="flex justify-between"><dt className="text-gray-500">Horas extra{d.extraMin ? ` · ${horas(d.extraMin)}` : ''}</dt><dd className={d.extras ? '' : 'text-gray-400'}>{neg(d.extras)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Domingos trabajados{d.nDomingos ? ` · ${d.nDomingos}` : ''}</dt><dd className={d.domingos ? '' : 'text-gray-400'}>{neg(d.domingos)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Tardanzas{d.tardanzaMin ? ` · ${d.tardanzaMin} min` : ''}</dt><dd className={d.tardanzas ? 'text-orange-text' : 'text-gray-400'}>{neg(d.tardanzas)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Salida temprana{d.salidaTempranaMin ? ` · ${d.salidaTempranaMin} min` : ''}</dt><dd className={d.salidaTemprana ? 'text-orange-text' : 'text-gray-400'}>{neg(d.salidaTemprana)}</dd></div>

@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 // Planilla quincenal — SOLO Dirección (rol `admin`). GET arma la quincena con el
-// cálculo puro de lib/planilla.ts; POST recibe una acción: aprobar extras,
-// corregir o agregar una marca (la original no se borra), ficha del colaborador
-// (sueldo, PIN con hash) y la ubicación de la bodega.
+// cálculo puro de lib/planilla.ts (las horas extra se pagan solas según el
+// reloj: nadie aprueba); POST recibe una acción: corregir o agregar una marca
+// (la original no se borra), ficha del colaborador (sueldo, PIN con hash) y la
+// ubicación de la bodega.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole, hashPin } from '@/lib/admin-auth';
@@ -28,10 +29,9 @@ export async function GET(request: NextRequest) {
     const desdeParam = request.nextUrl.searchParams.get('desde');
     const q = quincenaDe(desdeParam && /^\d{4}-\d{2}-\d{2}$/.test(desdeParam) ? desdeParam : hoy);
 
-    const [{ data: empleados, error: e1 }, { data: marcas, error: e2 }, { data: decisiones }, { data: ajustes }] = await Promise.all([
+    const [{ data: empleados, error: e1 }, { data: marcas, error: e2 }, { data: ajustes }] = await Promise.all([
       db.from('pt_empleados').select('id, nombre, sueldo_mensual, activo, pin_hash').order('nombre'),
       db.from('pt_marcaciones').select('*').gte('fecha', q.desde).lte('fecha', q.hasta).order('marcada_en'),
-      db.from('pt_planilla').select('empleado_id, extras_aprobadas').eq('quincena_desde', q.desde),
       db.from('pt_marcacion_ajustes').select('lat, lng, radio_m, fijado_en').eq('id', 1).maybeSingle(),
     ]);
     if (e1 || e2) throw e1 ?? e2;
@@ -44,7 +44,6 @@ export async function GET(request: NextRequest) {
       for (const f of firmadas ?? []) if (f.path && f.signedUrl) fotos.set(f.path, f.signedUrl);
     }
 
-    const aprobadas = new Map((decisiones ?? []).map((d) => [d.empleado_id, d.extras_aprobadas as boolean]));
     const fechas = fechasDe(q);
 
     const colaboradores = (empleados ?? [])
@@ -73,9 +72,8 @@ export async function GET(request: NextRequest) {
             };
           return { ...evaluarDia(marcasDia, hoy), entrada: detalle(en), salida: detalle(sa) };
         });
-        const extrasAprobadas = aprobadas.get(e.id) ?? false;
         const empleado: Empleado = { id: e.id, nombre: e.nombre, sueldo_mensual: Number(e.sueldo_mensual) };
-        return { ...empleado, tienePin: !!e.pin_hash, extrasAprobadas, dias, desglose: calcularQuincena(empleado.sueldo_mensual, dias, extrasAprobadas) };
+        return { ...empleado, tienePin: !!e.pin_hash, dias, desglose: calcularQuincena(empleado.sueldo_mensual, dias) };
       });
 
     return NextResponse.json({ quincena: q, hoy, colaboradores, bodega: ajustes ?? null, radioPorDefecto: RADIO_BODEGA_M });
@@ -96,17 +94,6 @@ export async function POST(request: NextRequest) {
     const ahora = new Date().toISOString();
 
     switch (body.action) {
-      case 'extras': {
-        // Sí/No a las horas extra de UN colaborador en UNA quincena.
-        const { empleadoId, desde, aprobadas } = body;
-        if (typeof empleadoId !== 'string' || typeof aprobadas !== 'boolean' || !/^\d{4}-\d{2}-\d{2}$/.test(desde ?? '')) return bad('Datos incompletos');
-        const { error } = await db
-          .from('pt_planilla')
-          .upsert({ empleado_id: empleadoId, quincena_desde: quincenaDe(desde).desde, extras_aprobadas: aprobadas, decidido_en: ahora }, { onConflict: 'empleado_id,quincena_desde' });
-        if (error) throw error;
-        return NextResponse.json({ ok: true });
-      }
-
       case 'corregir': {
         // La corrección va ENCIMA: marcada_en no se toca, se escribe hora_corregida con firma.
         const { marcacionId, minutos } = body;

@@ -86,7 +86,7 @@ export async function generarComprobantePDF(c: ColaboradorPDF, periodo: string, 
   doc.text('Horario lunes a sábado, 8:00 a. m. – 5:00 p. m.', pw / 2 + 10, y + 12);
 
   const filas: [string, string, string][] = [['Salario de la quincena', '', formatCurrency(d.salario)]];
-  if (d.extraMin) filas.push([`Horas extra (× 1.25)${d.extras ? '' : ' — sin aprobar'}`, horas(d.extraMin), formatCurrency(d.extras)]);
+  if (d.extraMin) filas.push(['Horas extra (× 1.25)', horas(d.extraMin), formatCurrency(d.extras)]);
   if (d.nDomingos) filas.push(['Domingo trabajado ($30 c/u)', String(d.nDomingos), formatCurrency(d.domingos)]);
   if (d.tardanzaMin) filas.push(['Tardanzas', `${d.tardanzaMin} min`, formatCurrency(d.tardanzas)]);
   if (d.salidaTempranaMin) filas.push(['Salida temprana', `${d.salidaTempranaMin} min`, formatCurrency(d.salidaTemprana)]);
@@ -136,7 +136,7 @@ export async function generarReportePDF(cs: ColaboradorPDF[], periodo: string, l
     body: cs.map(({ nombre, desglose: d }) => [
       nombre,
       formatCurrency(d.salario),
-      d.extraMin ? `${formatCurrency(d.extras)} (${horas(d.extraMin)}${d.extras ? '' : ', sin aprobar'})` : '—',
+      d.extraMin ? `${formatCurrency(d.extras)} (${horas(d.extraMin)})` : '—',
       d.nDomingos ? `${formatCurrency(d.domingos)} (${d.nDomingos})` : '—',
       d.tardanzaMin ? `${formatCurrency(d.tardanzas)} (${d.tardanzaMin} min)` : '—',
       d.salidaTempranaMin ? `${formatCurrency(d.salidaTemprana)} (${d.salidaTempranaMin} min)` : '—',

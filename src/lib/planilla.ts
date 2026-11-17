@@ -9,8 +9,8 @@
 //   · Lunes a sábado 8:00–17:00, 1 h de almuerzo que no se marca (8 h pagadas).
 //   · Tardanza: 10 min de tolerancia; pasada, se descuentan TODOS los minutos
 //     tarde × tarifa por hora (sin 1.25). Salida temprana y ausencia igual.
-//   · Horas extra = minutos después de las 17:00 × tarifa × 1.25, SOLO si la
-//     Dirección las aprobó para esa quincena; si no, $0.
+//   · Horas extra = minutos después de las 17:00 × tarifa × 1.25. Se pagan
+//     solas según el reloj (nadie aprueba) y se revisan en el reporte.
 //   · Domingo trabajado = $30 fijos, sin otra cuenta ese día.
 //   · Sin seguro social ni educativo.
 //   · Un día del que el sistema no puede saber (falta una de las dos marcas)
@@ -86,8 +86,7 @@ export function evaluarDia(d: MarcasDia, hoy: string): DiaEvaluado {
 
 export interface Desglose {
   salario: number;
-  extras: number; // 0 si no están aprobadas
-  extrasSinAprobar: number; // lo que valdrían, para que la Dirección decida
+  extras: number;
   extraMin: number;
   domingos: number;
   nDomingos: number;
@@ -103,7 +102,7 @@ export interface Desglose {
 
 const suma = (ds: DiaEvaluado[], k: keyof DiaEvaluado) => ds.reduce((s, d) => s + (d[k] as number), 0);
 
-export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[], extrasAprobadas: boolean): Desglose {
+export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[]): Desglose {
   const hora = tarifaHora(sueldoMensual);
   const porMin = hora / 60;
   const extraMin = suma(dias, 'extraMin');
@@ -112,10 +111,9 @@ export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[], ext
   const ausenciaMin = suma(dias, 'ausenciaMin');
   const nDomingos = dias.filter((d) => d.domingoTrabajado).length;
 
-  const extrasSinAprobar = round2(extraMin * porMin * REGLAS.recargoExtra);
   const lineas = {
     salario: round2(sueldoMensual / 2),
-    extras: extrasAprobadas ? extrasSinAprobar : 0,
+    extras: round2(extraMin * porMin * REGLAS.recargoExtra),
     domingos: round2(nDomingos * REGLAS.pagoDomingo),
     tardanzas: -round2(tardanzaMin * porMin),
     salidaTemprana: -round2(salidaTempranaMin * porMin),
@@ -123,7 +121,6 @@ export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[], ext
   };
   return {
     ...lineas,
-    extrasSinAprobar,
     extraMin,
     nDomingos,
     tardanzaMin,

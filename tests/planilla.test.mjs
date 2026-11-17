@@ -14,9 +14,11 @@ test('el ejemplo de la dueña: 300 + 27 − 39 + 30 = 318', () => {
   assert.equal(totalizar({ salario: 300, extras: 27, domingos: 30, tardanzas: 0, salidaTemprana: 0, ausencias: -39 }), 318);
 });
 
-test('tarifas: $600 → día 23.08, hora 2.88 (sin redondear adentro)', () => {
+test('tarifas: $600 → hora 2.88; $700 → hora 3.37 (700 ÷ 26 ÷ 8 = 3.365…, sin redondear adentro)', () => {
   assert.equal(Math.round(tarifaHora(600) * 100) / 100, 2.88);
+  assert.equal(Math.round(tarifaHora(700) * 100) / 100, 3.37);
   assert.equal(tarifaHora(600), 600 / 26 / 8);
+  assert.equal(tarifaHora(700), 700 / 26 / 8);
 });
 
 test('tardanza dentro de la tolerancia no descuenta; pasada, descuenta TODOS los minutos', () => {
@@ -24,19 +26,17 @@ test('tardanza dentro de la tolerancia no descuenta; pasada, descuenta TODOS los
   assert.equal(evaluarDia(dia('2026-11-16', h(8, 11), h(17)), HOY).tardanzaMin, 11);
   assert.equal(evaluarDia(dia('2026-11-16', h(7, 50), h(17)), HOY).tardanzaMin, 0);
   // 15 min × (600/26/8)/60 = 0.72
-  const d = calcularQuincena(600, [evaluarDia(dia('2026-11-16', h(8, 15), h(17)), HOY)], false);
+  const d = calcularQuincena(600, [evaluarDia(dia('2026-11-16', h(8, 15), h(17)), HOY)]);
   assert.equal(d.tardanzas, -0.72);
 });
 
-test('extra no aprobada = $0; aprobada = minutos × tarifa × 1.25', () => {
+test('extra = minutos después de las 17:00 × tarifa × 1.25, se paga sola (nadie aprueba)', () => {
   const dias = [evaluarDia(dia('2026-11-16', h(8), h(19)), HOY)]; // 120 min extra
   assert.equal(dias[0].extraMin, 120);
-  const no = calcularQuincena(600, dias, false);
-  assert.equal(no.extras, 0);
-  assert.equal(no.extrasSinAprobar, 7.21); // 2 h × 2.8846 × 1.25
-  const si = calcularQuincena(600, dias, true);
-  assert.equal(si.extras, 7.21);
-  assert.equal(si.total, 307.21);
+  const d = calcularQuincena(600, dias);
+  assert.equal(d.extras, 7.21); // 2 h × 2.8846 × 1.25
+  assert.equal(d.total, 307.21);
+  assert.equal(calcularQuincena(600, [evaluarDia(dia('2026-11-16', h(8), h(16, 59)), HOY)]).extras, 0);
 });
 
 test('domingo trabajado = $30 fijo, sin tardanza ni extra', () => {
@@ -44,7 +44,7 @@ test('domingo trabajado = $30 fijo, sin tardanza ni extra', () => {
   assert.equal(dom.domingoTrabajado, true);
   assert.equal(dom.extraMin, 0);
   assert.equal(dom.tardanzaMin, 0);
-  assert.equal(calcularQuincena(700, [dom], true).domingos, 30);
+  assert.equal(calcularQuincena(700, [dom]).domingos, 30);
   assert.equal(evaluarDia(dia('2026-11-15', null, null, 0), HOY).domingoTrabajado, false);
 });
 
@@ -53,7 +53,7 @@ test('ausencia = 8 h; salida temprana por minutos; hoy y el futuro no son ausenc
   assert.equal(evaluarDia(dia(HOY, null, null), HOY).ausenciaMin, 0);
   assert.equal(evaluarDia(dia('2026-11-25', null, null), HOY).ausenciaMin, 0);
   assert.equal(evaluarDia(dia('2026-11-16', h(8), h(16, 30)), HOY).salidaTempranaMin, 30);
-  const d = calcularQuincena(600, [evaluarDia(dia('2026-11-16', null, null), HOY)], false);
+  const d = calcularQuincena(600, [evaluarDia(dia('2026-11-16', null, null), HOY)]);
   assert.equal(d.ausencias, -23.08);
 });
 
@@ -63,7 +63,7 @@ test('un día con una sola marca queda incompleto y no se descuenta de más', ()
   assert.equal(d.tardanzaMin, 20);
   assert.equal(d.ausenciaMin, 0);
   assert.equal(evaluarDia(dia(HOY, h(8), null), HOY).incompleto, false);
-  assert.deepEqual(calcularQuincena(600, [d], false).diasIncompletos, ['2026-11-16']);
+  assert.deepEqual(calcularQuincena(600, [d]).diasIncompletos, ['2026-11-16']);
 });
 
 test('quincena completa: salario + domingo − ausencia − tardanza', () => {
@@ -72,7 +72,7 @@ test('quincena completa: salario + domingo − ausencia − tardanza', () => {
     evaluarDia(dia('2026-11-17', null, null), HOY), // ausencia → 23.08
     evaluarDia(dia('2026-11-22', h(9), h(13), 0), HOY), // domingo → 30
   ];
-  const d = calcularQuincena(600, dias, false);
+  const d = calcularQuincena(600, dias);
   assert.equal(d.salario, 300);
   assert.equal(d.total, 300 + 30 - 23.08 - 1.44);
 });
