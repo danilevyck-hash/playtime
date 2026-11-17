@@ -176,7 +176,10 @@ export default function CheckoutPage() {
         });
         if (!res.ok) {
           console.error('Order API error:', res.status);
-          setSubmitError('No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
+          const errBody = await res.json().catch(() => null);
+          setSubmitError(errBody?.code === 'producto_inactivo' && errBody.details
+            ? errBody.details
+            : 'No se pudo guardar tu pedido. Revisa tu conexión e intenta de nuevo.');
           return;
         }
         const data = await res.json();

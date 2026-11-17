@@ -140,11 +140,15 @@ export async function POST(request: NextRequest) {
     // OVERRIDE each unitPrice with the DB price — never trust the client's number.
     const baseIds = Array.from(new Set(items.map((i: { productId: string }) => baseProductId(String(i.productId)))));
     const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
-      db.from('pt_products').select('id, price').in('id', baseIds),
+      db.from('pt_products').select('id, price, active').in('id', baseIds),
       db.from('pt_product_variants').select('product_id, id, price').in('product_id', baseIds),
     ]);
     const priceByProduct = new Map<string, number>();
-    for (const p of dbProducts || []) priceByProduct.set(p.id, Math.max(0, Number(p.price) || 0));
+    const inactive = new Set<string>();
+    for (const p of dbProducts || []) {
+      priceByProduct.set(p.id, Math.max(0, Number(p.price) || 0));
+      if (p.active === false) inactive.add(p.id);
+    }
     const priceByVariant = new Map<string, number>();
     for (const v of dbVariants || []) {
       if (v.price != null) priceByVariant.set(buildCartId(v.product_id, v.id), Math.max(0, Number(v.price) || 0));
@@ -155,6 +159,10 @@ export async function POST(request: NextRequest) {
       if (!priceByProduct.has(baseId)) {
         // The public catalog is DB-first, so every cart product must exist in pt_products.
         return NextResponse.json({ error: 'Datos inválidos', details: `Producto no encontrado: ${item.name}` }, { status: 400 });
+      }
+      if (inactive.has(baseId)) {
+        // Hidden in the admin (active = false): it can't be ordered even if it stayed in a cart.
+        return NextResponse.json({ error: 'Producto no disponible', code: 'producto_inactivo', details: `«${item.name}» ya no está disponible. Quítalo del carrito para continuar.` }, { status: 400 });
       }
       item.unitPrice = priceByVariant.get(cartId) ?? priceByProduct.get(baseId)!;
     }
