@@ -1,7 +1,7 @@
 // Shared admin state, API helpers and types used across the tab components.
 // Extracted verbatim from admin/page.tsx (no logic change) so each tab can live
 // in its own file.
-import { DBProduct, DBProductVariant } from '@/lib/supabase-data';
+import { DBProduct, DBProductVariant, clearSettingsCache } from '@/lib/supabase-data';
 import type { OrderStatus } from '@/lib/order-status';
 
 // ─── Session (single source of truth) ───
@@ -59,6 +59,7 @@ export async function apiUpsertSetting(key: string, value: unknown): Promise<boo
     headers: adminHeaders(),
     body: JSON.stringify({ key, value }),
   });
+  clearSettingsCache();
   return res.ok;
 }
 
@@ -112,6 +113,7 @@ export async function apiBulkUpdateOrder(ids: string[]) {
 }
 
 export function revalidateSite() {
+  clearSettingsCache();
   fetch('/api/revalidate', {
     method: 'POST',
     headers: { 'x-admin-token': _adminToken },

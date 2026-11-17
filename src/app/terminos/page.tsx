@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   description: 'Términos y condiciones del servicio de PlayTime: reservas, entregas, cancelaciones, métodos de pago y más.',
 };
 
-export const dynamic = 'force-dynamic';
+// Admin saves call /api/revalidate (revalidatePath('/', 'layout')), so edits show at once.
+export const revalidate = 3600;
 
 export interface TermSection {
   icon: string;

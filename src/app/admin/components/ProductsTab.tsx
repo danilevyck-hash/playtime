@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { formatCurrency } from "@/lib/format";
 import { normalizeImage } from "@/lib/products";
 import { useToast } from "@/context/ToastContext";
-import { fetchSetting, fetchProductImages, fetchDBProducts, fetchDBProductVariants, DBProduct, DBProductVariant } from "@/lib/supabase-data";
+import { fetchSetting, fetchProductImagesBatch, fetchDBProducts, fetchDBProductVariants, DBProduct, DBProductVariant } from "@/lib/supabase-data";
 import { CATEGORIES } from "@/lib/constants";
 import { ALL_CATEGORIES, INPUT_CLS, getCategoryEmoji, apiUpsertSetting, apiUpsertProduct, apiUpsertVariant, apiDeleteProduct, apiDeleteVariant, apiBulkUpdateOrder, revalidateSite, _adminToken } from "./shared";
 
@@ -62,12 +62,7 @@ export default function ProductsTab() {
         }
 
         // Load gallery images
-        const galleries: Record<string, string[]> = {};
-        await Promise.all(dbProducts.map(async (p) => {
-          const imgs = await fetchProductImages(p.id);
-          if (imgs.length > 0) galleries[p.id] = imgs;
-        }));
-        setImageGalleries(galleries);
+        setImageGalleries(await fetchProductImagesBatch(dbProducts.map((p) => p.id)));
       } catch (e) {
         console.error('Load products error:', e);
       }

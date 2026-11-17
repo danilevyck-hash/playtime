@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { CATEGORIES } from './constants';
-import { fetchSetting } from './supabase-data';
+import { fetchSettings } from './supabase-data';
 import { Category } from './types';
 
 interface CategoryItem {
@@ -20,11 +20,10 @@ export function useCategories(): CategoryItem[] {
   useEffect(() => {
     async function load() {
       try {
-        const [custom, savedOrder, overrides] = await Promise.all([
-          fetchSetting<CategoryItem[]>('custom_categories'),
-          fetchSetting<string[]>('category_order'),
-          fetchSetting<Record<string, { name?: string; subtitle?: string; emoji?: string }>>('category_overrides'),
-        ]);
+        const s = await fetchSettings(['custom_categories', 'category_order', 'category_overrides']);
+        const custom = s.custom_categories as CategoryItem[] | null;
+        const savedOrder = s.category_order as string[] | null;
+        const overrides = s.category_overrides as Record<string, { name?: string; subtitle?: string; emoji?: string }> | null;
 
         let cats = [...CATEGORIES] as CategoryItem[];
 
