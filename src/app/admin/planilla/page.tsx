@@ -156,7 +156,7 @@ export default function PlanillaPage() {
               <dl className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
                 <div className="flex justify-between"><dt className="text-gray-500">Salario de la quincena</dt><dd>{formatCurrency(d.salario)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Horas extra{d.extraMin ? ` · ${horas(d.extraMin)}` : ''}</dt><dd className={d.extras ? '' : 'text-gray-400'}>{neg(d.extras)}</dd></div>
-                <div className="flex justify-between"><dt className="text-gray-500">Domingos trabajados{d.nDomingos ? ` · ${d.nDomingos}` : ''}</dt><dd className={d.domingos ? '' : 'text-gray-400'}>{neg(d.domingos)}</dd></div>
+                <div className="flex justify-between"><dt className="text-gray-500">Domingos y feriados trabajados{d.nDomingos + d.nFeriados ? ` · ${d.nDomingos + d.nFeriados}` : ''}</dt><dd className={d.domingos ? '' : 'text-gray-400'}>{neg(d.domingos)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Tardanzas{d.tardanzaMin ? ` · ${d.tardanzaMin} min` : ''}</dt><dd className={d.tardanzas ? 'text-orange-text' : 'text-gray-400'}>{neg(d.tardanzas)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Salida temprana{d.salidaTempranaMin ? ` · ${d.salidaTempranaMin} min` : ''}</dt><dd className={d.salidaTemprana ? 'text-orange-text' : 'text-gray-400'}>{neg(d.salidaTemprana)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Ausencias{d.ausenciaMin ? ` · ${horas(d.ausenciaMin)}` : ''}</dt><dd className={d.ausencias ? 'text-orange-text' : 'text-gray-400'}>{neg(d.ausencias)}</dd></div>
@@ -258,6 +258,7 @@ function Dias({ c, hoy, accion }: { c: Colaborador; hoy: string; accion: (b: Rec
             if (esDomingo && vacio) return null;
             const novedades: string[] = [];
             if (dia.domingoTrabajado) novedades.push('Domingo · $30');
+            if (dia.feriado) novedades.push(dia.feriadoTrabajado ? `Feriado trabajado · $30` : 'Feriado · libre pagado');
             if (dia.tardanzaMin) novedades.push(`Tarde ${dia.tardanzaMin} min`);
             if (dia.salidaTempranaMin) novedades.push(`Salió ${dia.salidaTempranaMin} min antes`);
             if (dia.extraMin) novedades.push(`Extra ${horas(dia.extraMin)}`);
@@ -265,7 +266,10 @@ function Dias({ c, hoy, accion }: { c: Colaborador; hoy: string; accion: (b: Rec
             if (dia.incompleto) novedades.push(dia.entrada ? 'Falta la salida' : 'Falta la entrada');
             return (
               <tr key={dia.fecha} className={dia.incompleto ? 'bg-yellow/15' : ''}>
-                <td className="py-1.5 text-gray-700 whitespace-nowrap">{DIAS[dia.diaSemana]} {Number(dia.fecha.slice(8))}</td>
+                <td className="py-1.5 text-gray-700 whitespace-nowrap">
+                  {DIAS[dia.diaSemana]} {Number(dia.fecha.slice(8))}
+                  {dia.feriado && <span className="block text-[11px] text-purple">{dia.feriado}</span>}
+                </td>
                 <td className="py-1.5"><Celda dia={dia} tipo="entrada" /></td>
                 <td className="py-1.5"><Celda dia={dia} tipo="salida" /></td>
                 <td className={`py-1.5 text-right text-xs ${dia.ausenciaMin || dia.incompleto ? 'text-orange-text' : 'text-gray-500'}`}>{novedades.join(' · ') || ''}</td>

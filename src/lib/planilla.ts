@@ -11,7 +11,8 @@
 //     tarde × tarifa por hora (sin 1.25). Salida temprana y ausencia igual.
 //   · Horas extra = minutos después de las 17:00 × tarifa × 1.25. Se pagan
 //     solas según el reloj (nadie aprueba) y se revisan en el reporte.
-//   · Domingo trabajado = $30 fijos, sin otra cuenta ese día.
+//   · Domingo trabajado = $30 fijos, sin otra cuenta ese día. El FERIADO
+//     (lib/feriados.ts) va igual: trabajado $30, no trabajado = libre pagado.
 //   · Sin seguro social ni educativo.
 //   · Un día del que el sistema no puede saber (falta una de las dos marcas)
 //     no se descuenta: se marca «incompleto» para que la Dirección lo corrija.
@@ -41,6 +42,7 @@ export const tarifaHora = (sueldoMensual: number) => tarifaDia(sueldoMensual) / 
 export interface MarcasDia {
   fecha: string; // 'YYYY-MM-DD'
   diaSemana: number; // 0 = domingo
+  feriado?: string | null; // nombre del feriado, si lo es
   entradaMin: number | null;
   salidaMin: number | null;
 }
@@ -51,6 +53,7 @@ export interface DiaEvaluado extends MarcasDia {
   ausenciaMin: number;
   extraMin: number;
   domingoTrabajado: boolean;
+  feriadoTrabajado: boolean;
   /** Falta una de las dos marcas: no se descuenta nada más que la tardanza, pero hay que revisarlo. */
   incompleto: boolean;
 }
@@ -64,10 +67,12 @@ export function evaluarDia(d: MarcasDia, hoy: string): DiaEvaluado {
     ausenciaMin: 0,
     extraMin: 0,
     domingoTrabajado: false,
+    feriadoTrabajado: false,
     incompleto: false,
   };
   const marco = d.entradaMin !== null || d.salidaMin !== null;
   if (d.diaSemana === 0) return { ...base, domingoTrabajado: marco };
+  if (d.feriado) return { ...base, feriadoTrabajado: marco };
   if (!marco) return { ...base, ausenciaMin: d.fecha < hoy ? REGLAS.minutosPagadosDia : 0 };
 
   const tarde = d.entradaMin !== null ? Math.max(0, d.entradaMin - REGLAS.entradaMin) : 0;
@@ -88,8 +93,9 @@ export interface Desglose {
   salario: number;
   extras: number;
   extraMin: number;
-  domingos: number;
+  domingos: number; // domingos Y feriados trabajados, $30 c/u
   nDomingos: number;
+  nFeriados: number;
   tardanzas: number; // negativo
   tardanzaMin: number;
   salidaTemprana: number; // negativo
@@ -110,11 +116,12 @@ export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[]): De
   const salidaTempranaMin = suma(dias, 'salidaTempranaMin');
   const ausenciaMin = suma(dias, 'ausenciaMin');
   const nDomingos = dias.filter((d) => d.domingoTrabajado).length;
+  const nFeriados = dias.filter((d) => d.feriadoTrabajado).length;
 
   const lineas = {
     salario: round2(sueldoMensual / 2),
     extras: round2(extraMin * porMin * REGLAS.recargoExtra),
-    domingos: round2(nDomingos * REGLAS.pagoDomingo),
+    domingos: round2((nDomingos + nFeriados) * REGLAS.pagoDomingo),
     tardanzas: -round2(tardanzaMin * porMin),
     salidaTemprana: -round2(salidaTempranaMin * porMin),
     ausencias: -round2(ausenciaMin * porMin),
@@ -123,6 +130,7 @@ export function calcularQuincena(sueldoMensual: number, dias: DiaEvaluado[]): De
     ...lineas,
     extraMin,
     nDomingos,
+    nFeriados,
     tardanzaMin,
     salidaTempranaMin,
     ausenciaMin,

@@ -12,6 +12,7 @@ import { panamaParts, panamaToDate } from '@/lib/timezone';
 import { BUCKET_MARCACIONES, TIPOS_MARCA, horaEfectiva, type MarcacionRow } from '@/lib/marcacion';
 import { calcularQuincena, evaluarDia, fechasDe, quincenaDe, type Empleado, type MarcasDia } from '@/lib/planilla';
 import { RADIO_BODEGA_M } from '@/lib/geo';
+import { feriadoDe } from '@/lib/feriados';
 
 const FIRMA = 'Dirección';
 const FOTO_TTL_S = 60 * 60;
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
           const marcasDia: MarcasDia = {
             fecha,
             diaSemana,
+            feriado: feriadoDe(fecha),
             entradaMin: en ? panamaParts(horaEfectiva(en)).minutos : null,
             salidaMin: sa ? panamaParts(horaEfectiva(sa)).minutos : null,
           };

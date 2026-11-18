@@ -87,7 +87,7 @@ export async function generarComprobantePDF(c: ColaboradorPDF, periodo: string, 
 
   const filas: [string, string, string][] = [['Salario de la quincena', '', formatCurrency(d.salario)]];
   if (d.extraMin) filas.push(['Horas extra (× 1.25)', horas(d.extraMin), formatCurrency(d.extras)]);
-  if (d.nDomingos) filas.push(['Domingo trabajado ($30 c/u)', String(d.nDomingos), formatCurrency(d.domingos)]);
+  if (d.nDomingos + d.nFeriados) filas.push(['Domingos y feriados trabajados ($30 c/u)', String(d.nDomingos + d.nFeriados), formatCurrency(d.domingos)]);
   if (d.tardanzaMin) filas.push(['Tardanzas', `${d.tardanzaMin} min`, formatCurrency(d.tardanzas)]);
   if (d.salidaTempranaMin) filas.push(['Salida temprana', `${d.salidaTempranaMin} min`, formatCurrency(d.salidaTemprana)]);
   if (d.ausenciaMin) filas.push(['Ausencias', horas(d.ausenciaMin), formatCurrency(d.ausencias)]);
@@ -132,12 +132,12 @@ export async function generarReportePDF(cs: ColaboradorPDF[], periodo: string, l
   autoTable(doc, {
     startY: y + 10,
     margin: { left: m, right: m },
-    head: [['Colaborador', 'Salario', 'Horas extra', 'Domingos', 'Tardanzas', 'Salida temprana', 'Ausencias', 'Total']],
+    head: [['Colaborador', 'Salario', 'Horas extra', 'Domingos y feriados', 'Tardanzas', 'Salida temprana', 'Ausencias', 'Total']],
     body: cs.map(({ nombre, desglose: d }) => [
       nombre,
       formatCurrency(d.salario),
       d.extraMin ? `${formatCurrency(d.extras)} (${horas(d.extraMin)})` : '—',
-      d.nDomingos ? `${formatCurrency(d.domingos)} (${d.nDomingos})` : '—',
+      d.nDomingos + d.nFeriados ? `${formatCurrency(d.domingos)} (${d.nDomingos + d.nFeriados})` : '—',
       d.tardanzaMin ? `${formatCurrency(d.tardanzas)} (${d.tardanzaMin} min)` : '—',
       d.salidaTempranaMin ? `${formatCurrency(d.salidaTemprana)} (${d.salidaTempranaMin} min)` : '—',
       d.ausenciaMin ? `${formatCurrency(d.ausencias)} (${horas(d.ausenciaMin)})` : '—',

@@ -5,6 +5,7 @@ import {
   REGLAS, evaluarDia, calcularQuincena, totalizar, tarifaHora, quincenaDe, quincenaAnterior, fechasDe, rotuloQuincena,
 } from '../src/lib/planilla.ts';
 import { panamaParts, panamaToDate } from '../src/lib/timezone.ts';
+import { FERIADOS, feriadoDe } from '../src/lib/feriados.ts';
 
 const HOY = '2026-11-20';
 const dia = (fecha, entrada, salida, diaSemana = 1) => ({ fecha, diaSemana, entradaMin: entrada, salidaMin: salida });
@@ -93,4 +94,36 @@ test('hora de Panamá: UTC−5 fijo, minutos enteros, el día cambia a medianoch
   assert.deepEqual(p, { fecha: '2026-11-17', minutos: 490, diaSemana: 2 });
   assert.equal(panamaParts(new Date('2026-11-18T03:30:00Z')).fecha, '2026-11-17'); // 10:30 p. m. del 17
   assert.equal(panamaToDate('2026-11-17', 490).toISOString(), '2026-11-17T13:10:00.000Z');
+});
+
+test('feriado trabajado = $30 como el domingo; no trabajado = libre pagado, sin ausencia ni extra', () => {
+  const f = { fecha: '2026-11-03', diaSemana: 2, feriado: feriadoDe('2026-11-03'), entradaMin: h(8, 30), salidaMin: h(19) };
+  const t = evaluarDia(f, HOY);
+  assert.equal(t.feriadoTrabajado, true);
+  assert.equal(t.tardanzaMin, 0);
+  assert.equal(t.extraMin, 0);
+  const libre = evaluarDia({ ...f, entradaMin: null, salidaMin: null }, HOY);
+  assert.equal(libre.feriadoTrabajado, false);
+  assert.equal(libre.ausenciaMin, 0);
+  const d = calcularQuincena(600, [t, libre, evaluarDia(dia('2026-11-08', h(9), h(13), 0), HOY)]);
+  assert.equal(d.nFeriados, 1);
+  assert.equal(d.nDomingos, 1);
+  assert.equal(d.domingos, 60);
+  assert.equal(d.total, 360);
+});
+
+test('feriados de Panamá 2026 y 2027: 14 por año, móviles por la Pascua', () => {
+  for (const y of ['2026', '2027']) assert.equal(Object.keys(FERIADOS).filter((f) => f.startsWith(y)).length, 14, y);
+  assert.equal(feriadoDe('2026-04-03'), 'Viernes Santo'); // Pascua 5-abr-2026
+  assert.equal(feriadoDe('2026-02-17'), 'Martes de Carnaval');
+  assert.equal(feriadoDe('2027-03-26'), 'Viernes Santo'); // Pascua 28-mar-2027
+  assert.equal(feriadoDe('2027-02-09'), 'Martes de Carnaval');
+  assert.equal(feriadoDe('2026-12-08'), 'Día de la Madre');
+  assert.equal(feriadoDe('2026-12-20'), 'Día de Duelo Nacional');
+  assert.equal(feriadoDe('2026-11-17'), null);
+  // Cada fecha existe de verdad y el martes de Carnaval es 47 días antes de Pascua.
+  for (const f of Object.keys(FERIADOS)) assert.equal(new Date(`${f}T00:00:00Z`).toISOString().slice(0, 10), f);
+  const dias = (a, b) => (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000;
+  assert.equal(dias('2026-02-17', '2026-04-05'), 47);
+  assert.equal(dias('2027-02-09', '2027-03-28'), 47);
 });
