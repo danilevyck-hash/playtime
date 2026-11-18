@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useToast } from "@/context/ToastContext";
 import OrdersTab from "./components/OrdersTab";
@@ -12,6 +13,7 @@ import { ROL_NOMBRE } from "@/lib/roles";
 
 export default function AdminPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [pin, setPin] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState('');
@@ -86,7 +88,11 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.ok && data.role === 'colaborador') {
-        setError('Tu PIN es para marcar asistencia. Entra en /marcar.');
+        // Un colaborador entra por la misma pantalla y va directo a Marcar, con su nombre.
+        try {
+          sessionStorage.setItem('marcarToken', data.token || '');
+        } catch {}
+        router.push('/marcar');
         return;
       }
       if (data.ok) {
