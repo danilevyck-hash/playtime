@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { leerSesion, guardarSesion } from '@/lib/sesion-local';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/format';
@@ -251,15 +252,14 @@ export default function ContabilidadPage() {
 
   useEffect(() => {
     try {
-      const t = sessionStorage.getItem('adminToken');
-      const role = sessionStorage.getItem('adminRole');
-      if (t) {
-        // Contabilidad is admin-only. A vendedora session must not see it.
-        if (role === 'vendedora') {
-          router.replace('/admin');
+      const s = leerSesion();
+      if (s) {
+        // Contabilidad is admin-only: cualquier otro rol vuelve a su casa.
+        if (s.role !== 'admin') {
+          router.replace(s.role === 'colaborador' ? '/marcar' : '/admin');
           return;
         }
-        _adminToken = t;
+        _adminToken = s.token;
         setAuthed(true);
       }
     } catch {}
@@ -337,13 +337,10 @@ export default function ContabilidadPage() {
       if (data.ok) {
         _adminToken = data.token || '';
         const role = data.role || 'admin';
-        try {
-          sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminRole', role);
-        } catch {}
-        // Contabilidad is admin-only: send vendedora to the orders admin.
-        if (role === 'vendedora') {
-          router.replace('/admin');
+        guardarSesion(_adminToken, role);
+        // Contabilidad is admin-only: los demás van a su casa.
+        if (role !== 'admin') {
+          router.replace(role === 'colaborador' ? '/marcar' : '/admin');
           return;
         }
         setAuthed(true);

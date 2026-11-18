@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { leerSesion } from '@/lib/sesion-local';
 import { useRouter, useParams } from 'next/navigation';
 import { EVENT_AREAS, type PaymentMethod } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
@@ -131,12 +132,12 @@ export default function PedidoDetailPage() {
   // Restore session
   useEffect(() => {
     try {
-      const t = sessionStorage.getItem('adminToken') || '';
-      if (!t) {
+      const s = leerSesion();
+      if (!s || s.role === 'colaborador') {
         router.push('/admin');
         return;
       }
-      setToken(t);
+      setToken(s.token);
       setAuthReady(true);
     } catch {
       router.push('/admin');

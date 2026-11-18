@@ -10,6 +10,7 @@ import WebsiteTab from "./components/WebsiteTab";
 import CatalogoAdminTab from "./components/CatalogoAdminTab";
 import { _adminToken, _adminRole, setAdminToken, setAdminRole } from "./components/shared";
 import { ROL_NOMBRE } from "@/lib/roles";
+import { leerSesion, guardarSesion, cerrarSesion, renovarSesion } from "@/lib/sesion-local";
 
 export default function AdminPage() {
   const { showToast } = useToast();
@@ -20,24 +21,32 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'pedidos' | 'website' | 'catalogo'>('pedidos');
   const [pushEnabled, setPushEnabled] = useState(false);
 
-  // Restore session from sessionStorage on mount
+  // La sesión recordada en este teléfono (14 días desde el último uso): entra directo y se renueva.
   useEffect(() => {
-    try {
-      const savedToken = sessionStorage.getItem('adminToken');
-      const savedRole = sessionStorage.getItem('adminRole');
-      if (savedToken) {
-        setAdminToken(savedToken);
-        if (savedRole === 'colaborador') {
-          // Un colaborador no entra al admin: su pantalla es /marcar.
-          sessionStorage.removeItem('adminToken');
-          sessionStorage.removeItem('adminRole');
-          return;
-        }
-        setAdminRole(savedRole === 'vendedora' ? 'vendedora' : 'admin');
-        setAuthenticated(true);
+    const s = leerSesion();
+    if (!s) return;
+    if (s.role === 'colaborador') {
+      router.replace('/marcar');
+      return;
+    }
+    setAdminToken(s.token);
+    setAdminRole(s.role);
+    setAuthenticated(true);
+    renovarSesion().then((r) => {
+      if (!r) {
+        setAdminToken('');
+        setAuthenticated(false);
+      } else {
+        setAdminToken(r.token);
       }
-    } catch {}
-  }, []);
+    });
+  }, [router]);
+
+  const salir = () => {
+    cerrarSesion();
+    setAdminToken('');
+    setAuthenticated(false);
+  };
 
   useEffect(() => {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -89,19 +98,14 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.ok && data.role === 'colaborador') {
         // Un colaborador entra por la misma pantalla y va directo a Marcar, con su nombre.
-        try {
-          sessionStorage.setItem('marcarToken', data.token || '');
-        } catch {}
+        guardarSesion(data.token || '', 'colaborador');
         router.push('/marcar');
         return;
       }
       if (data.ok) {
         setAdminToken(data.token || '');
         setAdminRole(data.role || 'admin');
-        try {
-          sessionStorage.setItem('adminToken', _adminToken);
-          sessionStorage.setItem('adminRole', _adminRole);
-        } catch {}
+        guardarSesion(_adminToken, _adminRole);
         setAuthenticated(true);
       } else {
         setError(data.error || 'PIN incorrecto');
@@ -143,7 +147,9 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <p className="text-xs text-gray-500 mb-2 text-right">{ROL_NOMBRE[_adminRole]}</p>
+      <p className="text-xs text-gray-500 mb-2 text-right">
+        {ROL_NOMBRE[_adminRole]} · <button onClick={salir} className="underline hover:text-purple">Cerrar sesión</button>
+      </p>
       {/* Dirección y Gerencia ven las tres pestañas; Contabilidad y Planilla son solo de la Dirección */}
       {(
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">

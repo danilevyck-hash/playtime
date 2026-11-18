@@ -5,8 +5,7 @@ import {
   getClientIP,
   checkAndCountAttempt,
   clearAttempts,
-  isValidSession,
-  getSessionRole,
+  getSession,
   createSession,
   verifyPin,
 } from '@/lib/admin-auth';
@@ -46,10 +45,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Verify session endpoint (sesión del área admin; el colaborador se verifica en GET /api/marcar)
+// Verificar y RENOVAR la sesión (cualquier rol): devuelve un token nuevo con
+// otros 14 días. Lo llama la app al abrirse (lib/sesion-local.ts).
 export async function GET(request: NextRequest) {
-  const token = request.headers.get('x-admin-token');
-  const valid = isValidSession(token);
-  const role = valid ? getSessionRole(token) : null;
-  return NextResponse.json({ ok: valid, role }, { status: valid ? 200 : 401 });
+  const s = getSession(request.headers.get('x-admin-token'));
+  if (!s) return NextResponse.json({ ok: false, role: null }, { status: 401 });
+  const token = createSession(s.role, s.empleadoId);
+  return NextResponse.json({ ok: true, role: s.role, token: token || undefined });
 }
