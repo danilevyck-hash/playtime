@@ -5,9 +5,10 @@
 // decide si está en la bodega (radio configurable). Dos marcas al día.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { horaRotulo, type TipoMarca } from '@/lib/marcacion';
+import { leerSesion, cerrarSesion, renovarSesion } from '@/lib/sesion-local';
 
-const TOKEN_KEY = 'marcarToken';
 const ROTULO: Record<TipoMarca, string> = { entrada: 'Entrada', salida: 'Salida' };
 
 interface Hoy {
@@ -26,60 +27,8 @@ function fechaLarga(fecha: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function Login({ onToken }: { onToken: (t: string) => void }) {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [enviando, setEnviando] = useState(false);
-
-  const entrar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEnviando(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
-      const data = await res.json();
-      if (!data.ok) setError(data.error || 'PIN incorrecto');
-      else if (data.role !== 'colaborador') setError('Este PIN no es de un colaborador.');
-      else onToken(data.token);
-    } catch {
-      setError('Sin conexión. Intenta de nuevo.');
-    } finally {
-      setEnviando(false);
-      setPin('');
-    }
-  };
-
-  return (
-    <main className="min-h-screen bg-cream flex items-center justify-center px-5 font-body">
-      <form onSubmit={entrar} className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-sm text-center">
-        <Image src="/logo.png" alt="PlayTime" width={72} height={78} className="h-16 w-auto mx-auto" priority />
-        <h1 className="font-heading text-2xl font-bold text-purple mt-4">Marcar asistencia</h1>
-        <p className="text-sm text-gray-500 mt-1">Escribe tu PIN</p>
-        <input
-          type="password"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={6}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-          className="mt-5 w-full text-center text-2xl tracking-[0.5em] font-heading font-bold border-2 border-gray-200 rounded-xl py-3 px-4 focus:border-purple focus:outline-none"
-          autoFocus
-          aria-label="PIN"
-        />
-        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
-        <button
-          type="submit"
-          disabled={pin.length < 4 || enviando}
-          className="mt-4 w-full rounded-xl bg-purple py-3 font-heading font-bold text-white disabled:bg-gray-300 active:scale-[0.98] transition-transform"
-        >
-          Entrar
-        </button>
-      </form>
-    </main>
-  );
-}
-
 export default function MarcarPage() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [hoy, setHoy] = useState<Hoy | null>(null);
@@ -91,10 +40,13 @@ export default function MarcarPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Sesión recordada (14 días desde el último uso); se renueva al abrir. Sin sesión, a la pantalla de PIN.
   useEffect(() => {
-    try {
-      setToken(sessionStorage.getItem(TOKEN_KEY));
-    } catch {}
+    const s = leerSesion();
+    if (s?.role === 'colaborador') {
+      setToken(s.token);
+      renovarSesion().then((r) => r && setToken(r.token));
+    }
     setListo(true);
   }, []);
 
@@ -107,12 +59,11 @@ export default function MarcarPage() {
   }, []);
 
   const salir = useCallback(() => {
-    try {
-      sessionStorage.removeItem(TOKEN_KEY);
-    } catch {}
+    cerrarSesion();
     setToken(null);
     setHoy(null);
-  }, []);
+    router.replace('/admin');
+  }, [router]);
 
   const cargar = useCallback(async () => {
     if (!token) return;
@@ -201,16 +152,9 @@ export default function MarcarPage() {
 
   if (!listo) return null;
   if (!token) {
-    return (
-      <Login
-        onToken={(t) => {
-          try {
-            sessionStorage.setItem(TOKEN_KEY, t);
-          } catch {}
-          setToken(t);
-        }}
-      />
-    );
+    // Se entra por la pantalla de PIN de /admin, la misma de todos.
+    router.replace('/admin');
+    return null;
   }
 
   const puedeMarcar = !!siguiente && camaraOk === true && !!hoy?.bodegaFijada && !enviando;
@@ -220,7 +164,7 @@ export default function MarcarPage() {
       <header className="flex items-center justify-between">
         <Image src="/logo.png" alt="PlayTime" width={56} height={61} className="h-12 w-auto" priority />
         <button onClick={salir} className="text-xs text-gray-500 underline">
-          Salir
+          Cerrar sesión
         </button>
       </header>
 

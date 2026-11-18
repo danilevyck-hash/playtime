@@ -10,6 +10,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import SesionRedirect from "@/components/SesionRedirect";
 import { SITE_URL } from "@/lib/constants";
 import "./globals.css";
 
@@ -138,6 +139,7 @@ export default async function RootLayout({
           </CartProvider>
         </ToastProvider>
         <ServiceWorkerRegistrar />
+        <SesionRedirect />
       </body>
     </html>
   );

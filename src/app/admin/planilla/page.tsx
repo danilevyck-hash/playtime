@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/format';
 import { quincenaAnterior, quincenaDe, rotuloQuincena, tarifaHora, type DiaEvaluado, type Desglose, type Quincena } from '@/lib/planilla';
 import { horaRotulo, type TipoMarca } from '@/lib/marcacion';
 import { generarComprobantePDF, generarReportePDF } from '@/lib/pdf-planilla';
+import { leerSesion } from '@/lib/sesion-local';
 
 interface Marca {
   id: string;
@@ -60,14 +61,9 @@ export default function PlanillaPage() {
   const [aviso, setAviso] = useState('');
 
   useEffect(() => {
-    try {
-      const t = sessionStorage.getItem('adminToken');
-      const role = sessionStorage.getItem('adminRole');
-      if (!t || role !== 'admin') return router.replace('/admin');
-      setToken(t);
-    } catch {
-      router.replace('/admin');
-    }
+    const s = leerSesion();
+    if (!s || s.role !== 'admin') return router.replace('/admin');
+    setToken(s.token);
   }, [router]);
 
   const cargar = useCallback(async () => {

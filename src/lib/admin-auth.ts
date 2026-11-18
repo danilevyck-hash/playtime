@@ -7,7 +7,11 @@ const attempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-// In-memory session tokens (valid for 24h)
+// Una sesión dura 14 días desde el ÚLTIMO uso: GET /api/auth la renueva cada
+// vez que se abre la app (Daniel, 18-nov-2026: no poner el PIN cada vez).
+export const SESION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+// In-memory session tokens
 type SessionData = { expiresAt: number; role: Rol; empleadoId?: string };
 const sessions = new Map<string, SessionData>(); // token -> session data
 
@@ -30,7 +34,7 @@ export function createSignedToken(role: Rol, empleadoId?: string): string {
     console.error('[auth] No strong signing key (SUPABASE_SERVICE_ROLE_KEY/AUTH_SECRET) — refusing to issue token');
     return '';
   }
-  const payload = JSON.stringify({ role, empleadoId, exp: Date.now() + 24 * 60 * 60 * 1000 });
+  const payload = JSON.stringify({ role, empleadoId, exp: Date.now() + SESION_TTL_MS });
   const payloadB64 = Buffer.from(payload).toString('base64url');
   const sig = crypto.createHmac('sha256', key).update(payloadB64).digest('base64url');
   return `${payloadB64}.${sig}`;
@@ -163,7 +167,7 @@ export function createSession(role: Rol = 'admin', empleadoId?: string): string 
   // cache an empty token (isValidSession/getSessionRole already reject it).
   if (!token) return '';
   // Also cache in-memory for fast validation on same instance
-  const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
+  const expiresAt = Date.now() + SESION_TTL_MS;
   sessions.set(token, { expiresAt, role, empleadoId });
   return token;
 }
