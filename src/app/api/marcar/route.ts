@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic';
 
-// Marcación del colaborador: 2 marcas al día (entrada, salida) con selfie y
+// Marcación del colaborador: 2 marcas al día (entrada, salida) con foto y
 // ubicación. La HORA la pone el servidor; la DISTANCIA a la bodega la calcula
-// el servidor contra pt_marcacion_ajustes. Fuera del radio no se marca.
+// el servidor contra pt_marcacion_ajustes. Solo la ENTRADA exige estar dentro
+// del radio (Daniel, 18-nov-2026): la salida se marca desde donde esté, y
+// guarda igual ubicación y distancia para que la Dirección las vea.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireRole } from '@/lib/admin-auth';
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (!ajustes) return NextResponse.json({ error: 'La Dirección todavía no fijó la ubicación de la bodega.' }, { status: 409 });
 
     const distancia = distanciaM({ lat, lng }, ajustes);
-    if (distancia > ajustes.radio_m) {
+    if (tipo === 'entrada' && distancia > ajustes.radio_m) {
       return NextResponse.json(
         { error: `Estás a ${rotuloDistancia(distancia)} de la bodega. Acércate para marcar.`, distancia_m: Math.round(distancia) },
         { status: 422 },
