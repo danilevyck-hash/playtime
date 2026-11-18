@@ -1,8 +1,9 @@
 'use client';
 
-// Marcación del colaborador (teléfono). Entra con su PIN personal; cada marca
-// lleva selfie de la cámara frontal + ubicación. El servidor pone la hora y
-// decide si está en la bodega (radio configurable). Dos marcas al día.
+// Marcación del colaborador (teléfono). Se entra por la única pantalla de PIN
+// (/admin); cada marca lleva foto (cámara de adelante por defecto, se puede
+// girar) + ubicación. El servidor pone la hora y, en la ENTRADA, decide si está
+// en la bodega (radio configurable); la salida se marca desde donde esté.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -37,6 +38,7 @@ export default function MarcarPage() {
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [reloj, setReloj] = useState('');
+  const [camara, setCamara] = useState<'user' | 'environment'>('user');
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -87,8 +89,9 @@ export default function MarcarPage() {
   useEffect(() => {
     if (!siguiente || !navigator.mediaDevices?.getUserMedia) return;
     let cancelado = false;
+    setCamaraOk(null);
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false })
+      .getUserMedia({ video: { facingMode: camara, width: { ideal: 640 }, height: { ideal: 640 } }, audio: false })
       .then((stream) => {
         if (cancelado) return stream.getTracks().forEach((t) => t.stop());
         streamRef.current = stream;
@@ -101,7 +104,7 @@ export default function MarcarPage() {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, [siguiente]);
+  }, [siguiente, camara]);
 
   const tomarSelfie = (): Promise<Blob> =>
     new Promise((resolve, reject) => {
@@ -157,7 +160,8 @@ export default function MarcarPage() {
     return null;
   }
 
-  const puedeMarcar = !!siguiente && camaraOk === true && !!hoy?.bodegaFijada && !enviando;
+  // La bodega fijada solo hace falta para la entrada; la salida se marca desde donde esté.
+  const puedeMarcar = !!siguiente && camaraOk === true && (siguiente === 'salida' || !!hoy?.bodegaFijada) && !enviando;
 
   return (
     <main className="min-h-screen bg-cream px-5 pt-6 pb-10 max-w-md mx-auto font-body">
@@ -175,11 +179,24 @@ export default function MarcarPage() {
       </section>
 
       <section className="mt-7">
-        <div className={`mx-auto w-44 h-44 rounded-full overflow-hidden border-4 bg-white flex items-center justify-center ${resultado?.ok ? 'border-teal' : 'border-purple/25'}`}>
-          {siguiente ? (
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover -scale-x-100" />
-          ) : (
-            <span className="text-5xl text-teal-text">✓</span>
+        <div className="relative mx-auto w-44 h-44">
+          <div className={`w-44 h-44 rounded-full overflow-hidden border-4 bg-white flex items-center justify-center ${resultado?.ok ? 'border-teal' : 'border-purple/25'}`}>
+            {siguiente ? (
+              <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${camara === 'user' ? '-scale-x-100' : ''}`} />
+            ) : (
+              <span className="text-5xl text-teal-text">✓</span>
+            )}
+          </div>
+          {siguiente && (
+            <button
+              type="button"
+              onClick={() => setCamara((c) => (c === 'user' ? 'environment' : 'user'))}
+              disabled={enviando}
+              aria-label={camara === 'user' ? 'Usar la cámara de atrás' : 'Usar la cámara de adelante'}
+              className="absolute -bottom-1 -right-1 w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm text-purple text-xl flex items-center justify-center active:scale-95"
+            >
+              ⟲
+            </button>
           )}
         </div>
         {camaraOk === false && siguiente && (
@@ -188,7 +205,7 @@ export default function MarcarPage() {
       </section>
 
       {errorCarga && <p className="mt-5 text-center text-sm text-orange-text">{errorCarga}</p>}
-      {hoy && !hoy.bodegaFijada && (
+      {hoy && !hoy.bodegaFijada && siguiente === 'entrada' && (
         <p className="mt-5 text-center text-sm text-orange-text">La Dirección todavía no fijó la ubicación de la bodega.</p>
       )}
 
@@ -205,7 +222,9 @@ export default function MarcarPage() {
         </div>
       ) : siguiente ? (
         <>
-          <p className="mt-5 text-center text-sm text-gray-600">Al tocar, se toma tu selfie y se revisa que estés en la bodega.</p>
+          <p className="mt-5 text-center text-sm text-gray-600">
+            {siguiente === 'entrada' ? 'Al tocar, se toma tu foto y se revisa que estés en la bodega.' : 'Al tocar, se toma tu foto y se guarda dónde estás.'}
+          </p>
           <button
             onClick={marcar}
             disabled={!puedeMarcar}
